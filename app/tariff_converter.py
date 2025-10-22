@@ -37,22 +37,42 @@ class AmberTariffConverter:
         general_lookup = {}  # (date_str, hour, minute) -> [prices]
         feedin_lookup = {}
 
+        # Count interval types for logging
+        interval_types = {}
+        for point in forecast_data:
+            interval_type = point.get('type', 'unknown')
+            interval_types[interval_type] = interval_types.get(interval_type, 0) + 1
+        logger.info(f"Forecast data contains: {interval_types}")
+
         for point in forecast_data:
             try:
                 nem_time = point.get('nemTime', '')
                 timestamp = datetime.fromisoformat(nem_time.replace('Z', '+00:00'))
                 channel_type = point.get('channelType', '')
+                interval_type = point.get('type', 'unknown')
 
-                # Use advancedPrice.predicted (includes spot + retailer margin, excludes network/environmental)
-                # advancedPrice contains: low, predicted, high (confidence intervals)
-                # We use predicted as the most likely/expected price for optimization
-                # Convert cents/kWh to dollars/kWh for Tesla
-                advanced_price = point.get('advancedPrice', {})
-                if isinstance(advanced_price, dict):
-                    per_kwh_cents = advanced_price.get('predicted', 0)
+                # Try to get advancedPrice.predicted first (ForecastInterval, CurrentInterval)
+                # Fall back to perKwh for ActualInterval (historical data)
+                advanced_price = point.get('advancedPrice')
+
+                if advanced_price and isinstance(advanced_price, dict) and 'predicted' in advanced_price:
+                    # Use predicted price from forecast (best option)
+                    per_kwh_cents = advanced_price['predicted']
+                elif advanced_price and isinstance(advanced_price, (int, float)):
+                    # advancedPrice is a simple number
+                    per_kwh_cents = advanced_price
                 else:
-                    # Fallback if advancedPrice is a simple number
-                    per_kwh_cents = advanced_price if advanced_price else 0
+                    # Fallback to perKwh (for ActualInterval or when advancedPrice unavailable)
+                    per_kwh_cents = point.get('perKwh', 0)
+                    if interval_type == 'ForecastInterval' and not advanced_price:
+                        logger.warning(f"ForecastInterval at {nem_time} missing advancedPrice, using perKwh={per_kwh_cents}")
+
+                # Amber API convention: feedIn (sell) prices are negative when you get paid
+                # Tesla convention: sell prices are positive when you get paid
+                # So we need to NEGATE feedIn prices to convert to Tesla's convention
+                if channel_type == 'feedIn':
+                    per_kwh_cents = -per_kwh_cents
+
                 per_kwh_dollars = per_kwh_cents / 100
 
                 # Round down to nearest 30-minute interval
@@ -144,9 +164,17 @@ class AmberTariffConverter:
                     else:
                         general_prices[period_key] = buy_price
                 else:
-                    # If no data available, use 0 to ensure no gaps (Tesla API requirement)
-                    logger.warning(f"No general price data for {period_key} on {date_str}, using 0.00")
-                    general_prices[period_key] = 0
+                    # If tomorrow's forecast not available, fallback to today's actual/current price
+                    fallback_key = (today.isoformat(), hour, minute)
+                    if fallback_key in general_lookup:
+                        prices = general_lookup[fallback_key]
+                        buy_price = max(0, sum(prices) / len(prices))
+                        logger.info(f"No forecast for {period_key} on {date_str}, using today's price: ${buy_price:.4f}")
+                        general_prices[period_key] = buy_price
+                    else:
+                        # Last resort: use 0 (shouldn't happen for current day)
+                        logger.warning(f"No price data for {period_key} on {date_str} or {today.isoformat()}, using 0.00")
+                        general_prices[period_key] = 0
 
                 # Get feedin price (sell price)
                 if lookup_key in feedin_lookup:
@@ -169,9 +197,20 @@ class AmberTariffConverter:
 
                     feedin_prices[period_key] = sell_price
                 else:
-                    # If no data available, use 0 to ensure no gaps (Tesla API requirement)
-                    logger.warning(f"No feed-in price data for {period_key} on {date_str}, using 0.00")
-                    feedin_prices[period_key] = 0
+                    # If tomorrow's forecast not available, fallback to today's actual/current price
+                    fallback_key = (today.isoformat(), hour, minute)
+                    if fallback_key in feedin_lookup:
+                        prices = feedin_lookup[fallback_key]
+                        sell_price = max(0, sum(prices) / len(prices))
+                        # Tesla restriction: sell price cannot exceed buy price
+                        if period_key in general_prices and sell_price > general_prices[period_key]:
+                            sell_price = general_prices[period_key]
+                        logger.info(f"No forecast for {period_key} feedIn on {date_str}, using today's price: ${sell_price:.4f}")
+                        feedin_prices[period_key] = sell_price
+                    else:
+                        # Last resort: use 0 (shouldn't happen for current day)
+                        logger.warning(f"No feedIn price data for {period_key} on {date_str} or {today.isoformat()}, using 0.00")
+                        feedin_prices[period_key] = 0
 
         logger.info(f"Rolling 24h window: {len([k for k in general_prices.keys()])} periods from {today} and {tomorrow}")
 
