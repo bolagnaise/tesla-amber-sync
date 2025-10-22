@@ -33,6 +33,21 @@ class User(UserMixin, db.Model):
     manual_control_mode = db.Column(db.String(20))  # 'charge', 'discharge', or None
     manual_control_end_time = db.Column(db.DateTime)  # When manual control expires
 
+    # Demand Charge Configuration
+    enable_demand_charges = db.Column(db.Boolean, default=False)
+    peak_demand_rate = db.Column(db.Float, default=0.0)
+    peak_start_hour = db.Column(db.Integer, default=14)
+    peak_start_minute = db.Column(db.Integer, default=0)
+    peak_end_hour = db.Column(db.Integer, default=20)
+    peak_end_minute = db.Column(db.Integer, default=0)
+    peak_days = db.Column(db.String(20), default='weekdays')  # 'weekdays', 'all', 'weekends'
+    offpeak_demand_rate = db.Column(db.Float, default=0.0)
+    shoulder_demand_rate = db.Column(db.Float, default=0.0)
+    shoulder_start_hour = db.Column(db.Integer, default=7)
+    shoulder_start_minute = db.Column(db.Integer, default=0)
+    shoulder_end_hour = db.Column(db.Integer, default=14)
+    shoulder_end_minute = db.Column(db.Integer, default=0)
+
     # Relationships
     price_records = db.relationship('PriceRecord', backref='user', lazy='dynamic')
 

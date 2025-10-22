@@ -1,7 +1,7 @@
 # app/forms.py
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, BooleanField, SubmitField
-from wtforms.validators import DataRequired, Email, EqualTo, ValidationError
+from wtforms import StringField, PasswordField, BooleanField, SubmitField, DecimalField, IntegerField, SelectField
+from wtforms.validators import DataRequired, Email, EqualTo, ValidationError, Optional, NumberRange
 from app.models import User
 
 class LoginForm(FlaskForm):
@@ -36,4 +36,34 @@ class EnvironmentForm(FlaskForm):
     tesla_redirect_uri = StringField('Tesla Redirect URI')
     app_domain = StringField('App Domain')
     submit = SubmitField('Save Environment Settings')
+
+
+class DemandChargeForm(FlaskForm):
+    """Form for configuring demand charge periods"""
+    # Enable/disable demand charges
+    enable_demand_charges = BooleanField('Enable Demand Charges')
+
+    # Peak demand period
+    peak_rate = DecimalField('Peak Rate ($/kW)', validators=[Optional(), NumberRange(min=0)], places=4, default=0)
+    peak_start_hour = IntegerField('Peak Start Hour', validators=[Optional(), NumberRange(min=0, max=23)], default=14)
+    peak_start_minute = IntegerField('Peak Start Minute', validators=[Optional(), NumberRange(min=0, max=59)], default=0)
+    peak_end_hour = IntegerField('Peak End Hour', validators=[Optional(), NumberRange(min=0, max=23)], default=20)
+    peak_end_minute = IntegerField('Peak End Minute', validators=[Optional(), NumberRange(min=0, max=59)], default=0)
+    peak_days = SelectField('Peak Days', choices=[
+        ('weekdays', 'Weekdays Only'),
+        ('all', 'All Days'),
+        ('weekends', 'Weekends Only')
+    ], default='weekdays')
+
+    # Off-peak demand period
+    offpeak_rate = DecimalField('Off-Peak Rate ($/kW)', validators=[Optional(), NumberRange(min=0)], places=4, default=0)
+
+    # Shoulder demand period (optional)
+    shoulder_rate = DecimalField('Shoulder Rate ($/kW)', validators=[Optional(), NumberRange(min=0)], places=4, default=0)
+    shoulder_start_hour = IntegerField('Shoulder Start Hour', validators=[Optional(), NumberRange(min=0, max=23)], default=7)
+    shoulder_start_minute = IntegerField('Shoulder Start Minute', validators=[Optional(), NumberRange(min=0, max=59)], default=0)
+    shoulder_end_hour = IntegerField('Shoulder End Hour', validators=[Optional(), NumberRange(min=0, max=23)], default=14)
+    shoulder_end_minute = IntegerField('Shoulder End Minute', validators=[Optional(), NumberRange(min=0, max=59)], default=0)
+
+    submit = SubmitField('Save Demand Charges')
 
