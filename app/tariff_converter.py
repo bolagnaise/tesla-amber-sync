@@ -43,9 +43,9 @@ class AmberTariffConverter:
                 timestamp = datetime.fromisoformat(nem_time.replace('Z', '+00:00'))
                 channel_type = point.get('channelType', '')
 
-                # Use spotPerKwh (wholesale spot price) to match Netzero's approach
+                # Use advancedPrice (includes spot + retailer margin, excludes network/environmental)
                 # Convert cents/kWh to dollars/kWh for Tesla
-                per_kwh_cents = point.get('spotPerKwh', 0)
+                per_kwh_cents = point.get('advancedPrice', 0)
                 per_kwh_dollars = per_kwh_cents / 100
 
                 # Round down to nearest 30-minute interval
