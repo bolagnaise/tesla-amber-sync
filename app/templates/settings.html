@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <hgroup>
+        <h1>Settings</h1>
+        <h2>Configure your API credentials and preferences</h2>
+    </hgroup>
+
+    <!-- Tesla Authentication Options -->
+    <article>
+        <header>
+            <strong>Tesla API Authentication</strong>
+            <div style="float: right;">
+                <a href="{{ url_for('main.environment_settings') }}">
+                    <button type="button" class="outline" style="font-size: 0.85em;">Configure Developer Credentials</button>
+                </a>
+            </div>
+        </header>
+        <p>Choose your preferred method to connect to Tesla for energy management (Powerwall/Solar). You can use one or both methods simultaneously for testing.</p>
+
+        <div class="grid" style="margin-top: 1em;">
+            <!-- Tesla Fleet API (Direct OAuth) -->
+            <article style="margin: 0;">
+                <header style="background: rgba(100, 150, 255, 0.1); padding: 0.5em; border-radius: 0.5em;">
+                    <strong>Tesla Fleet API</strong>
+                    <br><small>Direct OAuth with Virtual Keys</small>
+                </header>
+
+                {% if current_user.tesla_fleet_public_key %}
+                    {% if current_user.tesla_access_token_encrypted %}
+                        <!-- Fully connected -->
+                        <div style="padding: 0.8em; background: rgba(0, 255, 0, 0.1); border-radius: 0.5em; margin: 0.5em 0;">
+                            <p style="margin: 0; color: #51cf66; font-size: 0.9em;">✅ <strong>Connected</strong></p>
+                        </div>
+
+                        <!-- Energy Site ID Display -->
+                        {% if current_user.tesla_energy_site_id %}
+                        <div style="padding: 0.5em; background: rgba(100, 150, 255, 0.05); border-radius: 0.5em; margin: 0.5em 0;">
+                            <p style="margin: 0; font-size: 0.85em; color: #555;">
+                                <strong>Energy Site ID:</strong><br>
+                                <code style="font-size: 0.9em;">{{ current_user.tesla_energy_site_id }}</code>
+                            </p>
+                        </div>
+                        {% else %}
+                        <div style="padding: 0.5em; background: rgba(255, 200, 0, 0.1); border-radius: 0.5em; margin: 0.5em 0;">
+                            <p style="margin: 0; font-size: 0.85em; color: #856404;">
+                                ⚠️ No Energy Site ID set<br>
+                                <small>Set it in the API Configuration section below</small>
+                            </p>
+                        </div>
+                        {% endif %}
+
+                        <div class="grid" style="margin-top: 0.5em;">
+                            <form action="{{ url_for('main.tesla_fleet_disconnect') }}" method="post" style="margin: 0;">
+                                <button type="submit" class="outline" style="width: 100%; font-size: 0.85em;">Disconnect</button>
+                            </form>
+                            <form action="{{ url_for('main.tesla_fleet_reset_keys') }}" method="post" style="margin: 0;">
+                                <button type="submit" class="outline" style="width: 100%; font-size: 0.85em;" onclick="return confirm('Reset all Fleet API keys and tokens?')">Reset Keys</button>
+                            </form>
+                        </div>
+                    {% else %}
+                        <!-- Keys generated but not authorized -->
+                        <div style="padding: 0.8em; background: rgba(255, 255, 0, 0.1); border-radius: 0.5em; margin: 0.5em 0;">
+                            <p style="margin: 0; color: #ffd43b; font-size: 0.9em;">⚙️ <strong>Keys Ready</strong></p>
+                            <p style="margin: 0.3em 0 0 0; font-size: 0.75em;">Step 2: Authorize</p>
+                        </div>
+
+                        <a href="{{ url_for('main.tesla_fleet_connect') }}">
+                            <button type="button" class="primary" style="width: 100%; font-size: 0.85em; margin-top: 0.5em;">Connect to Tesla</button>
+                        </a>
+
+                        <form action="{{ url_for('main.tesla_fleet_reset_keys') }}" method="post" style="margin: 0.5em 0 0 0;">
+                            <button type="submit" class="outline" style="width: 100%; font-size: 0.85em;" onclick="return confirm('Reset and regenerate keys?')">Reset Keys</button>
+                        </form>
+                    {% endif %}
+                {% else %}
+                    <!-- Not set up yet -->
+                    <div style="padding: 0.8em; background: rgba(150, 150, 150, 0.1); border-radius: 0.5em; margin: 0.5em 0;">
+                        <p style="margin: 0; color: #999; font-size: 0.9em;">⭕ <strong>Not Configured</strong></p>
+                        <p style="margin: 0.3em 0 0 0; font-size: 0.75em;">Step 1: Generate Keys</p>
+                    </div>
+
+                    <button id="setup-tesla-fleet-btn" class="primary" style="width: 100%; font-size: 0.85em; margin-top: 0.5em;">Generate Keys</button>
+
+                    <details style="margin-top: 0.5em;">
+                        <summary style="font-size: 0.85em;">Setup Instructions</summary>
+                        <div style="font-size: 0.8em; margin-top: 0.5em; padding: 0.5em; background: rgba(100, 150, 255, 0.05); border-radius: 0.3em;">
+                            <p style="margin: 0 0 0.5em 0;"><strong>⚠️ Important: Fleet API requires a public HTTPS domain</strong></p>
+
+                            <p style="margin: 0.5em 0; padding-left: 1em; border-left: 3px solid #6495ed;">
+                                <strong>If running on localhost:</strong><br>
+                                <span style="color: #d9534f;">❌ Fleet API will not work (412 error)</span><br>
+                                <span style="color: #5cb85c;">✅ Use Teslemetry instead (works with localhost)</span>
+                            </p>
+
+                            <p style="margin: 1em 0 0.5em 0;"><strong>Prerequisites for Fleet API:</strong></p>
+                            <ol style="margin: 0.3em 0 0 1.2em; padding: 0;">
+                                <li style="margin: 0.3em 0;"><strong>Public Domain:</strong> Deploy to a server with HTTPS</li>
+                                <li style="margin: 0.3em 0;"><strong>Valid SSL Certificate:</strong> Let's Encrypt or commercial SSL</li>
+                                <li style="margin: 0.3em 0;"><strong>Tesla Developer Credentials:</strong> Get from <a href="https://developer.tesla.com/" target="_blank">developer.tesla.com</a></li>
+                                <li style="margin: 0.3em 0;"><strong>Public Key Accessibility:</strong> Tesla must access your <code>/.well-known/</code> endpoint</li>
+                            </ol>
+                        </div>
+                    </details>
+
+                    <details style="margin-top: 0.5em;">
+                        <summary style="font-size: 0.85em;">About Fleet API</summary>
+                        <p style="font-size: 0.8em; margin-top: 0.5em;">
+                            ✓ Direct connection to Tesla<br>
+                            ✓ No third-party proxy<br>
+                            ✓ Enhanced security<br>
+                            ✓ Auto-detects Energy Site ID<br>
+                            ✗ Requires public HTTPS domain
+                        </p>
+                    </details>
+                {% endif %}
+            </article>
+
+            <!-- Teslemetry (Proxy Service) -->
+            <article style="margin: 0;">
+                <header style="background: rgba(100, 200, 150, 0.1); padding: 0.5em; border-radius: 0.5em;">
+                    <strong>Teslemetry</strong>
+                    <br><small>Third-Party Proxy Service</small>
+                </header>
+
+                {% if current_user.teslemetry_api_key_encrypted %}
+                    <!-- Connected -->
+                    <div style="padding: 0.8em; background: rgba(0, 255, 0, 0.1); border-radius: 0.5em; margin: 0.5em 0;">
+                        <p style="margin: 0; color: #51cf66; font-size: 0.9em;">✅ <strong>Connected</strong></p>
+                    </div>
+
+                    <p style="font-size: 0.85em; margin: 0.5em 0;">API Key configured</p>
+
+                    <form action="{{ url_for('main.teslemetry_disconnect') }}" method="post" style="margin: 0.5em 0 0 0;">
+                        <button type="submit" class="outline" style="width: 100%; font-size: 0.85em;" onclick="return confirm('Disconnect Teslemetry?')">Disconnect</button>
+                    </form>
+                {% else %}
+                    <!-- Not connected -->
+                    <div style="padding: 0.8em; background: rgba(150, 150, 150, 0.1); border-radius: 0.5em; margin: 0.5em 0;">
+                        <p style="margin: 0; color: #999; font-size: 0.9em;">⭕ <strong>Not Configured</strong></p>
+                        <p style="margin: 0.3em 0 0 0; font-size: 0.75em;">Enter API key below</p>
+                    </div>
+
+                    <details style="margin-top: 0.5em;" open>
+                        <summary style="font-size: 0.85em;">Setup Instructions (Recommended for Localhost)</summary>
+                        <div style="font-size: 0.8em; margin-top: 0.5em; padding: 0.5em; background: rgba(100, 200, 150, 0.05); border-radius: 0.3em;">
+                            <p style="margin: 0 0 0.5em 0;"><strong>✅ Works with localhost (no public domain needed)</strong></p>
+
+                            <ol style="margin: 0.3em 0 0 1.2em; padding: 0;">
+                                <li style="margin: 0.3em 0;">Go to <a href="https://teslemetry.com" target="_blank" style="font-weight: bold;">teslemetry.com</a></li>
+                                <li style="margin: 0.3em 0;">Sign in with your Tesla account</li>
+                                <li style="margin: 0.3em 0;">Authorize Teslemetry</li>
+                                <li style="margin: 0.3em 0;">Copy your API key</li>
+                                <li style="margin: 0.3em 0;">Paste it in the API Configuration section below</li>
+                            </ol>
+                        </div>
+                    </details>
+
+                    <details style="margin-top: 0.5em;">
+                        <summary style="font-size: 0.85em;">About Teslemetry</summary>
+                        <p style="font-size: 0.8em; margin-top: 0.5em;">
+                            ✓ Easy setup (2 minutes)<br>
+                            ✓ Works with localhost<br>
+                            ✓ Free for personal use<br>
+                            ✓ Handles Tesla authentication<br>
+                            ✗ Third-party service
+                        </p>
+                    </details>
+                {% endif %}
+            </article>
+        </div>
+
+        <div style="padding: 0.8em; background: rgba(100, 150, 255, 0.05); border-radius: 0.5em; margin-top: 1em; border-left: 3px solid #6495ed;">
+            <p style="margin: 0; font-size: 0.85em;">
+                <strong>Tip:</strong> You can use both methods simultaneously. The app will prefer Fleet API when available, and fallback to Teslemetry if needed.
+            </p>
+        </div>
+    </article>
+
+    <!-- API Configuration Section -->
+    <article>
+        <header><strong>API Configuration</strong></header>
+        <p>Configure your API credentials and energy site information.</p>
+        <form action="{{ url_for('main.settings') }}" method="post" novalidate>
+            {{ form.hidden_tag() }}
+
+            <fieldset>
+                <legend>Amber Electric</legend>
+                <label for="amber_token">
+                    {{ form.amber_token.label }}
+                    <small>Get this from your Amber developer settings.</small>
+                    {{ form.amber_token(size=64) }}
+                </label>
+            </fieldset>
+
+            <fieldset style="margin-top: 1em;">
+                <legend>Teslemetry (Optional)</legend>
+                <label for="teslemetry_api_key">
+                    {{ form.teslemetry_api_key.label }}
+                    <small>Sign up at <a href="https://teslemetry.com" target="_blank">teslemetry.com</a>, connect your Tesla account, and paste your API key here.</small>
+                    {{ form.teslemetry_api_key(size=64) }}
+                </label>
+            </fieldset>
+
+            <fieldset style="margin-top: 1em;">
+                <legend>Tesla Energy Site</legend>
+                <label for="tesla_site_id">
+                    {{ form.tesla_site_id.label }}
+                    <small>Your Tesla energy site ID (Powerwall/Solar). Find this in Teslemetry dashboard or Tesla Fleet API products list.</small>
+                    {{ form.tesla_site_id(size=32) }}
+                </label>
+            </fieldset>
+
+            {{ form.submit(class_="primary", style="margin-top: 1em;") }}
+        </form>
+    </article>
+
+    <script>
+        // Tesla Fleet setup button handler
+        document.getElementById('setup-tesla-fleet-btn')?.addEventListener('click', async function() {
+            const btn = this;
+            try {
+                btn.disabled = true;
+                btn.textContent = 'Generating Keys...';
+
+                const response = await fetch('/tesla-fleet/setup', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    alert('Virtual keys generated successfully! Reloading page...');
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (result.error || 'Failed to generate keys'));
+                    btn.disabled = false;
+                    btn.textContent = 'Generate Keys';
+                }
+            } catch (error) {
+                console.error('Error generating Tesla Fleet keys:', error);
+                alert('Error: ' + error.message);
+                btn.disabled = false;
+                btn.textContent = 'Generate Keys';
+            }
+        });
+    </script>
+{% endblock %}

@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: tesla-amber-sync
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      # Flask Configuration
+      - SECRET_KEY=${SECRET_KEY:-please-change-this-to-a-random-string}
+      - FLASK_RUN_PORT=5001
+
+      # Database (SQLite stored in volume)
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////app/data/app.db}
+
+      # Encryption Key - MUST be set
+      - FERNET_ENCRYPTION_KEY=${FERNET_ENCRYPTION_KEY:?FERNET_ENCRYPTION_KEY must be set in .env file}
+
+      # Tesla API Credentials
+      - TESLA_CLIENT_ID=${TESLA_CLIENT_ID}
+      - TESLA_CLIENT_SECRET=${TESLA_CLIENT_SECRET}
+      - TESLA_REDIRECT_URI=${TESLA_REDIRECT_URI:-http://localhost:5001/tesla-fleet/callback}
+      - APP_DOMAIN=${APP_DOMAIN:-http://localhost:5001}
+
+    volumes:
+      # Persist database and user data
+      - ./data:/app/data
+
+    networks:
+      - tesla-sync-network
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5001/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  tesla-sync-network:
+    driver: bridge
+
+volumes:
+  data:

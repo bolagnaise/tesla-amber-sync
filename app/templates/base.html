@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-t">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }} - Tesla Amber Sync</title>
+    <!-- Pico.css for clean, modern styling with zero effort -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+  </head>
+  <body>
+    <nav class="container-fluid">
+      <ul>
+        <li><strong>Tesla Amber Sync</strong></li>
+      </ul>
+      <ul>
+        {% if current_user.is_anonymous %}
+        <li><a href="{{ url_for('main.login') }}">Login</a></li>
+        <li><a href="{{ url_for('main.register') }}">Register</a></li>
+        {% else %}
+        <li><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+        <li><a href="{{ url_for('main.settings') }}">Settings</a></li>
+        <li><a href="{{ url_for('main.logout') }}">Logout</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+    <main class="container">
+      {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+        <article style="background-color: var(--primary-focus);">{{ message }}</article>
+        {% endfor %}
+      {% endif %}
+      {% endwith %}
+      
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

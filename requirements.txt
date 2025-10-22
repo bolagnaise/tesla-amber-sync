@@ -1,0 +1,13 @@
+# requirements.txt
+Flask==2.3.3
+werkzeug==2.3.8
+Flask-SQLAlchemy
+Flask-Migrate
+Flask-Login
+Flask-WTF
+python-dotenv
+requests
+gunicorn
+cryptography
+email-validator
+APScheduler==3.10.4

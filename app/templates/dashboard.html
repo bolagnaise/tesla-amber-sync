@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <hgroup>
+        <h1>Dashboard</h1>
+        <h2>Real-time energy monitoring and pricing</h2>
+    </hgroup>
+
+    <!-- API Connection Status -->
+    <div class="grid">
+        <article id="amber-status" style="margin: 0; padding: 1em;">
+            <header><strong>Amber Electric</strong></header>
+            <p style="margin: 0;"><span class="status-indicator" id="amber-indicator">⏳</span> <span id="amber-message">Checking...</span></p>
+        </article>
+
+        <article id="tesla-status" style="margin: 0; padding: 1em;">
+            <header><strong>Tesla</strong></header>
+            <p style="margin: 0;"><span class="status-indicator" id="tesla-indicator">⏳</span> <span id="tesla-message">Checking...</span></p>
+        </article>
+    </div>
+
+    <!-- Current Pricing -->
+    <article id="pricing-section">
+        <header><strong>Current Electricity Pricing</strong></header>
+        <div id="pricing-content">
+            <p>Loading current prices...</p>
+        </div>
+    </article>
+
+    <!-- Tesla Battery Status -->
+    {% if current_user.tesla_energy_site_id %}
+    <article id="battery-section">
+        <header><strong>Tesla Powerwall Status</strong></header>
+        <div id="battery-content">
+            <p>Loading battery status...</p>
+        </div>
+    </article>
+    {% endif %}
+
+    <!-- Tariff Schedule -->
+    <article id="tou-schedule-section">
+        <header>
+            <strong>Electricity Tariff Schedule (Rolling 24h)</strong>
+            <div style="float: right;">
+                <button id="refresh-schedule-btn" style="font-size: 0.9em; margin-right: 0.5em;">Refresh</button>
+                {% if current_user.tesla_energy_site_id and (current_user.teslemetry_api_key_encrypted or current_user.tesla_access_token_encrypted) %}
+                <button id="sync-tesla-btn" class="primary" style="font-size: 0.9em;">Sync to Tesla</button>
+                {% endif %}
+            </div>
+        </header>
+        <div id="sync-status" style="margin-bottom: 1em;"></div>
+        <div id="tou-schedule-content">
+            <p>Loading tariff schedule...</p>
+        </div>
+        <details id="tou-forecast-details" style="margin-top: 1em;">
+            <summary>View Buy/Sell Price Chart</summary>
+            <canvas id="forecastChart" style="max-height: 300px; margin-top: 1em;"></canvas>
+        </details>
+    </article>
+
+    <!-- Price History Chart -->
+    <article id="price-history-section">
+        <header><strong>Price History (Last 24 Hours)</strong></header>
+        <canvas id="priceChart" style="max-height: 300px;"></canvas>
+    </article>
+
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <script>
+        // Check API status
+        async function checkAPIStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+
+                // Update Amber status
+                const amberIndicator = document.getElementById('amber-indicator');
+                const amberMessage = document.getElementById('amber-message');
+                if (status.amber.connected) {
+                    amberIndicator.textContent = '✅';
+                    amberMessage.textContent = 'Connected';
+                    amberMessage.style.color = 'green';
+                } else {
+                    amberIndicator.textContent = '❌';
+                    amberMessage.textContent = status.amber.message;
+                    amberMessage.style.color = 'red';
+                }
+
+                // Update Tesla status
+                const teslaIndicator = document.getElementById('tesla-indicator');
+                const teslaMessage = document.getElementById('tesla-message');
+                if (status.tesla.connected) {
+                    teslaIndicator.textContent = '✅';
+                    teslaMessage.textContent = 'Connected';
+                    teslaMessage.style.color = 'green';
+                } else {
+                    teslaIndicator.textContent = '❌';
+                    teslaMessage.textContent = status.tesla.message;
+                    teslaMessage.style.color = 'red';
+                }
+
+                // If Amber is connected, fetch current prices
+                if (status.amber.connected) {
+                    await fetchCurrentPrices();
+                }
+
+                // If Tesla is connected, fetch battery status
+                if (status.tesla.connected) {
+                    await fetchTeslaStatus();
+                }
+            } catch (error) {
+                console.error('Error checking API status:', error);
+            }
+        }
+
+        // Fetch current Amber prices
+        async function fetchCurrentPrices() {
+            try {
+                const response = await fetch('/api/amber/current-price');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch prices');
+                }
+                const prices = await response.json();
+
+                const pricingContent = document.getElementById('pricing-content');
+                let html = '<div class="grid">';
+
+                prices.forEach(channel => {
+                    const spikeColor = channel.spikeStatus === 'spike' ? 'red' :
+                                      channel.spikeStatus === 'potential' ? 'orange' : 'green';
+
+                    html += `
+                        <article style="margin: 0; padding: 1em; text-align: center;">
+                            <header><strong>${channel.channelType.toUpperCase()}</strong></header>
+                            <p style="font-size: 2.5em; margin: 0; color: ${spikeColor};">
+                                <strong>${channel.perKwh.toFixed(2)}¢</strong>
+                            </p>
+                            <p style="margin: 0.5em 0 0 0; font-size: 0.85em; color: #888;">
+                                per kWh
+                            </p>
+                            <small style="color: #666;">
+                                Spot: ${channel.spotPerKwh?.toFixed(2)}¢<br>
+                                ${channel.spikeStatus || 'normal'} • ${channel.forecast ? 'Forecast' : 'Actual'}
+                            </small>
+                        </article>
+                    `;
+                });
+
+                html += '</div>';
+                pricingContent.innerHTML = html;
+
+                // Fetch and update price history
+                await fetchPriceHistory();
+            } catch (error) {
+                console.error('Error fetching current prices:', error);
+                document.getElementById('pricing-content').innerHTML =
+                    '<p style="color: red;">Error loading prices. Please check your API token in Settings.</p>';
+            }
+        }
+
+        // Fetch Tesla battery status
+        async function fetchTeslaStatus() {
+            try {
+                const response = await fetch('/api/tesla/status');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch Tesla status');
+                }
+                const status = await response.json();
+
+                const batteryContent = document.getElementById('battery-content');
+                const batteryLevel = status.percentage_charged || 0;
+                const batteryColor = batteryLevel > 80 ? 'green' :
+                                    batteryLevel > 50 ? 'orange' : 'red';
+
+                batteryContent.innerHTML = `
+                    <div class="grid">
+                        <div style="text-align: center;">
+                            <p style="font-size: 3em; margin: 0; color: ${batteryColor};">
+                                <strong>${batteryLevel.toFixed(0)}%</strong>
+                            </p>
+                            <p style="margin: 0.5em 0 0 0; color: #888;">Battery Level</p>
+                        </div>
+                        <div>
+                            <p style="margin: 0.5em 0;"><strong>Solar:</strong> ${(status.solar_power / 1000).toFixed(2)} kW</p>
+                            <p style="margin: 0.5em 0;"><strong>Battery:</strong> ${(status.battery_power / 1000).toFixed(2)} kW</p>
+                            <p style="margin: 0.5em 0;"><strong>Grid:</strong> ${(status.grid_power / 1000).toFixed(2)} kW</p>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error fetching Tesla status:', error);
+                document.getElementById('battery-content').innerHTML =
+                    '<p style="color: red;">Error loading battery status.</p>';
+            }
+        }
+
+        // Fetch and display price history chart
+        let priceChart = null;
+        async function fetchPriceHistory() {
+            try {
+                const response = await fetch('/api/price-history');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch price history');
+                }
+                const history = await response.json();
+
+                if (history.length === 0) {
+                    return;
+                }
+
+                const ctx = document.getElementById('priceChart').getContext('2d');
+
+                // Destroy existing chart if it exists
+                if (priceChart) {
+                    priceChart.destroy();
+                }
+
+                const labels = history.map(record => {
+                    const date = new Date(record.timestamp);
+                    return date.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+                });
+
+                const data = history.map(record => record.per_kwh);
+
+                priceChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Price (¢/kWh)',
+                            data: data,
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            tension: 0.1,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: 'Price (¢/kWh)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Time'
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error fetching price history:', error);
+            }
+        }
+
+        // Fetch and display TOU tariff schedule
+        let forecastChart = null;
+        async function fetchTOUSchedule() {
+            try {
+                const response = await fetch('/api/tou-schedule');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch TOU schedule');
+                }
+                const data = await response.json();
+
+                const content = document.getElementById('tou-schedule-content');
+                let html = '';
+
+                // Display stats
+                const stats = data.stats;
+                if (stats) {
+                    html += `<div class="grid" style="margin-bottom: 1em;">
+                        <div style="text-align: center;">
+                            <p style="margin: 0; font-size: 0.9em; color: #888;">Buy Price Range</p>
+                            <p style="margin: 0; font-size: 1.3em;"><strong>${stats.buy.min.toFixed(1)}¢ - ${stats.buy.max.toFixed(1)}¢</strong></p>
+                            <p style="margin: 0; font-size: 0.85em; color: #666;">Avg: ${stats.buy.avg.toFixed(1)}¢/kWh</p>
+                        </div>
+                        <div style="text-align: center;">
+                            <p style="margin: 0; font-size: 0.9em; color: #888;">Sell Price Range</p>
+                            <p style="margin: 0; font-size: 1.3em;"><strong>${stats.sell.min.toFixed(1)}¢ - ${stats.sell.max.toFixed(1)}¢</strong></p>
+                            <p style="margin: 0; font-size: 0.85em; color: #666;">Avg: ${stats.sell.avg.toFixed(1)}¢/kWh</p>
+                        </div>
+                        <div style="text-align: center;">
+                            <p style="margin: 0; font-size: 0.9em; color: #888;">Total Periods</p>
+                            <p style="margin: 0; font-size: 1.3em;"><strong>${stats.total_periods}</strong></p>
+                            <p style="margin: 0; font-size: 0.85em; color: #666;">30-min intervals</p>
+                        </div>
+                    </div>`;
+
+                    html += `<p style="font-size: 0.9em; color: #666; margin-bottom: 1em;">
+                        Tariff: ${data.tariff_name || 'Unknown'}
+                    </p>`;
+                }
+
+                // Display tariff table
+                const periods = data.periods || [];
+                if (periods.length > 0) {
+                    html += `<div style="max-height: 400px; overflow-y: auto;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.9em;">
+                            <thead style="position: sticky; top: 0; background: #1e1e1e;">
+                                <tr style="border-bottom: 2px solid #444;">
+                                    <th style="text-align: left; padding: 0.5em;">Time</th>
+                                    <th style="text-align: right; padding: 0.5em;">Buy (¢/kWh)</th>
+                                    <th style="text-align: right; padding: 0.5em;">Sell (¢/kWh)</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+                    periods.forEach((period, i) => {
+                        const buyColor = period.buy_price > stats.buy.avg * 1.2 ? '#ff6b6b' :
+                                        period.buy_price < stats.buy.avg * 0.8 ? '#51cf66' : '#fff';
+                        const sellColor = period.sell_price > stats.sell.avg * 1.2 ? '#51cf66' :
+                                         period.sell_price < stats.sell.avg * 0.8 ? '#ff6b6b' : '#fff';
+
+                        html += `<tr style="border-bottom: 1px solid #333;">
+                            <td style="padding: 0.5em;">${period.time}</td>
+                            <td style="text-align: right; padding: 0.5em; color: ${buyColor}; font-weight: bold;">
+                                ${period.buy_price.toFixed(2)}
+                            </td>
+                            <td style="text-align: right; padding: 0.5em; color: ${sellColor}; font-weight: bold;">
+                                ${period.sell_price.toFixed(2)}
+                            </td>
+                        </tr>`;
+                    });
+
+                    html += `</tbody></table></div>`;
+
+                    html += `<p style="font-size: 0.8em; color: #666; margin-top: 1em;">
+                        <span style="color: #51cf66;">●</span> Green = Good price &nbsp;
+                        <span style="color: #ff6b6b;">●</span> Red = High price &nbsp;
+                        <span style="color: #fff;">●</span> White = Average
+                    </p>`;
+                }
+
+                content.innerHTML = html;
+
+                // Update chart
+                if (periods.length > 0) {
+                    updateTariffChart(periods);
+                }
+
+            } catch (error) {
+                console.error('Error fetching TOU schedule:', error);
+                document.getElementById('tou-schedule-content').innerHTML =
+                    '<p style="color: red;">Error loading tariff schedule. Please check your Amber API configuration in Settings.</p>';
+            }
+        }
+
+        function updateTariffChart(periods) {
+            const ctx = document.getElementById('forecastChart').getContext('2d');
+
+            // Destroy existing chart if it exists
+            if (forecastChart) {
+                forecastChart.destroy();
+            }
+
+            // Extract labels and data from periods
+            const labels = periods.map(period => period.time);
+            const buyPrices = periods.map(period => period.buy_price);
+            const sellPrices = periods.map(period => period.sell_price);
+
+            forecastChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Buy Price (¢/kWh)',
+                            data: buyPrices,
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.1,
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            fill: true
+                        },
+                        {
+                            label: 'Sell Price (¢/kWh)',
+                            data: sellPrices,
+                            borderColor: 'rgb(75, 192, 75)',
+                            backgroundColor: 'rgba(75, 192, 75, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.1,
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + '¢/kWh';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Price (¢/kWh)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time (24-hour rolling window)'
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45,
+                                autoSkip: true,
+                                maxTicksLimit: 12
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Sync to Tesla handler
+        async function syncTeslaSchedule() {
+            const syncBtn = document.getElementById('sync-tesla-btn');
+            const syncStatus = document.getElementById('sync-status');
+
+            try {
+                // Disable button and show loading state
+                syncBtn.disabled = true;
+                syncBtn.textContent = 'Syncing...';
+                syncStatus.innerHTML = '<p style="color: blue;">⏳ Syncing schedule to Tesla Powerwall...</p>';
+
+                const response = await fetch('/api/sync-tesla-schedule', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    syncStatus.innerHTML = `
+                        <p style="color: green;">✅ ${result.message}</p>
+                        <p style="font-size: 0.9em; margin: 0.5em 0;">
+                            Updated ${result.rate_periods} pricing periods to Tesla.
+                            Tariff: ${result.tariff_name}
+                        </p>
+                    `;
+                    // Auto-hide success message after 10 seconds
+                    setTimeout(() => {
+                        syncStatus.innerHTML = '';
+                    }, 10000);
+                } else {
+                    throw new Error(result.error || 'Failed to sync schedule');
+                }
+            } catch (error) {
+                console.error('Error syncing Tesla schedule:', error);
+                syncStatus.innerHTML = `<p style="color: red;">❌ Error: ${error.message}</p>`;
+            } finally {
+                // Re-enable button
+                syncBtn.disabled = false;
+                syncBtn.textContent = 'Sync to Tesla';
+            }
+        }
+
+        // Refresh button handler
+        document.getElementById('refresh-schedule-btn')?.addEventListener('click', fetchTOUSchedule);
+
+        // Sync button handler
+        document.getElementById('sync-tesla-btn')?.addEventListener('click', syncTeslaSchedule);
+
+        // Initial load
+        checkAPIStatus();
+        fetchTOUSchedule();
+
+        // Refresh data every 5 minutes
+        setInterval(checkAPIStatus, 5 * 60 * 1000);
+        // Refresh TOU schedule every hour
+        setInterval(fetchTOUSchedule, 60 * 60 * 1000);
+    </script>
+
+    <style>
+        .status-indicator {
+            font-size: 1.5em;
+        }
+    </style>
+{% endblock %}

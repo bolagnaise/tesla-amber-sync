@@ -1,0 +1,43 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+instance/
+
+# Environment variables (contains secrets)
+.env
+
+# Database (contains user data)
+*.db
+*.sqlite
+*.sqlite3
+app.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+docker-volumes/
+data/
+
+# Logs
+*.log
+logs/
+
+# Migrations (optional - uncomment if you want to version control migrations)
+# migrations/
+
+# Temporary files
+*.tmp
+temp/
