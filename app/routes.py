@@ -3,7 +3,7 @@ from flask import render_template, flash, redirect, url_for, request, Blueprint,
 from flask_login import login_user, logout_user, current_user, login_required
 from app import db
 from app.models import User, PriceRecord
-from app.forms import LoginForm, RegistrationForm, SettingsForm, EnvironmentForm
+from app.forms import LoginForm, RegistrationForm, SettingsForm, EnvironmentForm, DemandChargeForm
 from app.utils import encrypt_token, decrypt_token
 from app.api_clients import get_amber_client, get_tesla_client
 from app.scheduler import TOUScheduler
@@ -124,6 +124,62 @@ def settings():
 
     logger.info(f"Rendering settings page - Has Amber token: {bool(current_user.amber_api_token_encrypted)}, Has Teslemetry key: {bool(current_user.teslemetry_api_key_encrypted)}, Tesla Site ID: {current_user.tesla_energy_site_id}")
     return render_template('settings.html', title='Settings', form=form)
+
+
+@bp.route('/demand-charges', methods=['GET', 'POST'])
+@login_required
+def demand_charges():
+    """Configure demand charge periods and rates"""
+    logger.info(f"Demand charges page accessed by user: {current_user.email} - Method: {request.method}")
+    form = DemandChargeForm()
+
+    if form.validate_on_submit():
+        logger.info(f"Demand charge form submitted by user: {current_user.email}")
+
+        # Update user's demand charge configuration
+        current_user.enable_demand_charges = form.enable_demand_charges.data
+        current_user.peak_demand_rate = form.peak_rate.data if form.peak_rate.data else 0.0
+        current_user.peak_start_hour = form.peak_start_hour.data if form.peak_start_hour.data is not None else 14
+        current_user.peak_start_minute = form.peak_start_minute.data if form.peak_start_minute.data is not None else 0
+        current_user.peak_end_hour = form.peak_end_hour.data if form.peak_end_hour.data is not None else 20
+        current_user.peak_end_minute = form.peak_end_minute.data if form.peak_end_minute.data is not None else 0
+        current_user.peak_days = form.peak_days.data
+        current_user.offpeak_demand_rate = form.offpeak_rate.data if form.offpeak_rate.data else 0.0
+        current_user.shoulder_demand_rate = form.shoulder_rate.data if form.shoulder_rate.data else 0.0
+        current_user.shoulder_start_hour = form.shoulder_start_hour.data if form.shoulder_start_hour.data is not None else 7
+        current_user.shoulder_start_minute = form.shoulder_start_minute.data if form.shoulder_start_minute.data is not None else 0
+        current_user.shoulder_end_hour = form.shoulder_end_hour.data if form.shoulder_end_hour.data is not None else 14
+        current_user.shoulder_end_minute = form.shoulder_end_minute.data if form.shoulder_end_minute.data is not None else 0
+
+        try:
+            db.session.commit()
+            logger.info("Demand charge settings saved successfully to database")
+            flash('Demand charge settings have been saved.')
+        except Exception as e:
+            logger.error(f"Error saving demand charge settings to database: {e}")
+            flash('Error saving demand charge settings. Please try again.')
+            db.session.rollback()
+
+        return redirect(url_for('main.demand_charges'))
+
+    # Pre-populate form with existing data
+    logger.debug("Pre-populating demand charge form data")
+    form.enable_demand_charges.data = current_user.enable_demand_charges
+    form.peak_rate.data = current_user.peak_demand_rate
+    form.peak_start_hour.data = current_user.peak_start_hour
+    form.peak_start_minute.data = current_user.peak_start_minute
+    form.peak_end_hour.data = current_user.peak_end_hour
+    form.peak_end_minute.data = current_user.peak_end_minute
+    form.peak_days.data = current_user.peak_days
+    form.offpeak_rate.data = current_user.offpeak_demand_rate
+    form.shoulder_rate.data = current_user.shoulder_demand_rate
+    form.shoulder_start_hour.data = current_user.shoulder_start_hour
+    form.shoulder_start_minute.data = current_user.shoulder_start_minute
+    form.shoulder_end_hour.data = current_user.shoulder_end_hour
+    form.shoulder_end_minute.data = current_user.shoulder_end_minute
+
+    logger.info(f"Rendering demand charges page - Enabled: {current_user.enable_demand_charges}, Peak rate: {current_user.peak_demand_rate}")
+    return render_template('demand_charges.html', title='Demand Charges', form=form)
 
 
 # API Status and Data Routes
@@ -273,7 +329,7 @@ def tou_schedule():
     # Convert to Tesla tariff format
     from app.tariff_converter import AmberTariffConverter
     converter = AmberTariffConverter()
-    tariff = converter.convert_amber_to_tesla_tariff(forecast)
+    tariff = converter.convert_amber_to_tesla_tariff(forecast, manual_override=None, user=current_user)
 
     if not tariff:
         logger.error("Failed to convert tariff")
@@ -358,7 +414,7 @@ def sync_tesla_schedule():
         # Convert Amber prices to Tesla tariff format
         from app.tariff_converter import AmberTariffConverter
         converter = AmberTariffConverter()
-        tariff = converter.convert_amber_to_tesla_tariff(forecast)
+        tariff = converter.convert_amber_to_tesla_tariff(forecast, manual_override=None, user=current_user)
 
         if not tariff:
             logger.error("Failed to convert tariff")

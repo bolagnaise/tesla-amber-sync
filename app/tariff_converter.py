@@ -13,7 +13,7 @@ class AmberTariffConverter:
     def __init__(self):
         logger.info("AmberTariffConverter initialized")
 
-    def convert_amber_to_tesla_tariff(self, forecast_data: List[Dict], manual_override: str = None) -> Dict:
+    def convert_amber_to_tesla_tariff(self, forecast_data: List[Dict], manual_override: str = None, user=None) -> Dict:
         """
         Convert Amber price forecast to Tesla tariff format
 
@@ -90,7 +90,7 @@ class AmberTariffConverter:
             )
 
         # Create the Tesla tariff structure
-        tariff = self._build_tariff_structure(general_prices, feedin_prices, manual_override)
+        tariff = self._build_tariff_structure(general_prices, feedin_prices, manual_override, user)
 
         return tariff
 
@@ -144,8 +144,9 @@ class AmberTariffConverter:
                     else:
                         general_prices[period_key] = buy_price
                 else:
-                    # If no data available, use a default or skip
-                    logger.warning(f"No general price data for {period_key} on {date_str}")
+                    # If no data available, use 0 to ensure no gaps (Tesla API requirement)
+                    logger.warning(f"No general price data for {period_key} on {date_str}, using 0.00")
+                    general_prices[period_key] = 0
 
                 # Get feedin price (sell price)
                 if lookup_key in feedin_lookup:
@@ -168,7 +169,9 @@ class AmberTariffConverter:
 
                     feedin_prices[period_key] = sell_price
                 else:
-                    logger.warning(f"No feed-in price data for {period_key} on {date_str}")
+                    # If no data available, use 0 to ensure no gaps (Tesla API requirement)
+                    logger.warning(f"No feed-in price data for {period_key} on {date_str}, using 0.00")
+                    feedin_prices[period_key] = 0
 
         logger.info(f"Rolling 24h window: {len([k for k in general_prices.keys()])} periods from {today} and {tomorrow}")
 
@@ -176,11 +179,18 @@ class AmberTariffConverter:
 
     def _build_tariff_structure(self, general_prices: Dict[str, float],
                                 feedin_prices: Dict[str, float],
-                                manual_override: str = None) -> Dict:
+                                manual_override: str = None,
+                                user=None) -> Dict:
         """Build the complete Tesla tariff structure"""
 
         # Build TOU periods for Summer season (covers whole year for Amber)
         tou_periods = self._build_tou_periods(general_prices.keys())
+
+        # Build demand charges if enabled
+        demand_charges_summer = {}
+        if user and user.enable_demand_charges:
+            # Ensure demand charges match the exact periods that exist in general_prices
+            demand_charges_summer = self._build_demand_charge_rates(user, general_prices.keys())
 
         # Change code and name based on manual override to force Tesla app refresh
         if manual_override == 'charge':
@@ -214,7 +224,9 @@ class AmberTariffConverter:
                         "ALL": 0
                     }
                 },
-                "Summer": {},
+                "Summer": {
+                    "rates": demand_charges_summer
+                } if demand_charges_summer else {},
                 "Winter": {}
             },
             "energy_charges": {
@@ -259,7 +271,9 @@ class AmberTariffConverter:
                             "ALL": 0
                         }
                     },
-                    "Summer": {},
+                    "Summer": {
+                        "rates": demand_charges_summer
+                    } if demand_charges_summer else {},
                     "Winter": {}
                 },
                 "energy_charges": {
@@ -401,3 +415,82 @@ class AmberTariffConverter:
                 general_prices[period_key] = max_buy
 
         return general_prices, feedin_prices
+
+    def _build_demand_charge_rates(self, user, period_keys) -> Dict[str, float]:
+        """
+        Build demand charge rates based on user configuration
+
+        Maps user's configured time periods to Tesla PERIOD_XX_XX format
+        and assigns rates based on peak/shoulder/offpeak configuration
+
+        Args:
+            user: User object with demand charge configuration
+            period_keys: Set/list of PERIOD_XX_XX keys to create rates for (must match TOU periods)
+
+        Returns:
+            Dictionary mapping PERIOD_XX_XX to demand rate ($/kW)
+        """
+        demand_rates = {}
+
+        # Only create rates for periods that exist in the tariff (to match TOU periods exactly)
+        for period_key in period_keys:
+            # Extract hour and minute from period key (PERIOD_14_30 -> hour=14, minute=30)
+            try:
+                parts = period_key.split('_')
+                hour = int(parts[1])
+                minute = int(parts[2])
+            except (IndexError, ValueError) as e:
+                logger.error(f"Error parsing period key {period_key}: {e}")
+                continue
+
+            # Determine which rate applies to this period
+            # Priority: Peak > Shoulder > Off-peak
+
+            # Check if this period falls in peak time
+            if self._is_in_time_range(hour, minute,
+                                     user.peak_start_hour, user.peak_start_minute,
+                                     user.peak_end_hour, user.peak_end_minute):
+                demand_rates[period_key] = float(user.peak_demand_rate or 0)
+
+            # Check if this period falls in shoulder time
+            elif user.shoulder_demand_rate and user.shoulder_demand_rate > 0:
+                if self._is_in_time_range(hour, minute,
+                                         user.shoulder_start_hour, user.shoulder_start_minute,
+                                         user.shoulder_end_hour, user.shoulder_end_minute):
+                    demand_rates[period_key] = float(user.shoulder_demand_rate)
+                else:
+                    # Off-peak
+                    demand_rates[period_key] = float(user.offpeak_demand_rate or 0)
+            else:
+                # Off-peak (no shoulder period configured)
+                demand_rates[period_key] = float(user.offpeak_demand_rate or 0)
+
+        logger.info(f"Built demand charge rates with {len(demand_rates)} periods matching TOU periods")
+        return demand_rates
+
+    def _is_in_time_range(self, hour: int, minute: int,
+                          start_hour: int, start_minute: int,
+                          end_hour: int, end_minute: int) -> bool:
+        """
+        Check if a time falls within a given range
+
+        Args:
+            hour, minute: Time to check
+            start_hour, start_minute: Start of range
+            end_hour, end_minute: End of range
+
+        Returns:
+            True if time is in range (inclusive of start, exclusive of end)
+        """
+        # Convert to minutes since midnight for easier comparison
+        time_minutes = hour * 60 + minute
+        start_minutes = start_hour * 60 + start_minute
+        end_minutes = end_hour * 60 + end_minute
+
+        # Handle case where range crosses midnight
+        if end_minutes <= start_minutes:
+            # Range crosses midnight (e.g., 22:00 to 06:00)
+            return time_minutes >= start_minutes or time_minutes < end_minutes
+        else:
+            # Normal range (e.g., 14:00 to 20:00)
+            return start_minutes <= time_minutes < end_minutes
