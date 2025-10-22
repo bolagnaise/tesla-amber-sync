@@ -41,3 +41,4 @@ logs/
 # Temporary files
 *.tmp
 temp/
+/.github/
