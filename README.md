@@ -70,7 +70,7 @@ The easiest way to run Tesla-Amber-Sync is with Docker.
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/YOUR_USERNAME/tesla-amber-sync.git
+git clone https://github.com/bolagnaise/tesla-amber-sync.git
 cd tesla-amber-sync
 ```
 
