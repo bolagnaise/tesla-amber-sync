@@ -43,9 +43,16 @@ class AmberTariffConverter:
                 timestamp = datetime.fromisoformat(nem_time.replace('Z', '+00:00'))
                 channel_type = point.get('channelType', '')
 
-                # Use advancedPrice (includes spot + retailer margin, excludes network/environmental)
+                # Use advancedPrice.predicted (includes spot + retailer margin, excludes network/environmental)
+                # advancedPrice contains: low, predicted, high (confidence intervals)
+                # We use predicted as the most likely/expected price for optimization
                 # Convert cents/kWh to dollars/kWh for Tesla
-                per_kwh_cents = point.get('advancedPrice', 0)
+                advanced_price = point.get('advancedPrice', {})
+                if isinstance(advanced_price, dict):
+                    per_kwh_cents = advanced_price.get('predicted', 0)
+                else:
+                    # Fallback if advancedPrice is a simple number
+                    per_kwh_cents = advanced_price if advanced_price else 0
                 per_kwh_dollars = per_kwh_cents / 100
 
                 # Round down to nearest 30-minute interval
