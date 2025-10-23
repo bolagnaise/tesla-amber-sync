@@ -2,71 +2,88 @@
 
 Synchronize Tesla Powerwall energy management with Amber Electric dynamic pricing to optimize battery charging and discharging based on real-time electricity prices.
 
+[![Docker Hub](https://img.shields.io/docker/v/bolagnaise/tesla-amber-sync?label=docker%20hub&logo=docker)](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)
+[![Docker Pulls](https://img.shields.io/docker/pulls/bolagnaise/tesla-amber-sync)](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)
+[![Build Status](https://github.com/bolagnaise/tesla-amber-sync/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/bolagnaise/tesla-amber-sync/actions)
+
 ## Features
 
 - 🔋 **Automatic TOU Tariff Sync** - Updates Tesla Powerwall with Amber Electric pricing every 30 minutes
 - ⚡ **Manual Battery Control** - Force charge or discharge on demand - WIP - FLAKY
 - 📊 **Real-time Pricing Dashboard** - Monitor current and historical electricity prices
-- 🔐 **Dual Tesla Authentication** - Support for both Tesla Fleet API and Teslemetry (reccomended)
+- 🔐 **Dual Tesla Authentication** - Support for both Tesla Fleet API and Teslemetry (recommended)
 - 🔒 **Secure Credential Storage** - All API tokens encrypted at rest
-- ⏱️ **Background Scheduler** - Automatic syncing runs hourly
+- ⏱️ **Background Scheduler** - Automatic syncing runs every 30 minutes (aligned with Amber's update cycle)
+- 🐳 **Docker Ready** - Pre-built multi-architecture images for easy deployment
+- 🎯 **Netzero Parity** - 100% compatible tariff format and sync timing
 
 ## Quick Start
 
-### 1. Install Dependencies
+### Method 1: Docker Hub (Recommended)
+
+The easiest way to deploy is using the official pre-built image from Docker Hub.
+
+**Option A: Using docker-compose (Recommended)**
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+# Download the docker-compose file
+curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/docker-compose.hub.yml
+curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/.env.example
+mv .env.example .env
+
+# Generate encryption key
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# Edit .env with your credentials
+nano .env
+
+# Start the container
+docker-compose -f docker-compose.hub.yml up -d
+
+# Access the app
+open http://localhost:5001
 ```
 
-### 2. Configure Environment
+**Option B: Using docker run**
 
-Copy `.env.example` to `.env` and configure:
+```bash
+docker run -d \
+  --name tesla-amber-sync \
+  -p 5001:5001 \
+  -v $(pwd)/data:/app/data \
+  -e SECRET_KEY=your-secret-key-here \
+  -e FERNET_ENCRYPTION_KEY=your-fernet-key-here \
+  -e TESLA_CLIENT_ID=your-client-id \
+  -e TESLA_CLIENT_SECRET=ta-secret.your-secret \
+  -e TESLA_REDIRECT_URI=http://localhost:5001/tesla-fleet/callback \
+  -e APP_DOMAIN=http://localhost:5001 \
+  --restart unless-stopped \
+  bolagnaise/tesla-amber-sync:latest
+```
+
+**Required Environment Variables:**
 
 ```bash
 # Required
-SECRET_KEY=your-random-secret-key
-FERNET_ENCRYPTION_KEY=your-fernet-key
+SECRET_KEY=your-random-secret-key-here
+FERNET_ENCRYPTION_KEY=paste-generated-key-here
 
-# Tesla Developer Credentials (for Fleet API)
-TESLA_CLIENT_ID=your-client-id
-TESLA_CLIENT_SECRET=your-client-secret
+# Tesla Developer Credentials (optional - can use Teslemetry instead)
+TESLA_CLIENT_ID=your-tesla-client-id
+TESLA_CLIENT_SECRET=ta-secret.your-secret
 TESLA_REDIRECT_URI=http://localhost:5001/tesla-fleet/callback
 APP_DOMAIN=http://localhost:5001
 ```
 
-**Generate encryption key:**
-```python
-from cryptography.fernet import Fernet
-print(Fernet.generate_key().decode())
-```
+**Docker Hub Image Details:**
+- **Repository:** `bolagnaise/tesla-amber-sync`
+- **Multi-Architecture:** Supports `linux/amd64` and `linux/arm64`
+- **Automated Builds:** Every push to main branch
+- **Production Server:** Gunicorn with 4 workers
 
-### 3. Initialize Database
+### Method 2: Build from Source
 
-```bash
-flask db upgrade
-```
-
-### 4. Run Application
-
-```bash
-flask run
-```
-
-Navigate to http://localhost:5001
-
-## Docker Deployment (Recommended)
-
-The easiest way to run Tesla-Amber-Sync is with Docker.
-
-### Prerequisites
-
-- Docker and Docker Compose installed
-- Tesla Developer credentials (optional, can use Teslemetry instead)
-
-### Quick Start with Docker
+For development or customization:
 
 1. **Clone the repository**
 ```bash
@@ -84,20 +101,9 @@ cp .env.example .env
 python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-4. **Edit `.env` with your credentials**
-```bash
-# Required
-SECRET_KEY=your-random-secret-key-here
-FERNET_ENCRYPTION_KEY=paste-generated-key-here
+4. **Edit `.env` with your credentials** (see environment variables above)
 
-# Tesla Developer Credentials (optional - can use Teslemetry instead)
-TESLA_CLIENT_ID=your-tesla-client-id
-TESLA_CLIENT_SECRET=ta-secret.your-secret
-TESLA_REDIRECT_URI=http://localhost:5001/tesla-fleet/callback
-APP_DOMAIN=http://localhost:5001
-```
-
-5. **Start the application**
+5. **Start with Docker Compose**
 ```bash
 docker-compose up -d
 ```
@@ -107,26 +113,62 @@ docker-compose up -d
 http://localhost:5001
 ```
 
-### Docker Commands
+### Method 3: Python Virtual Environment (Advanced)
+
+For local development without Docker:
 
 ```bash
-# Start the application
-docker-compose up -d
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# View logs
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your credentials
+
+# Initialize database
+flask db upgrade
+
+# Run application
+flask run
+```
+
+Navigate to http://localhost:5001
+
+---
+
+## Docker Management
+
+### View Logs
+```bash
+# Docker Compose
 docker-compose logs -f
 
-# Stop the application
+# Docker run
+docker logs -f tesla-amber-sync
+```
+
+### Update to Latest Version
+
+**Pre-built Image:**
+```bash
+docker pull bolagnaise/tesla-amber-sync:latest
+docker restart tesla-amber-sync
+
+# Or with docker-compose
+docker-compose -f docker-compose.hub.yml pull
+docker-compose -f docker-compose.hub.yml up -d
+```
+
+**Built from Source:**
+```bash
+cd tesla-amber-sync
+git pull
 docker-compose down
-
-# Rebuild after code changes
 docker-compose up -d --build
-
-# View running containers
-docker ps
-
-# Access shell in container
-docker-compose exec web sh
 ```
 
 ### Data Persistence
@@ -142,7 +184,7 @@ cp ./data/app.db ./data/app.db.backup
 
 # Restore database
 cp ./data/app.db.backup ./data/app.db
-docker-compose restart
+docker restart tesla-amber-sync
 ```
 
 ## Tesla API Authentication
@@ -228,9 +270,15 @@ After logging in:
 ### Automatic Sync
 
 The app automatically:
-- Syncs TOU tariff every hour
-- Updates pricing every 30 minutes
+- Syncs TOU tariff every 30 minutes (aligned with Amber Electric's update cycle)
+- Fetches latest pricing forecasts from Amber API
 - Sends optimized rates to Tesla Powerwall
+
+**Sync Timing:**
+- **Frequency:** Every 30 minutes
+- **Alignment:** Matches Amber Electric's pricing update schedule
+- **Forecast Window:** 48 half-hour periods (24 hours ahead)
+- **Netzero Parity:** 100% compatible with Netzero's implementation
 
 ### Manual Control
 
@@ -253,15 +301,39 @@ The app automatically:
 - **Price History**: 24-hour price chart
 - **TOU Schedule**: Upcoming 24-hour tariff plan
 
+## Netzero Parity
+
+Tesla-Amber-Sync achieves 100% compatibility with Netzero's implementation:
+
+**Tariff Format Alignment:**
+- ✅ Identical 48 half-hour TOU period structure
+- ✅ Matching `daily_charges` format (omits zero amount field)
+- ✅ Same `seasons` and `tou_periods` structure
+- ✅ Compatible `sell_tariff` for feed-in pricing
+
+**Sync Timing Alignment:**
+- ✅ 30-minute sync frequency (matches Amber's update cycle)
+- ✅ Uses `advancedPrice.predicted` for forecasts
+- ✅ Proper negative pricing for feed-in rates
+- ✅ Identical fallback logic for missing data
+
+**Verification:**
+- Tariff structures have been compared byte-by-byte with Netzero's Teslemetry API output
+- All functional differences have been eliminated
+- Tesla Powerwall receives identical pricing data from both systems
+
 ## Architecture
 
 ### Tech Stack
 
 - **Backend**: Flask (Python)
+- **Production Server**: Gunicorn (4 workers, 120s timeout)
 - **Database**: SQLite (PostgreSQL supported)
 - **Auth**: Flask-Login
-- **Scheduler**: APScheduler
+- **Scheduler**: APScheduler (30-minute intervals)
 - **Encryption**: Fernet (cryptography)
+- **Containerization**: Docker (multi-arch: amd64, arm64)
+- **CI/CD**: GitHub Actions (automated builds)
 
 ### Key Components
 
@@ -428,8 +500,11 @@ flask run
 
 ## Documentation
 
+- **[UNRAID_SETUP.md](UNRAID_SETUP.md)** - Complete Unraid deployment guide
 - **[TESLA_FLEET_SETUP.md](TESLA_FLEET_SETUP.md)** - Complete Tesla Fleet API setup guide
 - **[CLAUDE.md](CLAUDE.md)** - Development guide for Claude Code
+- **[Docker Hub](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)** - Pre-built container images
+- **[GitHub Actions](https://github.com/bolagnaise/tesla-amber-sync/actions)** - Automated build status
 - **Tesla Developer Docs:** https://developer.tesla.com/docs/fleet-api
 - **Amber API Docs:** https://api.amber.com.au/docs
 
