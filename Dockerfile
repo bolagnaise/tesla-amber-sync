@@ -30,8 +30,8 @@ RUN mkdir -p /app/data
 EXPOSE 5001
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:5001/', timeout=5)" || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5001/').read()" || exit 1
 
-# Run the application
-CMD ["python", "run.py"]
+# Run the application with gunicorn (production-ready)
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5001", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "run:app"]
