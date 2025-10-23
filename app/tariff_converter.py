@@ -253,8 +253,7 @@ class AmberTariffConverter:
             "currency": "AUD",
             "daily_charges": [
                 {
-                    "name": "Charge",
-                    "amount": 0
+                    "name": "Charge"
                 }
             ],
             "demand_charges": {
@@ -300,8 +299,7 @@ class AmberTariffConverter:
                 "utility": "Amber Electric",
                 "daily_charges": [
                     {
-                        "name": "Charge",
-                        "amount": 0
+                        "name": "Charge"
                     }
                 ],
                 "demand_charges": {
