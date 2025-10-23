@@ -50,11 +50,11 @@ def create_app(config_class=Config):
     logger.info("Initializing background scheduler for automatic TOU sync")
     scheduler = BackgroundScheduler()
 
-    # Add job to sync all users' TOU schedules every hour
+    # Add job to sync all users' TOU schedules every 30 minutes (aligned with Amber's update cycle)
     from app.tasks import sync_all_users
     scheduler.add_job(
         func=sync_all_users,
-        trigger=IntervalTrigger(hours=1),
+        trigger=IntervalTrigger(minutes=30),
         id='sync_tou_schedules',
         name='Sync TOU schedules from Amber to Tesla',
         replace_existing=True
@@ -62,7 +62,7 @@ def create_app(config_class=Config):
 
     # Start the scheduler
     scheduler.start()
-    logger.info("Background scheduler started - TOU sync will run every hour")
+    logger.info("Background scheduler started - TOU sync will run every 30 minutes (aligned with Amber's update cycle)")
 
     # Shut down the scheduler when exiting the app
     atexit.register(lambda: scheduler.shutdown())
