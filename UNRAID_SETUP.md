@@ -2,7 +2,79 @@
 
 Complete guide to deploy Tesla-Amber-Sync on Unraid using Docker.
 
-## Method 1: Docker Compose (Recommended)
+## Method 1: Pre-built Docker Image (Recommended)
+
+The easiest way to deploy is using the official pre-built image from Docker Hub.
+
+### Quick Start with Docker Hub Image
+
+**Option A: Using docker-compose.hub.yml**
+
+1. SSH into your Unraid server:
+```bash
+ssh root@your-unraid-ip
+
+# Create directory
+mkdir -p /mnt/user/appdata/tesla-amber-sync
+cd /mnt/user/appdata/tesla-amber-sync
+```
+
+2. Download the docker-compose file:
+```bash
+curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/docker-compose.hub.yml
+curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/.env.example
+mv .env.example .env
+```
+
+3. Configure environment:
+```bash
+nano .env
+```
+
+Add your credentials (see Configuration section below).
+
+4. Start the container:
+```bash
+docker-compose -f docker-compose.hub.yml up -d
+```
+
+**Option B: Using docker run**
+
+```bash
+docker run -d \
+  --name tesla-amber-sync \
+  -p 5001:5001 \
+  -v /mnt/user/appdata/tesla-amber-sync/data:/app/data \
+  -e SECRET_KEY=your-secret-key-here \
+  -e FERNET_ENCRYPTION_KEY=your-fernet-key-here \
+  -e TESLA_CLIENT_ID=your-client-id \
+  -e TESLA_CLIENT_SECRET=ta-secret.your-secret \
+  -e TESLA_REDIRECT_URI=http://your-unraid-ip:5001/tesla-fleet/callback \
+  -e APP_DOMAIN=http://your-unraid-ip:5001 \
+  --restart unless-stopped \
+  bolagnaise/tesla-amber-sync:latest
+```
+
+**Option C: Unraid Docker Template**
+
+1. Go to **Docker** tab in Unraid
+2. Click **Add Container**
+3. Fill in settings:
+
+| Setting | Value |
+|---------|-------|
+| **Name** | `tesla-amber-sync` |
+| **Repository** | `bolagnaise/tesla-amber-sync:latest` |
+| **Network Type** | `bridge` |
+| **Port** | `5001:5001` (TCP) |
+| **Path** | `/mnt/user/appdata/tesla-amber-sync/data` → `/app/data` |
+| **Restart Policy** | `Unless Stopped` |
+
+Add environment variables (see Configuration section below).
+
+---
+
+## Method 2: Docker Compose (Build from Source)
 
 ### Prerequisites
 - Unraid 6.9.0 or later
@@ -85,77 +157,6 @@ docker-compose logs -f
 
 ---
 
-## Method 2: Unraid Docker Template (Manual)
-
-If you prefer not to use Docker Compose Manager:
-
-### Step 1: Add Container via Unraid Web UI
-
-1. Go to **Docker** tab
-2. Click **Add Container**
-3. Fill in the following:
-
-**Container Settings:**
-- **Name:** `tesla-amber-sync`
-- **Repository:** `python:3.9-slim`
-- **Network Type:** `bridge`
-- **Console shell command:** `bash`
-
-**Port Mappings:**
-- **Host Port:** `5001`
-- **Container Port:** `5001`
-- **Connection Type:** `TCP`
-
-**Path Mappings:**
-- **Host Path:** `/mnt/user/appdata/tesla-amber-sync/data`
-- **Container Path:** `/app/data`
-
-**Environment Variables:**
-
-Add each of these as separate variables:
-
-| Variable | Value |
-|----------|-------|
-| `SECRET_KEY` | `your-secret-key` |
-| `FERNET_ENCRYPTION_KEY` | `your-fernet-key` |
-| `FLASK_RUN_PORT` | `5001` |
-| `TESLA_CLIENT_ID` | `your-client-id` |
-| `TESLA_CLIENT_SECRET` | `ta-secret.xxx` |
-| `TESLA_REDIRECT_URI` | `http://UNRAID-IP:5001/tesla-fleet/callback` |
-| `APP_DOMAIN` | `http://UNRAID-IP:5001` |
-
-**Post Arguments:**
-```bash
-bash -c "cd /app && git clone https://github.com/bolagnaise/tesla-amber-sync.git . && pip install -r requirements.txt && python run.py"
-```
-
-### Step 2: Start Container
-
-Click **Apply** to create and start the container.
-
----
-
-## Method 3: Pre-built Docker Image (Future)
-
-Once a Docker Hub image is available:
-
-```bash
-docker run -d \
-  --name tesla-amber-sync \
-  -p 5001:5001 \
-  -v /mnt/user/appdata/tesla-amber-sync/data:/app/data \
-  -e SECRET_KEY=your-secret \
-  -e FERNET_ENCRYPTION_KEY=your-key \
-  -e TESLA_CLIENT_ID=your-id \
-  -e TESLA_CLIENT_SECRET=your-secret \
-  -e TESLA_REDIRECT_URI=http://UNRAID-IP:5001/tesla-fleet/callback \
-  -e APP_DOMAIN=http://UNRAID-IP:5001 \
-  --restart unless-stopped \
-  bolagnaise/tesla-amber-sync:latest
-```
-
----
-
 ## Configuration
 
 ### Network Access
@@ -211,6 +212,22 @@ docker-compose restart
 ```
 
 ### Update to Latest Version
+
+**If using Pre-built Image (Method 1):**
+```bash
+# Pull latest image
+docker pull bolagnaise/tesla-amber-sync:latest
+
+# Restart container
+docker restart tesla-amber-sync
+
+# Or with docker-compose
+cd /mnt/user/appdata/tesla-amber-sync
+docker-compose -f docker-compose.hub.yml pull
+docker-compose -f docker-compose.hub.yml up -d
+```
+
+**If building from source (Method 2):**
 ```bash
 cd /mnt/user/appdata/tesla-amber-sync
 git pull
@@ -324,4 +341,8 @@ Set up Unraid User Scripts to notify on sync failures.
 
 **Restart:** `docker restart tesla-amber-sync`
 
-**Update:** `cd /mnt/user/appdata/tesla-amber-sync && git pull && docker-compose up -d --build`
+**Update (Pre-built):** `docker pull bolagnaise/tesla-amber-sync:latest && docker restart tesla-amber-sync`
+
+**Update (Source):** `cd /mnt/user/appdata/tesla-amber-sync && git pull && docker-compose up -d --build`
+
+**Docker Hub:** `https://hub.docker.com/r/bolagnaise/tesla-amber-sync`
