@@ -58,11 +58,13 @@ jobs:
           cache-to: type=registry,ref=${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
           platforms: linux/amd64,linux/arm64
 
-      - name: Update Docker Hub description
-        if: github.event_name != 'pull_request'
-        uses: peter-evans/dockerhub-description@v3
-        with:
-          username: ${{ env.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_TOKEN }}
-          repository: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}
-          readme-filepath: ./README.md
+      # Note: Docker Hub description update disabled due to permission requirements
+      # You can manually update the description at https://hub.docker.com/r/bolagnaise/tesla-amber-sync
+      # - name: Update Docker Hub description
+      #   if: github.event_name != 'pull_request'
+      #   uses: peter-evans/dockerhub-description@v3
+      #   with:
+      #     username: ${{ env.DOCKER_HUB_USERNAME }}
+      #     password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      #     repository: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}
+      #     readme-filepath: ./README.md
