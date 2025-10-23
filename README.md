@@ -15,7 +15,6 @@ Synchronize Tesla Powerwall energy management with Amber Electric dynamic pricin
 - 🔒 **Secure Credential Storage** - All API tokens encrypted at rest
 - ⏱️ **Background Scheduler** - Automatic syncing runs every 30 minutes (aligned with Amber's update cycle)
 - 🐳 **Docker Ready** - Pre-built multi-architecture images for easy deployment
-- 🎯 **Netzero Parity** - 100% compatible tariff format and sync timing
 
 ## Quick Start
 
@@ -278,7 +277,6 @@ The app automatically:
 - **Frequency:** Every 30 minutes
 - **Alignment:** Matches Amber Electric's pricing update schedule
 - **Forecast Window:** 48 half-hour periods (24 hours ahead)
-- **Netzero Parity:** 100% compatible with Netzero's implementation
 
 ### Manual Control
 
@@ -300,27 +298,6 @@ The app automatically:
 - **Battery Status**: Powerwall charge level, power flow
 - **Price History**: 24-hour price chart
 - **TOU Schedule**: Upcoming 24-hour tariff plan
-
-## Netzero Parity
-
-Tesla-Amber-Sync achieves 100% compatibility with Netzero's implementation:
-
-**Tariff Format Alignment:**
-- ✅ Identical 48 half-hour TOU period structure
-- ✅ Matching `daily_charges` format (omits zero amount field)
-- ✅ Same `seasons` and `tou_periods` structure
-- ✅ Compatible `sell_tariff` for feed-in pricing
-
-**Sync Timing Alignment:**
-- ✅ 30-minute sync frequency (matches Amber's update cycle)
-- ✅ Uses `advancedPrice.predicted` for forecasts
-- ✅ Proper negative pricing for feed-in rates
-- ✅ Identical fallback logic for missing data
-
-**Verification:**
-- Tariff structures have been compared byte-by-byte with Netzero's Teslemetry API output
-- All functional differences have been eliminated
-- Tesla Powerwall receives identical pricing data from both systems
 
 ## Architecture
 
