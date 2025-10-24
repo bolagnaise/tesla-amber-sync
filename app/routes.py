@@ -882,6 +882,11 @@ def environment_settings():
                 logger.info("Saving App Domain")
                 current_user.app_domain = form.app_domain.data
 
+            # Save Tesla Fleet API region
+            if form.tesla_region.data:
+                logger.info(f"Saving Tesla region: {form.tesla_region.data}")
+                current_user.tesla_region = form.tesla_region.data
+
             db.session.commit()
             logger.info("Tesla OAuth settings saved successfully")
             flash('Tesla OAuth settings saved successfully. No restart required!')
@@ -909,6 +914,7 @@ def environment_settings():
 
         form.tesla_redirect_uri.data = current_user.tesla_redirect_uri or os.environ.get('TESLA_REDIRECT_URI', '')
         form.app_domain.data = current_user.app_domain or os.environ.get('APP_DOMAIN', '')
+        form.tesla_region.data = current_user.tesla_region or 'na'
     except Exception as e:
         logger.error(f"Error decrypting Tesla OAuth settings: {e}")
 

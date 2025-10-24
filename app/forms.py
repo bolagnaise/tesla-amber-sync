@@ -35,6 +35,11 @@ class EnvironmentForm(FlaskForm):
     tesla_client_secret = StringField('Tesla Client Secret')
     tesla_redirect_uri = StringField('Tesla Redirect URI')
     app_domain = StringField('App Domain')
+    tesla_region = SelectField('Tesla Fleet API Region', choices=[
+        ('na', 'North America'),
+        ('eu', 'Europe / Asia-Pacific (Australia)'),
+        ('cn', 'China')
+    ], default='na')
     submit = SubmitField('Save Environment Settings')
 
 
