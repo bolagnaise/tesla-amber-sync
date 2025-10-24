@@ -734,14 +734,17 @@ def tesla_fleet_callback():
                     logger.error(f"Error testing region {region_code}: {e}")
                     continue
 
-        # Store the detected region
-        if detected_region:
-            current_user.tesla_region = detected_region
-            logger.info(f"Tesla Fleet API region set to: {detected_region}")
+        # Only auto-detect region if not manually configured
+        if not current_user.tesla_region:
+            if detected_region:
+                current_user.tesla_region = detected_region
+                logger.info(f"Tesla Fleet API region auto-detected and set to: {detected_region}")
+            else:
+                # Default to NA if detection failed
+                current_user.tesla_region = 'na'
+                logger.warning("Could not detect region, defaulting to 'na'")
         else:
-            # Default to NA if detection failed
-            current_user.tesla_region = 'na'
-            logger.warning("Could not detect region, defaulting to 'na'")
+            logger.info(f"Using manually configured region: {current_user.tesla_region} (skipping auto-detection)")
 
         # Automatically retrieve energy site ID using the detected region
         try:
