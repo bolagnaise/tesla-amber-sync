@@ -272,6 +272,78 @@ chown -R nobody:users /mnt/user/appdata/tesla-amber-sync/data
 chmod -R 775 /mnt/user/appdata/tesla-amber-sync/data
 ```
 
+### ⚠️ User Account Lost After Container Update
+
+**Problem:** You register/login successfully, but after rebuilding the container (`docker-compose up -d --build` or `git pull`), you can't login and need to register again.
+
+**Cause:** The database is not being persisted across container rebuilds. This happens when:
+- The volume mount path is relative (`./data`) instead of absolute
+- The `data` directory doesn't exist on the host
+- You're running docker-compose from a different directory
+
+**Solution:**
+
+1. **Check if your database is being saved:**
+```bash
+# SSH into Unraid
+ssh root@your-unraid-ip
+
+# Check if database exists on the host
+ls -lh /mnt/user/appdata/tesla-amber-sync/data/app.db
+
+# If it doesn't exist or is empty, that's the problem
+```
+
+2. **Fix the volume mount:**
+```bash
+# Stop the container
+docker-compose down
+
+# Make sure you're in the right directory
+cd /mnt/user/appdata/tesla-amber-sync
+
+# Create the data directory if it doesn't exist
+mkdir -p /mnt/user/appdata/tesla-amber-sync/data
+
+# If using docker-compose, use the Unraid-specific file:
+docker-compose -f docker-compose.unraid.yml up -d --build
+
+# Or edit your docker-compose.yml to use absolute path:
+# volumes:
+#   - /mnt/user/appdata/tesla-amber-sync/data:/app/data
+```
+
+3. **Verify the volume is mounted correctly:**
+```bash
+# Check the container's volume mounts
+docker inspect tesla-amber-sync | grep -A 10 Mounts
+
+# You should see:
+# "Source": "/mnt/user/appdata/tesla-amber-sync/data"
+# "Destination": "/app/data"
+```
+
+4. **Test persistence:**
+```bash
+# Register a new user in the web interface
+# Then check the database was created on the host:
+ls -lh /mnt/user/appdata/tesla-amber-sync/data/app.db
+
+# Rebuild the container
+docker-compose down && docker-compose up -d --build
+
+# Try logging in - it should work!
+```
+
+**Using the Unraid-Specific Docker Compose File:**
+
+For Unraid, always use `docker-compose.unraid.yml` which has the correct absolute path:
+
+```bash
+cd /mnt/user/appdata/tesla-amber-sync
+docker-compose -f docker-compose.unraid.yml up -d
+```
+
 ---
 
 ## Auto-Start on Unraid Boot
