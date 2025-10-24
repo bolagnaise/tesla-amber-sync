@@ -394,6 +394,11 @@ class TeslemetryAPIClient:
                 }
             }
 
+            # Log a sample of the tariff being sent for debugging
+            if 'energy_charges' in tariff_content and tariff_content['energy_charges']:
+                first_period = tariff_content['energy_charges'][0] if tariff_content['energy_charges'] else None
+                logger.debug(f"Sample tariff period being sent: {first_period}")
+
             response = requests.post(
                 f"{self.BASE_URL}/api/1/energy_sites/{site_id}/time_of_use_settings",
                 headers=self.headers,
@@ -402,11 +407,24 @@ class TeslemetryAPIClient:
             )
 
             logger.info(f"Set tariff via TOU settings response status: {response.status_code}")
-            if response.status_code not in [200, 201, 202]:
-                logger.error(f"Error response: {response.text}")
 
             response.raise_for_status()
             data = response.json()
+
+            # Log the full response to debug tariff update issues
+            logger.info(f"Teslemetry API response: {data}")
+
+            # Check if the response indicates success
+            if isinstance(data, dict):
+                if 'response' in data:
+                    response_data = data['response']
+                    if isinstance(response_data, dict) and 'result' in response_data:
+                        if not response_data['result']:
+                            reason = response_data.get('reason', 'Unknown reason')
+                            logger.error(f"Tariff update failed: {reason}")
+                            logger.error(f"Full response: {data}")
+                            return None
+
             logger.info(f"Successfully set tariff rate for site {site_id}")
             return data
         except requests.exceptions.RequestException as e:
@@ -578,14 +596,36 @@ class TeslaFleetAPIClient:
                 }
             }
 
+            # Log a sample of the tariff being sent for debugging
+            if 'energy_charges' in tariff_content and tariff_content['energy_charges']:
+                first_period = tariff_content['energy_charges'][0] if tariff_content['energy_charges'] else None
+                logger.debug(f"Sample tariff period being sent: {first_period}")
+
             response = requests.post(
                 f"{self.BASE_URL}/api/1/energy_sites/{site_id}/time_of_use_settings",
                 headers=self.headers,
                 json=payload,
                 timeout=30  # Longer timeout for tariff updates
             )
+
+            logger.info(f"Fleet API response status: {response.status_code}")
             response.raise_for_status()
             data = response.json()
+
+            # Log the full response to debug tariff update issues
+            logger.info(f"Fleet API response: {data}")
+
+            # Check if the response indicates success
+            if isinstance(data, dict):
+                if 'response' in data:
+                    response_data = data['response']
+                    if isinstance(response_data, dict) and 'result' in response_data:
+                        if not response_data['result']:
+                            reason = response_data.get('reason', 'Unknown reason')
+                            logger.error(f"Tariff update failed: {reason}")
+                            logger.error(f"Full response: {data}")
+                            return None
+
             logger.info(f"Successfully set tariff rate for site {site_id}")
             return data
         except requests.exceptions.RequestException as e:
