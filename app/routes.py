@@ -658,30 +658,77 @@ def tesla_fleet_callback():
         current_user.tesla_refresh_token_encrypted = encrypt_token(tokens['refresh_token'])
         current_user.tesla_token_expiry = int(time.time() + tokens.get('expires_in', 3600))
 
-        # Register public key with Tesla Partner Account
+        # Auto-detect and register with the correct Tesla Fleet API region
         domain = tesla_config['app_domain'] or request.host_url.rstrip('/')
-        register_url = "https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/partner_accounts"
 
-        register_data = {
-            "domain": domain
+        regions = {
+            'na': 'https://fleet-api.prd.na.vn.cloud.tesla.com',
+            'eu': 'https://fleet-api.prd.eu.vn.cloud.tesla.com'
         }
 
+        register_data = {"domain": domain}
         register_headers = {
             "Authorization": f"Bearer {tokens['access_token']}",
             "Content-Type": "application/json"
         }
 
-        logger.info(f"Registering public key with Tesla for domain: {domain}")
-        register_response = requests.post(register_url, json=register_data, headers=register_headers, timeout=10)
+        detected_region = None
 
-        if register_response.status_code not in [200, 201]:
-            logger.warning(f"Public key registration response: {register_response.status_code} - {register_response.text}")
-            # Continue anyway as this might already be registered
+        # Try each region until one succeeds
+        for region_code, base_url in regions.items():
+            logger.info(f"Trying to register with Tesla Fleet API region: {region_code} ({base_url})")
+            try:
+                register_url = f"{base_url}/api/1/partner_accounts"
+                register_response = requests.post(register_url, json=register_data, headers=register_headers, timeout=10)
 
-        # Automatically retrieve energy site ID
+                logger.info(f"Registration response for {region_code}: {register_response.status_code}")
+
+                if register_response.status_code in [200, 201]:
+                    logger.info(f"Successfully registered with region: {region_code}")
+                    detected_region = region_code
+                    break
+                elif register_response.status_code == 412:
+                    logger.warning(f"412 error for region {region_code} - trying next region")
+                    continue
+                else:
+                    logger.warning(f"Unexpected status {register_response.status_code} for region {region_code}: {register_response.text}")
+            except Exception as e:
+                logger.error(f"Error registering with region {region_code}: {e}")
+                continue
+
+        # If no region worked during registration, try detecting via products endpoint
+        if not detected_region:
+            logger.info("Registration didn't succeed with any region, trying to detect via products endpoint")
+            from app.api_clients import TeslaFleetAPIClient
+
+            for region_code in regions.keys():
+                try:
+                    logger.info(f"Testing products endpoint for region: {region_code}")
+                    test_client = TeslaFleetAPIClient(tokens['access_token'], tokens['refresh_token'], region_code)
+                    energy_sites = test_client.get_energy_sites()
+
+                    if energy_sites:
+                        logger.info(f"Successfully fetched products from region: {region_code}")
+                        detected_region = region_code
+                        break
+                except Exception as e:
+                    logger.error(f"Error testing region {region_code}: {e}")
+                    continue
+
+        # Store the detected region
+        if detected_region:
+            current_user.tesla_region = detected_region
+            logger.info(f"Tesla Fleet API region set to: {detected_region}")
+        else:
+            # Default to NA if detection failed
+            current_user.tesla_region = 'na'
+            logger.warning("Could not detect region, defaulting to 'na'")
+
+        # Automatically retrieve energy site ID using the detected region
         try:
             from app.api_clients import TeslaFleetAPIClient
-            fleet_client = TeslaFleetAPIClient(tokens['access_token'], tokens['refresh_token'])
+            region_to_use = current_user.tesla_region or 'na'
+            fleet_client = TeslaFleetAPIClient(tokens['access_token'], tokens['refresh_token'], region_to_use)
             energy_sites = fleet_client.get_energy_sites()
 
             if energy_sites:
@@ -690,13 +737,13 @@ def tesla_fleet_callback():
                 if site_id:
                     current_user.tesla_energy_site_id = str(site_id)
                     logger.info(f"Auto-detected Tesla Energy Site ID: {site_id}")
-                    flash(f'Successfully connected to Tesla Fleet API! Energy Site ID {site_id} detected.')
+                    flash(f'Successfully connected to Tesla Fleet API ({region_to_use.upper()})! Energy Site ID {site_id} detected.')
                 else:
                     logger.warning("No energy_site_id found in energy sites")
-                    flash('Successfully connected to Tesla Fleet API! Please set your Energy Site ID in settings.')
+                    flash(f'Successfully connected to Tesla Fleet API ({region_to_use.upper()})! Please set your Energy Site ID in settings.')
             else:
                 logger.warning("No energy sites found in Tesla account")
-                flash('Successfully connected to Tesla Fleet API! No energy sites found - please check your Tesla account.')
+                flash(f'Successfully connected to Tesla Fleet API ({region_to_use.upper()})! No energy sites found - please check your Tesla account.')
         except Exception as e:
             logger.error(f"Error fetching energy sites during OAuth callback: {e}")
             flash('Successfully connected to Tesla Fleet API! Please set your Energy Site ID manually in settings.')

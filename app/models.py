@@ -30,6 +30,7 @@ class User(UserMixin, db.Model):
     tesla_client_secret_encrypted = db.Column(db.LargeBinary)  # Tesla OAuth Client Secret
     tesla_redirect_uri = db.Column(db.String(255))  # OAuth redirect URI
     app_domain = db.Column(db.String(255))  # App domain for OAuth callbacks
+    tesla_region = db.Column(db.String(10))  # Tesla Fleet API region ('na', 'eu', 'cn')
 
     # Status Tracking
     last_update_status = db.Column(db.String(255))

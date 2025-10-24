@@ -17,6 +17,7 @@ class AmberAPIClient:
 
     def __init__(self, api_token):
         self.api_token = api_token
+        self.base_url = self.BASE_URL
         self.headers = {
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json"
@@ -28,7 +29,7 @@ class AmberAPIClient:
         try:
             logger.info("Testing Amber API connection")
             response = requests.get(
-                f"{self.BASE_URL}/sites",
+                f"{self.base_url}/sites",
                 headers=self.headers,
                 timeout=10
             )
@@ -53,7 +54,7 @@ class AmberAPIClient:
 
             logger.info(f"Fetching current prices for site: {site_id}")
             response = requests.get(
-                f"{self.BASE_URL}/sites/{site_id}/prices/current",
+                f"{self.base_url}/sites/{site_id}/prices/current",
                 headers=self.headers,
                 timeout=10
             )
@@ -71,7 +72,7 @@ class AmberAPIClient:
         try:
             logger.info("Fetching Amber sites")
             response = requests.get(
-                f"{self.BASE_URL}/sites",
+                f"{self.base_url}/sites",
                 headers=self.headers,
                 timeout=10
             )
@@ -106,7 +107,7 @@ class AmberAPIClient:
                 "endDate": end_date.isoformat()
             }
             response = requests.get(
-                f"{self.BASE_URL}/sites/{site_id}/prices",
+                f"{self.base_url}/sites/{site_id}/prices",
                 headers=self.headers,
                 params=params,
                 timeout=10
@@ -128,6 +129,7 @@ class TeslemetryAPIClient:
 
     def __init__(self, api_key):
         self.api_key = api_key
+        self.base_url = self.BASE_URL
         self.headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -139,7 +141,7 @@ class TeslemetryAPIClient:
         try:
             logger.info("Testing Teslemetry API connection")
             response = requests.get(
-                f"{self.BASE_URL}/api/1/products",
+                f"{self.base_url}/api/1/products",
                 headers=self.headers,
                 timeout=10
             )
@@ -155,7 +157,7 @@ class TeslemetryAPIClient:
         try:
             logger.info("Fetching Tesla energy sites via Teslemetry")
             response = requests.get(
-                f"{self.BASE_URL}/api/1/products",
+                f"{self.base_url}/api/1/products",
                 headers=self.headers,
                 timeout=10
             )
@@ -176,7 +178,7 @@ class TeslemetryAPIClient:
             # First, get the list of products to find the energy site
             logger.info(f"Getting products list to find energy site {site_id}")
             products_response = requests.get(
-                f"{self.BASE_URL}/api/1/products",
+                f"{self.base_url}/api/1/products",
                 headers=self.headers,
                 timeout=10
             )
@@ -208,7 +210,7 @@ class TeslemetryAPIClient:
 
             # Teslemetry uses /api/1/energy_sites/{id}/live_status
             response = requests.get(
-                f"{self.BASE_URL}/api/1/energy_sites/{site_id_numeric}/live_status",
+                f"{self.base_url}/api/1/energy_sites/{site_id_numeric}/live_status",
                 headers=self.headers,
                 timeout=10
             )
@@ -233,7 +235,7 @@ class TeslemetryAPIClient:
         try:
             logger.info(f"Fetching site info for {site_id} via Teslemetry")
             response = requests.get(
-                f"{self.BASE_URL}/api/1/energy_sites/{site_id}/site_info",
+                f"{self.base_url}/api/1/energy_sites/{site_id}/site_info",
                 headers=self.headers,
                 timeout=10
             )
@@ -269,7 +271,7 @@ class TeslemetryAPIClient:
         try:
             logger.info(f"Setting operation mode to {mode} for site {site_id}")
             response = requests.post(
-                f"{self.BASE_URL}/api/1/energy_sites/{site_id}/operation",
+                f"{self.base_url}/api/1/energy_sites/{site_id}/operation",
                 headers=self.headers,
                 json={"default_real_mode": mode},
                 timeout=10
@@ -300,7 +302,7 @@ class TeslemetryAPIClient:
         try:
             logger.info(f"Setting backup reserve to {backup_reserve_percent}% for site {site_id}")
             response = requests.post(
-                f"{self.BASE_URL}/api/1/energy_sites/{site_id}/backup",
+                f"{self.base_url}/api/1/energy_sites/{site_id}/backup",
                 headers=self.headers,
                 json={"backup_reserve_percent": backup_reserve_percent},
                 timeout=10
@@ -325,7 +327,7 @@ class TeslemetryAPIClient:
         try:
             logger.info(f"Getting time-based control settings for site {site_id}")
             response = requests.get(
-                f"{self.BASE_URL}/api/1/energy_sites/{site_id}/time_of_use_settings",
+                f"{self.base_url}/api/1/energy_sites/{site_id}/time_of_use_settings",
                 headers=self.headers,
                 timeout=10
             )
@@ -353,7 +355,7 @@ class TeslemetryAPIClient:
             logger.info(f"TOU settings: {tou_settings}")
 
             response = requests.post(
-                f"{self.BASE_URL}/api/1/energy_sites/{site_id}/time_of_use_settings",
+                f"{self.base_url}/api/1/energy_sites/{site_id}/time_of_use_settings",
                 headers=self.headers,
                 json=tou_settings,
                 timeout=10
@@ -400,7 +402,7 @@ class TeslemetryAPIClient:
                 logger.debug(f"Tariff energy_charges seasons: {energy_charges_keys}")
 
             response = requests.post(
-                f"{self.BASE_URL}/api/1/energy_sites/{site_id}/time_of_use_settings",
+                f"{self.base_url}/api/1/energy_sites/{site_id}/time_of_use_settings",
                 headers=self.headers,
                 json=payload,
                 timeout=30  # Longer timeout for tariff updates
@@ -451,24 +453,30 @@ def get_amber_client(user):
 class TeslaFleetAPIClient:
     """Client for Tesla Fleet API (direct OAuth with virtual keys)"""
 
-    # Tesla Fleet API base URL for North America
-    BASE_URL = "https://fleet-api.prd.na.vn.cloud.tesla.com"
+    # Tesla Fleet API regional base URLs
+    REGION_URLS = {
+        'na': "https://fleet-api.prd.na.vn.cloud.tesla.com",  # North America
+        'eu': "https://fleet-api.prd.eu.vn.cloud.tesla.com",  # Europe/Asia-Pacific
+        'cn': "https://fleet-api.prd.cn.vn.cloud.tesla.cn"    # China
+    }
 
-    def __init__(self, access_token, refresh_token=None):
+    def __init__(self, access_token, refresh_token=None, region='na'):
         self.access_token = access_token
         self.refresh_token = refresh_token
+        self.region = region
+        self.base_url = self.REGION_URLS.get(region, self.REGION_URLS['na'])
         self.headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
-        logger.info("TeslaFleetAPIClient initialized")
+        logger.info(f"TeslaFleetAPIClient initialized for region: {region} ({self.base_url})")
 
     def test_connection(self):
         """Test the API connection"""
         try:
             logger.info("Testing Tesla Fleet API connection")
             response = requests.get(
-                f"{self.BASE_URL}/api/1/products",
+                f"{self.base_url}/api/1/products",
                 headers=self.headers,
                 timeout=10
             )
@@ -484,7 +492,7 @@ class TeslaFleetAPIClient:
         try:
             logger.info("Fetching Tesla energy sites via Fleet API")
             response = requests.get(
-                f"{self.BASE_URL}/api/1/products",
+                f"{self.base_url}/api/1/products",
                 headers=self.headers,
                 timeout=10
             )
@@ -505,7 +513,7 @@ class TeslaFleetAPIClient:
         try:
             logger.info(f"Fetching site status for {site_id} via Fleet API")
             response = requests.get(
-                f"{self.BASE_URL}/api/1/energy_sites/{site_id}/live_status",
+                f"{self.base_url}/api/1/energy_sites/{site_id}/live_status",
                 headers=self.headers,
                 timeout=10
             )
@@ -522,7 +530,7 @@ class TeslaFleetAPIClient:
         try:
             logger.info(f"Fetching site info for {site_id} via Fleet API")
             response = requests.get(
-                f"{self.BASE_URL}/api/1/energy_sites/{site_id}/site_info",
+                f"{self.base_url}/api/1/energy_sites/{site_id}/site_info",
                 headers=self.headers,
                 timeout=10
             )
@@ -552,7 +560,7 @@ class TeslaFleetAPIClient:
         try:
             logger.info(f"Setting operation mode to {mode} for site {site_id}")
             response = requests.post(
-                f"{self.BASE_URL}/api/1/energy_sites/{site_id}/operation",
+                f"{self.base_url}/api/1/energy_sites/{site_id}/operation",
                 headers=self.headers,
                 json={"default_real_mode": mode},
                 timeout=10
@@ -570,7 +578,7 @@ class TeslaFleetAPIClient:
         try:
             logger.info(f"Setting backup reserve to {backup_reserve_percent}% for site {site_id}")
             response = requests.post(
-                f"{self.BASE_URL}/api/1/energy_sites/{site_id}/backup",
+                f"{self.base_url}/api/1/energy_sites/{site_id}/backup",
                 headers=self.headers,
                 json={"backup_reserve_percent": backup_reserve_percent},
                 timeout=10
@@ -602,7 +610,7 @@ class TeslaFleetAPIClient:
                 logger.debug(f"Tariff energy_charges seasons: {energy_charges_keys}")
 
             response = requests.post(
-                f"{self.BASE_URL}/api/1/energy_sites/{site_id}/time_of_use_settings",
+                f"{self.base_url}/api/1/energy_sites/{site_id}/time_of_use_settings",
                 headers=self.headers,
                 json=payload,
                 timeout=30  # Longer timeout for tariff updates
@@ -644,7 +652,10 @@ def get_tesla_client(user):
             logger.info("Using TeslaFleetAPIClient (direct OAuth)")
             access_token = decrypt_token(user.tesla_access_token_encrypted)
             refresh_token = decrypt_token(user.tesla_refresh_token_encrypted) if user.tesla_refresh_token_encrypted else None
-            return TeslaFleetAPIClient(access_token, refresh_token)
+            # Use stored region, default to 'na' if not set
+            region = user.tesla_region or 'na'
+            logger.info(f"Using Tesla Fleet API region: {region}")
+            return TeslaFleetAPIClient(access_token, refresh_token, region)
         except Exception as e:
             logger.error(f"Error creating Fleet API client: {e}")
 
