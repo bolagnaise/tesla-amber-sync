@@ -119,7 +119,11 @@
             try {
                 const response = await fetch('/api/amber/current-price');
                 if (!response.ok) {
-                    throw new Error('Failed to fetch prices');
+                    // Don't spam console if Amber isn't configured
+                    if (response.status !== 404 && response.status !== 500) {
+                        console.error('Failed to fetch prices:', response.status);
+                    }
+                    return;
                 }
                 const prices = await response.json();
 
@@ -532,7 +536,9 @@
         checkAPIStatus();
         fetchTOUSchedule();
 
-        // Refresh data every 5 minutes
+        // Refresh current prices every 1 minute (Amber updates every 5 mins, so we catch updates quickly)
+        setInterval(fetchCurrentPrices, 60 * 1000);
+        // Check API status every 5 minutes
         setInterval(checkAPIStatus, 5 * 60 * 1000);
         // Refresh TOU schedule every hour
         setInterval(fetchTOUSchedule, 60 * 60 * 1000);
