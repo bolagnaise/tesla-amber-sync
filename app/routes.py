@@ -88,6 +88,10 @@ def login():
     if current_user.is_authenticated:
         logger.info(f"User already authenticated: {current_user.email}")
         return redirect(url_for('main.dashboard'))
+
+    # Check if registration should be allowed (single-user mode)
+    allow_registration = User.query.count() == 0
+
     form = LoginForm()
     if form.validate_on_submit():
         logger.info(f"Login form submitted for email: {form.email.data}")
@@ -99,7 +103,7 @@ def login():
         logger.info(f"Successful login for user: {user.email}")
         login_user(user, remember=form.remember_me.data)
         return redirect(url_for('main.dashboard'))
-    return render_template('login.html', title='Sign In', form=form)
+    return render_template('login.html', title='Sign In', form=form, allow_registration=allow_registration)
 
 @bp.route('/logout')
 def logout():
@@ -110,12 +114,27 @@ def logout():
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('main.dashboard'))
+
+    # Check if any users already exist (single-user mode)
+    existing_user_count = User.query.count()
+    if existing_user_count > 0:
+        logger.warning(f"Registration attempt blocked - user already exists (count: {existing_user_count})")
+        flash('Registration is disabled. This application only supports a single user account.')
+        return redirect(url_for('main.login'))
+
     form = RegistrationForm()
     if form.validate_on_submit():
+        # Double-check in case of race condition
+        if User.query.count() > 0:
+            logger.warning("Registration blocked during form submission - user already exists")
+            flash('Registration is disabled. A user account already exists.')
+            return redirect(url_for('main.login'))
+
         user = User(email=form.email.data)
         user.set_password(form.password.data)
         db.session.add(user)
         db.session.commit()
+        logger.info(f"First user account created: {user.email}")
         flash('Congratulations, you are now a registered user!')
         return redirect(url_for('main.login'))
     return render_template('register.html', title='Register', form=form)

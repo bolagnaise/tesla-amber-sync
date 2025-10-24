@@ -30,5 +30,7 @@
 
         {{ form.submit() }}
     </form>
+    {% if allow_registration %}
     <p>New User? <a href="{{ url_for('main.register') }}">Click to Register!</a></p>
+    {% endif %}
 {% endblock %}
