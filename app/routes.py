@@ -680,33 +680,7 @@ def tesla_fleet_callback():
         # Use manually configured region (default to 'na' if not set)
         region_to_use = current_user.tesla_region or 'na'
         logger.info(f"Using Tesla Fleet API region: {region_to_use}")
-
-        # Region-specific base URLs
-        region_urls = {
-            'na': 'https://fleet-api.prd.na.vn.cloud.tesla.com',
-            'eu': 'https://fleet-api.prd.eu.vn.cloud.tesla.com',
-            'cn': 'https://fleet-api.prd.cn.vn.cloud.tesla.cn'
-        }
-        base_url = region_urls.get(region_to_use, region_urls['na'])
-
-        # Register with Tesla Partner Accounts API
-        domain = tesla_config['app_domain'] or request.host_url.rstrip('/')
-        register_data = {"domain": domain}
-        register_headers = {
-            "Authorization": f"Bearer {tokens['access_token']}",
-            "Content-Type": "application/json"
-        }
-
-        try:
-            register_url = f"{base_url}/api/1/partner_accounts"
-            logger.info(f"Registering with Tesla Fleet API ({region_to_use}): {register_url}")
-            register_response = requests.post(register_url, json=register_data, headers=register_headers, timeout=10)
-            logger.info(f"Registration response: {register_response.status_code}")
-
-            if register_response.status_code not in [200, 201]:
-                logger.warning(f"Registration returned {register_response.status_code}: {register_response.text}")
-        except Exception as e:
-            logger.error(f"Error during Tesla partner account registration: {e}")
+        logger.info("Domain registration should have been completed in Environment Settings")
 
         # Automatically retrieve energy site ID using the configured region
         try:
@@ -852,9 +826,69 @@ def environment_settings():
                 logger.info(f"Saving Tesla region: {form.tesla_region.data}")
                 current_user.tesla_region = form.tesla_region.data
 
+            # Automatically register domain with Tesla Fleet API if all required fields are present
+            if (form.tesla_client_id.data and form.tesla_client_secret.data and
+                form.app_domain.data and form.tesla_region.data):
+
+                try:
+                    logger.info("Attempting automatic partner account registration")
+
+                    # Region-specific endpoints
+                    region = form.tesla_region.data
+                    region_urls = {
+                        'na': 'https://fleet-api.prd.na.vn.cloud.tesla.com',
+                        'eu': 'https://fleet-api.prd.eu.vn.cloud.tesla.com',
+                        'cn': 'https://fleet-api.prd.cn.vn.cloud.tesla.cn'
+                    }
+                    fleet_api_url = region_urls.get(region, region_urls['na'])
+
+                    # Step 1: Generate partner authentication token using client_credentials
+                    logger.info(f"Generating partner authentication token for region: {region}")
+                    token_url = "https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token"
+                    token_data = {
+                        'grant_type': 'client_credentials',
+                        'client_id': form.tesla_client_id.data,
+                        'client_secret': form.tesla_client_secret.data,
+                        'audience': fleet_api_url
+                    }
+
+                    token_response = requests.post(token_url, data=token_data, timeout=10)
+
+                    if token_response.status_code == 200:
+                        partner_token = token_response.json()['access_token']
+                        logger.info("Partner authentication token generated successfully")
+
+                        # Step 2: Register domain with partner token
+                        register_url = f"{fleet_api_url}/api/1/partner_accounts"
+                        register_headers = {
+                            "Authorization": f"Bearer {partner_token}",
+                            "Content-Type": "application/json"
+                        }
+                        register_data = {"domain": form.app_domain.data}
+
+                        logger.info(f"Registering domain with Tesla Fleet API ({region}): {register_url}")
+                        register_response = requests.post(register_url, json=register_data, headers=register_headers, timeout=10)
+
+                        if register_response.status_code in [200, 201]:
+                            logger.info(f"Domain successfully registered with Tesla Fleet API ({region})")
+                            flash(f'Tesla OAuth settings saved and domain registered with Fleet API ({region.upper()})!')
+                        else:
+                            logger.warning(f"Domain registration returned {register_response.status_code}: {register_response.text}")
+                            flash(f'Settings saved, but domain registration returned status {register_response.status_code}. Check logs.')
+                    else:
+                        logger.error(f"Failed to generate partner token: {token_response.status_code} - {token_response.text}")
+                        flash('Settings saved, but failed to generate partner authentication token. Check credentials.')
+
+                except Exception as e:
+                    logger.error(f"Error during automatic partner registration: {e}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    flash('Settings saved, but automatic registration failed. You may need to register manually.')
+
             db.session.commit()
             logger.info("Tesla OAuth settings saved successfully")
-            flash('Tesla OAuth settings saved successfully. No restart required!')
+            if not form.app_domain.data:
+                flash('Tesla OAuth settings saved successfully. No restart required!')
             return redirect(url_for('main.dashboard'))
 
         except Exception as e:
