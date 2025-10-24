@@ -1,10 +1,14 @@
-# Tesla-Amber-Sync
+<div align="center">
+  <img src="assets/images/logo.png" alt="Tesla-Amber-Sync Logo" width="400"/>
 
-Synchronize Tesla Powerwall energy management with Amber Electric dynamic pricing to optimize battery charging and discharging based on real-time electricity prices.
+  # Tesla-Amber-Sync
 
-[![Docker Hub](https://img.shields.io/docker/v/bolagnaise/tesla-amber-sync?label=docker%20hub&logo=docker)](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)
-[![Docker Pulls](https://img.shields.io/docker/pulls/bolagnaise/tesla-amber-sync)](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)
-[![Build Status](https://github.com/bolagnaise/tesla-amber-sync/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/bolagnaise/tesla-amber-sync/actions)
+  Synchronize Tesla Powerwall energy management with Amber Electric dynamic pricing to optimize battery charging and discharging based on real-time electricity prices.
+
+  [![Docker Hub](https://img.shields.io/docker/v/bolagnaise/tesla-amber-sync?label=docker%20hub&logo=docker)](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)
+  [![Docker Pulls](https://img.shields.io/docker/pulls/bolagnaise/tesla-amber-sync)](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)
+  [![Build Status](https://github.com/bolagnaise/tesla-amber-sync/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/bolagnaise/tesla-amber-sync/actions)
+</div>
 
 ## Features
 
