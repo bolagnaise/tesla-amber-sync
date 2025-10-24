@@ -396,8 +396,8 @@ class TeslemetryAPIClient:
 
             # Log a sample of the tariff being sent for debugging
             if 'energy_charges' in tariff_content and tariff_content['energy_charges']:
-                first_period = tariff_content['energy_charges'][0] if tariff_content['energy_charges'] else None
-                logger.debug(f"Sample tariff period being sent: {first_period}")
+                energy_charges_keys = list(tariff_content['energy_charges'].keys())
+                logger.debug(f"Tariff energy_charges seasons: {energy_charges_keys}")
 
             response = requests.post(
                 f"{self.BASE_URL}/api/1/energy_sites/{site_id}/time_of_use_settings",
@@ -598,8 +598,8 @@ class TeslaFleetAPIClient:
 
             # Log a sample of the tariff being sent for debugging
             if 'energy_charges' in tariff_content and tariff_content['energy_charges']:
-                first_period = tariff_content['energy_charges'][0] if tariff_content['energy_charges'] else None
-                logger.debug(f"Sample tariff period being sent: {first_period}")
+                energy_charges_keys = list(tariff_content['energy_charges'].keys())
+                logger.debug(f"Tariff energy_charges seasons: {energy_charges_keys}")
 
             response = requests.post(
                 f"{self.BASE_URL}/api/1/energy_sites/{site_id}/time_of_use_settings",
