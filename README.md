@@ -175,19 +175,32 @@ docker-compose up -d --build
 
 ### Data Persistence
 
-Your data is stored in the `./data` directory:
-- Database: `./data/app.db`
-- This directory is mounted as a Docker volume for persistence
+⚠️ **IMPORTANT**: Your database is stored in the `./data` directory. **Create this directory before first run** to prevent data loss during upgrades:
 
-**Backup your data:**
+```bash
+mkdir -p ./data
+```
+
+**Your data:**
+- Database: `./data/app.db` (user accounts, API credentials, settings)
+- This directory is mounted as a Docker volume for persistence
+- **If `./data` doesn't exist, a fresh database is created on each restart**
+
+**Quick backup:**
 ```bash
 # Backup database
-cp ./data/app.db ./data/app.db.backup
+cp ./data/app.db ./data/app.db.backup-$(date +%Y%m%d)
 
 # Restore database
-cp ./data/app.db.backup ./data/app.db
+cp ./data/app.db.backup-YYYYMMDD ./data/app.db
 docker restart tesla-amber-sync
 ```
+
+📖 **See [DATABASE.md](DATABASE.md) for:**
+- Detailed backup/restore instructions
+- Automated backup scripts
+- Troubleshooting database issues
+- Unraid-specific setup
 
 ## Tesla API Authentication
 

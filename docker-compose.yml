@@ -25,8 +25,10 @@ services:
       - APP_DOMAIN=${APP_DOMAIN:-http://localhost:5001}
 
     volumes:
-      # Persist database and user data
-      # For Unraid, change to: /mnt/user/appdata/tesla-amber-sync/data:/app/data
+      # ⚠️ IMPORTANT: This directory persists your database across container restarts
+      # Before first run: mkdir -p ./data
+      # For Unraid: Use /mnt/user/appdata/tesla-amber-sync/data:/app/data
+      # See DATABASE.md for backup and restore instructions
       - ./data:/app/data
 
     networks:
