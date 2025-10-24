@@ -35,9 +35,15 @@ mv .env.example .env
 nano .env
 ```
 
-Add your credentials (see Configuration section below).
+Add your Tesla credentials (see Configuration section below).
+**Note:** Encryption key is auto-generated on first run - no manual setup needed!
 
-4. Start the container:
+4. Create data directory:
+```bash
+mkdir -p /mnt/user/appdata/tesla-amber-sync/data
+```
+
+5. Start the container:
 ```bash
 docker-compose -f docker-compose.hub.yml up -d
 ```
@@ -45,18 +51,22 @@ docker-compose -f docker-compose.hub.yml up -d
 **Option B: Using docker run**
 
 ```bash
+# Create data directory first
+mkdir -p /mnt/user/appdata/tesla-amber-sync/data
+
 docker run -d \
   --name tesla-amber-sync \
   -p 5001:5001 \
   -v /mnt/user/appdata/tesla-amber-sync/data:/app/data \
   -e SECRET_KEY=your-secret-key-here \
-  -e FERNET_ENCRYPTION_KEY=your-fernet-key-here \
   -e TESLA_CLIENT_ID=your-client-id \
   -e TESLA_CLIENT_SECRET=ta-secret.your-secret \
   -e TESLA_REDIRECT_URI=http://your-unraid-ip:5001/tesla-fleet/callback \
   -e APP_DOMAIN=http://your-unraid-ip:5001 \
   --restart unless-stopped \
   bolagnaise/tesla-amber-sync:latest
+
+# Note: Encryption key is auto-generated and saved to /mnt/user/appdata/tesla-amber-sync/data/.fernet_key
 ```
 
 **Option C: Unraid Docker Template**
@@ -126,9 +136,9 @@ nano .env
 # Generate a random secret key
 SECRET_KEY=your-long-random-secret-key-here
 
-# Generate encryption key (run in python):
-# python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-FERNET_ENCRYPTION_KEY=your-generated-fernet-key
+# Encryption key is AUTO-GENERATED on first run (no manual setup needed!)
+# Only set this if migrating from another instance with existing encrypted data
+# FERNET_ENCRYPTION_KEY=your-existing-key-here
 
 # Tesla Developer Credentials (optional if using Teslemetry)
 TESLA_CLIENT_ID=your-tesla-client-id
@@ -136,6 +146,12 @@ TESLA_CLIENT_SECRET=ta-secret.your-secret
 TESLA_REDIRECT_URI=http://your-unraid-ip:5001/tesla-fleet/callback
 APP_DOMAIN=http://your-unraid-ip:5001
 ```
+
+**✨ New: Auto-Generated Encryption Key**
+- The app automatically generates an encryption key on first startup
+- Saved to: `/mnt/user/appdata/tesla-amber-sync/data/.fernet_key`
+- Persists across container restarts via volume mount
+- **Important:** Always backup this file along with your database!
 
 ### Step 5: Update docker-compose.yml for Unraid
 
@@ -239,11 +255,29 @@ docker-compose down
 docker-compose up -d --build
 ```
 
-### Backup Database
+### Backup Database and Encryption Key
+
+**⚠️ IMPORTANT:** Always backup both the database AND encryption key together!
+
 ```bash
-# Database is in /mnt/user/appdata/tesla-amber-sync/data/app.db
-cp /mnt/user/appdata/tesla-amber-sync/data/app.db /mnt/user/backups/tesla-sync-backup-$(date +%Y%m%d).db
+# Backup both database and encryption key
+DATE=$(date +%Y%m%d-%H%M%S)
+BACKUP_DIR=/mnt/user/backups/tesla-amber-sync
+mkdir -p $BACKUP_DIR
+
+# Copy database
+cp /mnt/user/appdata/tesla-amber-sync/data/app.db $BACKUP_DIR/app.db.backup-$DATE
+
+# Copy encryption key (critical - without this, encrypted credentials are lost!)
+cp /mnt/user/appdata/tesla-amber-sync/data/.fernet_key $BACKUP_DIR/.fernet_key.backup-$DATE
+
+echo "Backup complete: $DATE"
 ```
+
+**Why backup the encryption key?**
+- The encryption key is needed to decrypt your stored API credentials
+- Without it, you'll need to re-enter all your Tesla and Amber Electric credentials
+- The key and database must be from the same backup to work together
 
 ---
 
