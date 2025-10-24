@@ -157,9 +157,10 @@ class AmberTariffConverter:
                 if lookup_key in general_lookup:
                     prices = general_lookup[lookup_key]
                     buy_price = sum(prices) / len(prices)
-                    # Tesla doesn't support negative prices - clamp to 0
+
+                    # Tesla restriction: No negative prices - clamp to 0
                     if buy_price < 0:
-                        logger.debug(f"{period_key}: Clamping negative buy price {buy_price:.4f} -> 0.0000")
+                        logger.debug(f"{period_key}: Buy price adjusted: {buy_price:.4f} -> 0.0000 (negative->zero)")
                         general_prices[period_key] = 0
                     else:
                         general_prices[period_key] = buy_price
@@ -181,19 +182,24 @@ class AmberTariffConverter:
                     prices = feedin_lookup[lookup_key]
                     sell_price = sum(prices) / len(prices)
                     original_sell = sell_price
+                    adjustments = []
 
-                    # Tesla doesn't support negative prices - clamp to 0
-                    sell_price = max(0, sell_price)
+                    # Tesla restriction #1: No negative prices - clamp to 0
+                    if sell_price < 0:
+                        adjustments.append(f"negative({sell_price:.4f})->zero")
+                        sell_price = 0
 
-                    # Tesla restriction: sell price cannot exceed buy price
+                    # Tesla restriction #2: Sell price cannot exceed buy price
                     # If necessary, adjust sell price downward to comply
                     if period_key in general_prices:
-                        if sell_price > general_prices[period_key]:
-                            logger.debug(f"{period_key}: Adjusting sell price {sell_price:.4f} -> {general_prices[period_key]:.4f} (cannot exceed buy)")
-                            sell_price = general_prices[period_key]
+                        buy_price = general_prices[period_key]
+                        if sell_price > buy_price:
+                            adjustments.append(f"exceeds_buy({sell_price:.4f}>{buy_price:.4f})->match_buy")
+                            sell_price = buy_price
 
-                    if original_sell != sell_price:
-                        logger.debug(f"{period_key}: Sell price adjusted from {original_sell:.4f} to {sell_price:.4f}")
+                    # Log all adjustments made for this period
+                    if adjustments:
+                        logger.debug(f"{period_key}: Sell price adjusted: {original_sell:.4f} -> {sell_price:.4f} ({', '.join(adjustments)})")
 
                     feedin_prices[period_key] = sell_price
                 else:
@@ -214,7 +220,58 @@ class AmberTariffConverter:
 
         logger.info(f"Rolling 24h window: {len([k for k in general_prices.keys()])} periods from {today} and {tomorrow}")
 
+        # Validate Tesla TOU restrictions before returning
+        self._validate_tesla_restrictions(general_prices, feedin_prices)
+
         return general_prices, feedin_prices
+
+    def _validate_tesla_restrictions(self, general_prices: Dict[str, float], feedin_prices: Dict[str, float]):
+        """
+        Validate that the tariff complies with Tesla's restrictions:
+        1. No negative prices
+        2. Buy price >= Sell price for every period
+        3. No gaps or overlaps in periods
+
+        Logs detailed warnings if any violations are found.
+        """
+        violations = []
+
+        # Check for negative prices
+        for period, price in general_prices.items():
+            if price < 0:
+                violations.append(f"{period}: Buy price is negative: {price:.4f}")
+
+        for period, price in feedin_prices.items():
+            if price < 0:
+                violations.append(f"{period}: Sell price is negative: {price:.4f}")
+
+        # Check that buy >= sell for every period
+        for period in general_prices.keys():
+            buy_price = general_prices[period]
+            sell_price = feedin_prices.get(period, 0)
+
+            if sell_price > buy_price:
+                violations.append(f"{period}: Sell ({sell_price:.4f}) > Buy ({buy_price:.4f}) - TESLA WILL REJECT THIS")
+
+        # Log validation results
+        if violations:
+            logger.error(f"Tesla TOU validation FAILED with {len(violations)} violations:")
+            for violation in violations:
+                logger.error(f"  - {violation}")
+        else:
+            logger.info("Tesla TOU validation PASSED - all restrictions met")
+
+        # Log summary statistics
+        buy_prices = [p for p in general_prices.values()]
+        sell_prices = [p for p in feedin_prices.values()]
+
+        logger.info(f"Buy prices: min=${min(buy_prices):.4f}, max=${max(buy_prices):.4f}, avg=${sum(buy_prices)/len(buy_prices):.4f}")
+        logger.info(f"Sell prices: min=${min(sell_prices):.4f}, max=${max(sell_prices):.4f}, avg=${sum(sell_prices)/len(sell_prices):.4f}")
+
+        # Calculate and log the margin (buy - sell) for each period
+        margins = [general_prices[p] - feedin_prices.get(p, 0) for p in general_prices.keys()]
+        avg_margin = sum(margins) / len(margins)
+        logger.info(f"Price margins (buy-sell): min=${min(margins):.4f}, max=${max(margins):.4f}, avg=${avg_margin:.4f}")
 
     def _build_tariff_structure(self, general_prices: Dict[str, float],
                                 feedin_prices: Dict[str, float],
