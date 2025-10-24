@@ -9,8 +9,64 @@ import logging
 # Set up logging
 logger = logging.getLogger(__name__)
 
-# This key MUST match the one in your .env file
-FERNET_KEY = os.environ.get('FERNET_ENCRYPTION_KEY').encode()
+# Path to store the auto-generated Fernet key
+FERNET_KEY_FILE = os.path.join(os.path.dirname(__file__), '..', 'data', '.fernet_key')
+
+def get_or_create_fernet_key():
+    """
+    Get the Fernet encryption key from environment variable or auto-generate it.
+
+    Priority:
+    1. FERNET_ENCRYPTION_KEY environment variable (backward compatibility)
+    2. Auto-generated key stored in /app/data/.fernet_key
+    3. Generate new key and save to file
+
+    Returns:
+        bytes: The Fernet encryption key
+    """
+    # Check environment variable first (backward compatibility)
+    env_key = os.environ.get('FERNET_ENCRYPTION_KEY')
+    if env_key:
+        logger.info("Using FERNET_ENCRYPTION_KEY from environment variable")
+        return env_key.encode()
+
+    # Check if auto-generated key file exists
+    if os.path.exists(FERNET_KEY_FILE):
+        try:
+            with open(FERNET_KEY_FILE, 'rb') as f:
+                key = f.read()
+            logger.info(f"Loaded Fernet key from {FERNET_KEY_FILE}")
+            return key
+        except Exception as e:
+            logger.error(f"Error reading Fernet key file: {e}")
+            raise
+
+    # Generate new key and save it
+    logger.warning("⚠️  No Fernet key found - generating new encryption key")
+    logger.warning(f"⚠️  Key will be saved to: {FERNET_KEY_FILE}")
+    logger.warning("⚠️  IMPORTANT: Back up this file! Without it, you cannot decrypt stored credentials.")
+
+    key = Fernet.generate_key()
+
+    # Ensure data directory exists
+    os.makedirs(os.path.dirname(FERNET_KEY_FILE), exist_ok=True)
+
+    # Save key to file
+    try:
+        with open(FERNET_KEY_FILE, 'wb') as f:
+            f.write(key)
+        # Set restrictive permissions (owner read/write only)
+        os.chmod(FERNET_KEY_FILE, 0o600)
+        logger.info(f"✓ Fernet key generated and saved to {FERNET_KEY_FILE}")
+        logger.info("✓ File permissions set to 600 (owner read/write only)")
+    except Exception as e:
+        logger.error(f"Error saving Fernet key to file: {e}")
+        raise
+
+    return key
+
+# Initialize the Fernet cipher suite with auto-generated or provided key
+FERNET_KEY = get_or_create_fernet_key()
 cipher_suite = Fernet(FERNET_KEY)
 logger.info("Encryption cipher suite initialized")
 

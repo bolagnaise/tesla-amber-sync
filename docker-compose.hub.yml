@@ -21,8 +21,9 @@ services:
       # Database (SQLite stored in volume)
       - DATABASE_URL=${DATABASE_URL:-sqlite:////app/data/app.db}
 
-      # Encryption Key - MUST be set
-      - FERNET_ENCRYPTION_KEY=${FERNET_ENCRYPTION_KEY:?FERNET_ENCRYPTION_KEY must be set in .env file}
+      # Encryption Key - Auto-generated if not provided (recommended for ease of use)
+      # Set this only if you want to use a specific key (e.g., for migrating from another instance)
+      - FERNET_ENCRYPTION_KEY=${FERNET_ENCRYPTION_KEY:-}
 
       # Tesla API Credentials
       - TESLA_CLIENT_ID=${TESLA_CLIENT_ID}

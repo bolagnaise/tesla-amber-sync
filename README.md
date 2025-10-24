@@ -33,11 +33,11 @@ curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/docke
 curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/.env.example
 mv .env.example .env
 
-# Generate encryption key
-python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-
-# Edit .env with your credentials
+# Edit .env with your Tesla credentials (encryption key auto-generated on first run)
 nano .env
+
+# Create data directory for persistence
+mkdir -p ./data
 
 # Start the container
 docker-compose -f docker-compose.hub.yml up -d
@@ -49,26 +49,32 @@ open http://localhost:5001
 **Option B: Using docker run**
 
 ```bash
+# Create data directory first
+mkdir -p $(pwd)/data
+
 docker run -d \
   --name tesla-amber-sync \
   -p 5001:5001 \
   -v $(pwd)/data:/app/data \
   -e SECRET_KEY=your-secret-key-here \
-  -e FERNET_ENCRYPTION_KEY=your-fernet-key-here \
   -e TESLA_CLIENT_ID=your-client-id \
   -e TESLA_CLIENT_SECRET=ta-secret.your-secret \
   -e TESLA_REDIRECT_URI=http://localhost:5001/tesla-fleet/callback \
   -e APP_DOMAIN=http://localhost:5001 \
   --restart unless-stopped \
   bolagnaise/tesla-amber-sync:latest
+
+# Note: Encryption key is auto-generated and saved to ./data/.fernet_key
 ```
 
-**Required Environment Variables:**
+**Environment Variables:**
 
 ```bash
 # Required
 SECRET_KEY=your-random-secret-key-here
-FERNET_ENCRYPTION_KEY=paste-generated-key-here
+
+# Optional - Auto-generated if not provided
+# FERNET_ENCRYPTION_KEY=your-custom-key-here
 
 # Tesla Developer Credentials (optional - can use Teslemetry instead)
 TESLA_CLIENT_ID=your-tesla-client-id
@@ -76,6 +82,11 @@ TESLA_CLIENT_SECRET=ta-secret.your-secret
 TESLA_REDIRECT_URI=http://localhost:5001/tesla-fleet/callback
 APP_DOMAIN=http://localhost:5001
 ```
+
+**Note on Encryption Key:**
+- The app automatically generates and saves an encryption key to `./data/.fernet_key` on first run
+- Only set `FERNET_ENCRYPTION_KEY` if you want to use a specific key (e.g., migrating from another instance)
+- **Important:** Back up `./data/.fernet_key` - without it, you cannot decrypt stored credentials
 
 **Docker Hub Image Details:**
 - **Repository:** `bolagnaise/tesla-amber-sync`
@@ -98,12 +109,13 @@ cd tesla-amber-sync
 cp .env.example .env
 ```
 
-3. **Generate encryption key**
-```bash
-python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-```
+3. **Edit `.env` with your credentials** (see environment variables above)
+   - Encryption key will be auto-generated on first run
 
-4. **Edit `.env` with your credentials** (see environment variables above)
+4. **Create data directory**
+```bash
+mkdir -p ./data
+```
 
 5. **Start with Docker Compose**
 ```bash

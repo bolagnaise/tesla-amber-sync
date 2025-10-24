@@ -57,13 +57,20 @@ docker-compose up -d --build
 # SSH into your server
 ssh root@192.168.1.100
 
-# Backup database
+# Backup database AND encryption key
 cd /path/to/tesla-amber-sync
-cp data/app.db data/app.db.backup-$(date +%Y%m%d-%H%M%S)
+DATE=$(date +%Y%m%d-%H%M%S)
+cp data/app.db data/app.db.backup-$DATE
+cp data/.fernet_key data/.fernet_key.backup-$DATE
 
 # List backups
 ls -lh data/*.backup*
 ```
+
+**⚠️ IMPORTANT:** Always backup both `app.db` AND `.fernet_key` together!
+- Without the database, you lose your account and settings
+- Without the encryption key, you cannot decrypt API credentials stored in the database
+- Both files must be from the same backup to work together
 
 ### Automated Backup Script
 
@@ -75,10 +82,16 @@ cat > /path/to/tesla-amber-sync/backup-db.sh << 'EOF'
 #!/bin/bash
 BACKUP_DIR="/path/to/tesla-amber-sync/data"
 DATE=$(date +%Y%m%d-%H%M%S)
+
+# Backup database and encryption key together
 cp "$BACKUP_DIR/app.db" "$BACKUP_DIR/app.db.backup-$DATE"
+cp "$BACKUP_DIR/.fernet_key" "$BACKUP_DIR/.fernet_key.backup-$DATE"
+
 # Keep only last 7 backups
 ls -t "$BACKUP_DIR"/app.db.backup-* | tail -n +8 | xargs rm -f
-echo "Database backed up: app.db.backup-$DATE"
+ls -t "$BACKUP_DIR"/.fernet_key.backup-* | tail -n +8 | xargs rm -f
+
+echo "Database and encryption key backed up: backup-$DATE"
 EOF
 
 chmod +x /path/to/tesla-amber-sync/backup-db.sh
