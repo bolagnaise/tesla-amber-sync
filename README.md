@@ -9,7 +9,6 @@ Synchronize Tesla Powerwall energy management with Amber Electric dynamic pricin
 ## Features
 
 - 🔋 **Automatic TOU Tariff Sync** - Updates Tesla Powerwall with Amber Electric pricing every 30 minutes
-- ⚡ **Manual Battery Control** - Force charge or discharge on demand - WIP - FLAKY
 - 📊 **Real-time Pricing Dashboard** - Monitor current and historical electricity prices
 - 🔐 **Dual Tesla Authentication** - Support for both Tesla Fleet API and Teslemetry (recommended)
 - 🔒 **Secure Credential Storage** - All API tokens encrypted at rest
@@ -277,20 +276,6 @@ The app automatically:
 - **Frequency:** Every 30 minutes
 - **Alignment:** Matches Amber Electric's pricing update schedule
 - **Forecast Window:** 48 half-hour periods (24 hours ahead)
-
-### Manual Control
-
-**Force Charge:**
-- Artificially lowers buy prices
-- Tesla sees cheap electricity
-- Battery charges from grid
-
-**Force Discharge:**
-- Artificially raises sell prices
-- Tesla sees high export value
-- Battery discharges to grid
-
-**Duration:** 30min - 4 hours
 
 ### Monitoring
 

@@ -347,6 +347,5 @@ Once setup is complete:
 2. ✅ Set your Tesla Energy Site ID
 3. ✅ Test API connectivity
 4. ✅ Set up automatic TOU schedule syncing
-5. ✅ Configure manual battery controls
 
 Your Tesla-Amber-Sync integration should now be fully functional!
