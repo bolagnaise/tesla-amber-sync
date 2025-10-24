@@ -19,11 +19,11 @@ services:
       # Set this only if you want to use a specific key (e.g., for migrating from another instance)
       - FERNET_ENCRYPTION_KEY=${FERNET_ENCRYPTION_KEY:-}
 
-      # Tesla API Credentials
-      - TESLA_CLIENT_ID=${TESLA_CLIENT_ID}
-      - TESLA_CLIENT_SECRET=${TESLA_CLIENT_SECRET}
-      - TESLA_REDIRECT_URI=${TESLA_REDIRECT_URI:-http://localhost:5001/tesla-fleet/callback}
-      - APP_DOMAIN=${APP_DOMAIN:-http://localhost:5001}
+      # Tesla API Credentials (Optional - can be configured via web UI)
+      - TESLA_CLIENT_ID=${TESLA_CLIENT_ID:-}
+      - TESLA_CLIENT_SECRET=${TESLA_CLIENT_SECRET:-}
+      - TESLA_REDIRECT_URI=${TESLA_REDIRECT_URI:-}
+      - APP_DOMAIN=${APP_DOMAIN:-}
 
     volumes:
       # ⚠️ IMPORTANT: This directory persists your database across container restarts

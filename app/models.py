@@ -25,6 +25,12 @@ class User(UserMixin, db.Model):
     tesla_fleet_private_key_encrypted = db.Column(db.LargeBinary)  # EC private key (encrypted)
     tesla_fleet_public_key = db.Column(db.Text)  # EC public key (PEM format, not encrypted - needs to be publicly accessible)
 
+    # Tesla OAuth Configuration (stored in database instead of environment variables)
+    tesla_client_id_encrypted = db.Column(db.LargeBinary)  # Tesla OAuth Client ID
+    tesla_client_secret_encrypted = db.Column(db.LargeBinary)  # Tesla OAuth Client Secret
+    tesla_redirect_uri = db.Column(db.String(255))  # OAuth redirect URI
+    app_domain = db.Column(db.String(255))  # App domain for OAuth callbacks
+
     # Status Tracking
     last_update_status = db.Column(db.String(255))
     last_update_time = db.Column(db.DateTime)

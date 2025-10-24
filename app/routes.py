@@ -13,6 +13,61 @@ import time
 import logging
 from datetime import datetime
 
+def get_tesla_config(user=None):
+    """
+    Get Tesla OAuth configuration from database (user settings) or environment variables (fallback).
+
+    Priority:
+    1. User's database settings (if user is logged in)
+    2. Environment variables (backward compatibility)
+    3. Default values
+
+    Args:
+        user: Current user object (optional, defaults to current_user if in request context)
+
+    Returns:
+        dict: Dictionary with tesla_client_id, tesla_client_secret, tesla_redirect_uri, app_domain
+    """
+    config = {
+        'tesla_client_id': None,
+        'tesla_client_secret': None,
+        'tesla_redirect_uri': None,
+        'app_domain': None
+    }
+
+    # Use provided user or current_user
+    if user is None:
+        try:
+            user = current_user if current_user.is_authenticated else None
+        except:
+            user = None
+
+    # Try to get from database first
+    if user and user.is_authenticated:
+        try:
+            if user.tesla_client_id_encrypted:
+                config['tesla_client_id'] = decrypt_token(user.tesla_client_id_encrypted)
+            if user.tesla_client_secret_encrypted:
+                config['tesla_client_secret'] = decrypt_token(user.tesla_client_secret_encrypted)
+            if user.tesla_redirect_uri:
+                config['tesla_redirect_uri'] = user.tesla_redirect_uri
+            if user.app_domain:
+                config['app_domain'] = user.app_domain
+        except Exception as e:
+            logger.error(f"Error reading Tesla config from database: {e}")
+
+    # Fallback to environment variables
+    if not config['tesla_client_id']:
+        config['tesla_client_id'] = os.environ.get('TESLA_CLIENT_ID')
+    if not config['tesla_client_secret']:
+        config['tesla_client_secret'] = os.environ.get('TESLA_CLIENT_SECRET')
+    if not config['tesla_redirect_uri']:
+        config['tesla_redirect_uri'] = os.environ.get('TESLA_REDIRECT_URI')
+    if not config['app_domain']:
+        config['app_domain'] = os.environ.get('APP_DOMAIN', request.host_url.rstrip('/') if request else None)
+
+    return config
+
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -520,13 +575,13 @@ def tesla_fleet_connect():
         # Tesla OAuth2 endpoints
         auth_base_url = "https://auth.tesla.com/oauth2/v3/authorize"
 
-        # Get the domain from environment or request
-        domain = os.environ.get('APP_DOMAIN', request.host_url.rstrip('/'))
+        # Get Tesla config from database or environment
+        tesla_config = get_tesla_config(current_user)
 
         # Build authorization URL
         params = {
-            'client_id': os.environ.get('TESLA_CLIENT_ID'),
-            'redirect_uri': os.environ.get('TESLA_REDIRECT_URI'),
+            'client_id': tesla_config['tesla_client_id'],
+            'redirect_uri': tesla_config['tesla_redirect_uri'],
             'response_type': 'code',
             'scope': 'openid email offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds energy_device_data energy_cmds',
             'state': str(current_user.id)  # Pass user ID as state for verification
@@ -573,15 +628,18 @@ def tesla_fleet_callback():
 
         logger.info(f"Tesla OAuth callback received for user: {current_user.email}")
 
+        # Get Tesla config from database or environment
+        tesla_config = get_tesla_config(current_user)
+
         # Exchange authorization code for tokens
         token_url = "https://auth.tesla.com/oauth2/v3/token"
 
         token_data = {
             'grant_type': 'authorization_code',
-            'client_id': os.environ.get('TESLA_CLIENT_ID'),
-            'client_secret': os.environ.get('TESLA_CLIENT_SECRET'),
+            'client_id': tesla_config['tesla_client_id'],
+            'client_secret': tesla_config['tesla_client_secret'],
             'code': code,
-            'redirect_uri': os.environ.get('TESLA_REDIRECT_URI'),
+            'redirect_uri': tesla_config['tesla_redirect_uri'],
             'audience': 'https://fleet-api.prd.na.vn.cloud.tesla.com'
         }
 
@@ -601,7 +659,7 @@ def tesla_fleet_callback():
         current_user.tesla_token_expiry = int(time.time() + tokens.get('expires_in', 3600))
 
         # Register public key with Tesla Partner Account
-        domain = os.environ.get('APP_DOMAIN', request.host_url.rstrip('/'))
+        domain = tesla_config['app_domain'] or request.host_url.rstrip('/')
         register_url = "https://fleet-api.prd.na.vn.cloud.tesla.com/api/1/partner_accounts"
 
         register_data = {
@@ -732,82 +790,60 @@ def teslemetry_disconnect():
 @bp.route('/environment-settings', methods=['GET', 'POST'])
 @login_required
 def environment_settings():
-    """Update environment variables (Tesla Developer credentials)"""
+    """Update Tesla OAuth credentials (saved to database, not environment variables)"""
     form = EnvironmentForm()
 
     if form.validate_on_submit():
         try:
-            logger.info(f"Environment settings update requested by user: {current_user.email}")
+            logger.info(f"Tesla OAuth settings update requested by user: {current_user.email}")
 
-            # Read current .env file
-            env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+            # Encrypt and save Tesla Client ID
+            if form.tesla_client_id.data:
+                logger.info("Encrypting and saving Tesla Client ID")
+                current_user.tesla_client_id_encrypted = encrypt_token(form.tesla_client_id.data)
 
-            if not os.path.exists(env_path):
-                flash('Environment file not found')
-                return redirect(url_for('main.dashboard'))
+            # Encrypt and save Tesla Client Secret
+            if form.tesla_client_secret.data:
+                logger.info("Encrypting and saving Tesla Client Secret")
+                current_user.tesla_client_secret_encrypted = encrypt_token(form.tesla_client_secret.data)
 
-            # Read existing content
-            with open(env_path, 'r') as f:
-                lines = f.readlines()
+            # Save redirect URI and app domain (not encrypted)
+            if form.tesla_redirect_uri.data:
+                logger.info("Saving Tesla Redirect URI")
+                current_user.tesla_redirect_uri = form.tesla_redirect_uri.data
 
-            # Update the specific environment variables
-            updates = {
-                'TESLA_CLIENT_ID': form.tesla_client_id.data,
-                'TESLA_CLIENT_SECRET': form.tesla_client_secret.data,
-                'TESLA_REDIRECT_URI': form.tesla_redirect_uri.data,
-                'APP_DOMAIN': form.app_domain.data
-            }
+            if form.app_domain.data:
+                logger.info("Saving App Domain")
+                current_user.app_domain = form.app_domain.data
 
-            # Process each line and update if needed
-            updated_lines = []
-            updated_keys = set()
-
-            for line in lines:
-                line_stripped = line.strip()
-                if line_stripped and not line_stripped.startswith('#'):
-                    # Check if this line contains one of our keys
-                    key = line_stripped.split('=')[0] if '=' in line_stripped else None
-                    if key in updates and updates[key]:
-                        # Update this value
-                        value = updates[key]
-                        # Quote the value if it contains special characters
-                        if any(c in value for c in [' ', '&', '$', '!', '*']):
-                            updated_lines.append(f"{key}='{value}'\n")
-                        else:
-                            updated_lines.append(f"{key}={value}\n")
-                        updated_keys.add(key)
-                    else:
-                        updated_lines.append(line)
-                else:
-                    updated_lines.append(line)
-
-            # Add any new keys that weren't in the file
-            for key, value in updates.items():
-                if key not in updated_keys and value:
-                    if any(c in value for c in [' ', '&', '$', '!', '*']):
-                        updated_lines.append(f"{key}='{value}'\n")
-                    else:
-                        updated_lines.append(f"{key}={value}\n")
-
-            # Write back to .env file
-            with open(env_path, 'w') as f:
-                f.writelines(updated_lines)
-
-            logger.info("Environment variables updated successfully")
-            flash('Environment settings updated successfully. Please restart the application for changes to take effect.')
+            db.session.commit()
+            logger.info("Tesla OAuth settings saved successfully")
+            flash('Tesla OAuth settings saved successfully. No restart required!')
             return redirect(url_for('main.dashboard'))
 
         except Exception as e:
-            logger.error(f"Error updating environment settings: {e}")
+            logger.error(f"Error saving Tesla OAuth settings: {e}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
-            flash(f'Error updating environment settings: {str(e)}')
+            flash(f'Error saving Tesla OAuth settings: {str(e)}')
+            db.session.rollback()
             return redirect(url_for('main.dashboard'))
 
-    # Pre-populate form with current environment values
-    form.tesla_client_id.data = os.environ.get('TESLA_CLIENT_ID', '')
-    form.tesla_client_secret.data = os.environ.get('TESLA_CLIENT_SECRET', '')
-    form.tesla_redirect_uri.data = os.environ.get('TESLA_REDIRECT_URI', '')
-    form.app_domain.data = os.environ.get('APP_DOMAIN', '')
+    # Pre-populate form with current database values (fallback to env vars for migration)
+    try:
+        if current_user.tesla_client_id_encrypted:
+            form.tesla_client_id.data = decrypt_token(current_user.tesla_client_id_encrypted)
+        elif os.environ.get('TESLA_CLIENT_ID'):
+            form.tesla_client_id.data = os.environ.get('TESLA_CLIENT_ID')
 
-    return render_template('environment_settings.html', title='Environment Settings', form=form)
+        if current_user.tesla_client_secret_encrypted:
+            form.tesla_client_secret.data = decrypt_token(current_user.tesla_client_secret_encrypted)
+        elif os.environ.get('TESLA_CLIENT_SECRET'):
+            form.tesla_client_secret.data = os.environ.get('TESLA_CLIENT_SECRET')
+
+        form.tesla_redirect_uri.data = current_user.tesla_redirect_uri or os.environ.get('TESLA_REDIRECT_URI', '')
+        form.app_domain.data = current_user.app_domain or os.environ.get('APP_DOMAIN', '')
+    except Exception as e:
+        logger.error(f"Error decrypting Tesla OAuth settings: {e}")
+
+    return render_template('environment_settings.html', title='Tesla OAuth Settings', form=form)

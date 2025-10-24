@@ -57,14 +57,11 @@ docker run -d \
   -p 5001:5001 \
   -v $(pwd)/data:/app/data \
   -e SECRET_KEY=your-secret-key-here \
-  -e TESLA_CLIENT_ID=your-client-id \
-  -e TESLA_CLIENT_SECRET=ta-secret.your-secret \
-  -e TESLA_REDIRECT_URI=http://localhost:5001/tesla-fleet/callback \
-  -e APP_DOMAIN=http://localhost:5001 \
   --restart unless-stopped \
   bolagnaise/tesla-amber-sync:latest
 
 # Note: Encryption key is auto-generated and saved to ./data/.fernet_key
+# Tesla OAuth credentials can be configured via the Environment Settings page in the web UI
 ```
 
 **Environment Variables:**
@@ -76,16 +73,16 @@ SECRET_KEY=your-random-secret-key-here
 # Optional - Auto-generated if not provided
 # FERNET_ENCRYPTION_KEY=your-custom-key-here
 
-# Tesla Developer Credentials (optional - can use Teslemetry instead)
-TESLA_CLIENT_ID=your-tesla-client-id
-TESLA_CLIENT_SECRET=ta-secret.your-secret
-TESLA_REDIRECT_URI=http://localhost:5001/tesla-fleet/callback
-APP_DOMAIN=http://localhost:5001
+# Tesla Developer Credentials (Optional - can be configured via web UI)
+# TESLA_CLIENT_ID=your-tesla-client-id
+# TESLA_CLIENT_SECRET=ta-secret.your-secret
+# TESLA_REDIRECT_URI=http://localhost:5001/tesla-fleet/callback
+# APP_DOMAIN=http://localhost:5001
 ```
 
-**Note on Encryption Key:**
-- The app automatically generates and saves an encryption key to `./data/.fernet_key` on first run
-- Only set `FERNET_ENCRYPTION_KEY` if you want to use a specific key (e.g., migrating from another instance)
+**Note on Configuration:**
+- **Encryption Key:** Automatically generated and saved to `./data/.fernet_key` on first run. Only set `FERNET_ENCRYPTION_KEY` if you want to use a specific key (e.g., migrating from another instance).
+- **Tesla OAuth Credentials:** Can be configured via the web UI (Environment Settings page) or set as environment variables. Web UI configuration is recommended for easier setup.
 - **Important:** Back up `./data/.fernet_key` - without it, you cannot decrypt stored credentials
 
 **Docker Hub Image Details:**
@@ -280,15 +277,21 @@ After logging in:
    - Enter your Amber API token
    - Save settings
 
-2. **Connect Tesla** (choose method)
+2. **Configure Tesla OAuth Credentials** (for Fleet API users)
+   - Navigate to Environment Settings page
+   - Enter Tesla Client ID, Client Secret, Redirect URI, and App Domain
+   - Or skip this step if using Teslemetry or if credentials are in environment variables
+   - Save settings
+
+3. **Connect Tesla** (choose method)
    - **Fleet API**: Click "Generate Keys" → "Connect to Tesla"
    - **Teslemetry**: Enter API key in settings form
 
-3. **Set Energy Site ID**
+4. **Set Energy Site ID**
    - Enter your Tesla energy site ID
    - Save settings
 
-4. **Verify Connection**
+5. **Verify Connection**
    - Check API status indicators turn green
    - View current prices and battery status
 
@@ -424,15 +427,21 @@ server {
 ### Environment Variables (Production)
 
 ```bash
+# Required
 SECRET_KEY=strong-random-secret
+
+# Optional
 FERNET_ENCRYPTION_KEY=your-fernet-key
 DATABASE_URL=postgresql://user:pass@localhost/dbname
 
-TESLA_CLIENT_ID=your-client-id
-TESLA_CLIENT_SECRET=your-client-secret
-TESLA_REDIRECT_URI=https://yourdomain.com/tesla-fleet/callback
-APP_DOMAIN=https://yourdomain.com
+# Tesla OAuth Credentials (Optional - can be configured via web UI)
+# TESLA_CLIENT_ID=your-client-id
+# TESLA_CLIENT_SECRET=your-client-secret
+# TESLA_REDIRECT_URI=https://yourdomain.com/tesla-fleet/callback
+# APP_DOMAIN=https://yourdomain.com
 ```
+
+**Note:** Tesla OAuth credentials can now be configured via the Environment Settings page in the web UI. This is recommended for easier management and eliminates the need to restart the container when updating credentials.
 
 ### Run with Gunicorn
 

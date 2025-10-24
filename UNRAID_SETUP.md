@@ -59,14 +59,11 @@ docker run -d \
   -p 5001:5001 \
   -v /mnt/user/appdata/tesla-amber-sync/data:/app/data \
   -e SECRET_KEY=your-secret-key-here \
-  -e TESLA_CLIENT_ID=your-client-id \
-  -e TESLA_CLIENT_SECRET=ta-secret.your-secret \
-  -e TESLA_REDIRECT_URI=http://your-unraid-ip:5001/tesla-fleet/callback \
-  -e APP_DOMAIN=http://your-unraid-ip:5001 \
   --restart unless-stopped \
   bolagnaise/tesla-amber-sync:latest
 
 # Note: Encryption key is auto-generated and saved to /mnt/user/appdata/tesla-amber-sync/data/.fernet_key
+# Tesla OAuth credentials can be configured via the Environment Settings page in the web UI
 ```
 
 **Option C: Unraid Docker Template**
@@ -140,11 +137,13 @@ SECRET_KEY=your-long-random-secret-key-here
 # Only set this if migrating from another instance with existing encrypted data
 # FERNET_ENCRYPTION_KEY=your-existing-key-here
 
-# Tesla Developer Credentials (optional if using Teslemetry)
-TESLA_CLIENT_ID=your-tesla-client-id
-TESLA_CLIENT_SECRET=ta-secret.your-secret
-TESLA_REDIRECT_URI=http://your-unraid-ip:5001/tesla-fleet/callback
-APP_DOMAIN=http://your-unraid-ip:5001
+# Tesla Developer Credentials (OPTIONAL - can be configured via web UI)
+# These can be set via the Environment Settings page in the web interface
+# Or you can set them here for convenience
+# TESLA_CLIENT_ID=your-tesla-client-id
+# TESLA_CLIENT_SECRET=ta-secret.your-secret
+# TESLA_REDIRECT_URI=http://your-unraid-ip:5001/tesla-fleet/callback
+# APP_DOMAIN=http://your-unraid-ip:5001
 ```
 
 **✨ New: Auto-Generated Encryption Key**
