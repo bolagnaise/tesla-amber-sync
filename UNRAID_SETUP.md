@@ -1,6 +1,10 @@
-# Tesla-Amber-Sync on Unraid
+<div align="center">
+  <img src="https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/assets/images/logo.png" alt="Tesla-Amber-Sync Logo" width="400"/>
 
-Complete guide to deploy Tesla-Amber-Sync on Unraid using Docker.
+  # Tesla-Amber-Sync on Unraid
+
+  Complete guide to deploy Tesla-Amber-Sync on Unraid using Docker.
+</div>
 
 ## Method 1: Pre-built Docker Image (Recommended)
 
