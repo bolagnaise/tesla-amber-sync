@@ -280,12 +280,17 @@
                     const absPrice = Math.abs(interval.perKwh);
 
                     if (selectedChannel === 'general') {
-                        // Import prices - orange/yellow scale
-                        circleColor = '#f59e0b'; // orange (default)
-                        if (absPrice < 25) {
-                            circleColor = '#fbbf24'; // yellow/light orange (low-medium)
-                        } else if (absPrice >= 40) {
-                            circleColor = '#f97316'; // darker orange (high)
+                        // Import prices - 4-color scale (green/yellow/orange/red)
+                        if (absPrice < 20) {
+                            circleColor = '#22c55e'; // green (<20¢)
+                        } else if (absPrice < 30) {
+                            circleColor = '#fbbf24'; // yellow (20-30¢)
+                        } else if (absPrice < 40) {
+                            circleColor = '#f59e0b'; // medium orange (30-40¢)
+                        } else if (absPrice < 50) {
+                            circleColor = '#f97316'; // dark orange (40-50¢)
+                        } else {
+                            circleColor = '#ef4444'; // red (≥50¢)
                         }
                     } else {
                         // Export prices - green scale
