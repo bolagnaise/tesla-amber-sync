@@ -335,6 +335,78 @@ def amber_current_price():
     return jsonify(prices)
 
 
+@bp.route('/api/amber/debug-forecast')
+@login_required
+def amber_debug_forecast():
+    """
+    Debug endpoint to fetch raw Amber forecast data for comparison with Netzero.
+    Returns all available price fields from Amber API for the next 48 hours.
+    """
+    logger.info(f"Debug forecast requested by user: {current_user.email}")
+
+    amber_client = get_amber_client(current_user)
+    if not amber_client:
+        logger.warning("Amber client not available")
+        return jsonify({'error': 'Amber API not configured'}), 400
+
+    # Get 48 hours of forecast data
+    forecast = amber_client.get_price_forecast(next_hours=48)
+    if not forecast:
+        logger.error("Failed to fetch price forecast")
+        return jsonify({'error': 'Failed to fetch price forecast'}), 500
+
+    # Format the data for easy comparison
+    debug_data = {
+        'total_intervals': len(forecast),
+        'fetch_time': datetime.utcnow().isoformat(),
+        'intervals': []
+    }
+
+    for interval in forecast:
+        # Extract all available fields
+        interval_data = {
+            'nemTime': interval.get('nemTime'),
+            'startTime': interval.get('startTime'),
+            'endTime': interval.get('endTime'),
+            'duration': interval.get('duration'),
+            'channelType': interval.get('channelType'),
+            'descriptor': interval.get('descriptor'),
+
+            # All price fields
+            'perKwh': interval.get('perKwh'),
+            'spotPerKwh': interval.get('spotPerKwh'),
+            'wholesaleKWHPrice': interval.get('wholesaleKWHPrice'),
+            'networkKWHPrice': interval.get('networkKWHPrice'),
+            'marketKWHPrice': interval.get('marketKWHPrice'),
+            'greenKWHPrice': interval.get('greenKWHPrice'),
+            'lossFactor': interval.get('lossFactor'),
+
+            # Metadata
+            'spikeStatus': interval.get('spikeStatus'),
+            'forecast': interval.get('forecast'),
+            'renewables': interval.get('renewables'),
+            'estimate': interval.get('estimate')
+        }
+        debug_data['intervals'].append(interval_data)
+
+    # Group by channel type for easier analysis
+    general_intervals = [i for i in debug_data['intervals'] if i['channelType'] == 'general']
+    feedin_intervals = [i for i in debug_data['intervals'] if i['channelType'] == 'feedIn']
+
+    summary = {
+        'total_intervals': debug_data['total_intervals'],
+        'fetch_time': debug_data['fetch_time'],
+        'general_channel_count': len(general_intervals),
+        'feedin_channel_count': len(feedin_intervals),
+        'general_intervals': general_intervals,
+        'feedin_intervals': feedin_intervals,
+        'sample_fields': list(debug_data['intervals'][0].keys()) if debug_data['intervals'] else []
+    }
+
+    logger.info(f"Debug forecast: {len(general_intervals)} general, {len(feedin_intervals)} feedIn intervals")
+    return jsonify(summary)
+
+
 @bp.route('/api/tesla/status')
 @login_required
 def tesla_status():

@@ -51,21 +51,27 @@ class AmberTariffConverter:
                 channel_type = point.get('channelType', '')
                 interval_type = point.get('type', 'unknown')
 
-                # Try to get advancedPrice.predicted first (ForecastInterval, CurrentInterval)
-                # Fall back to perKwh for ActualInterval (historical data)
-                advanced_price = point.get('advancedPrice')
+                # Use spotPerKwh (wholesale spot price only) for better battery optimization
+                # This matches Netzero's approach and is more accurate because:
+                # - Network charges are fixed (you pay them regardless of when you use power)
+                # - Only the wholesale spot price varies
+                # - Tesla battery should optimize against the variable component (spot price)
+                #
+                # Priority order:
+                # 1. spotPerKwh - wholesale spot price (best for battery optimization)
+                # 2. perKwh - total price including all charges (fallback)
+                # 3. advancedPrice.predicted - if above not available (legacy)
 
-                if advanced_price and isinstance(advanced_price, dict) and 'predicted' in advanced_price:
-                    # Use predicted price from forecast (best option)
-                    per_kwh_cents = advanced_price['predicted']
-                elif advanced_price and isinstance(advanced_price, (int, float)):
-                    # advancedPrice is a simple number
-                    per_kwh_cents = advanced_price
+                spot_per_kwh = point.get('spotPerKwh')
+
+                if spot_per_kwh is not None:
+                    # Use wholesale spot price (preferred method - matches Netzero)
+                    per_kwh_cents = spot_per_kwh
+                    logger.debug(f"{nem_time}: Using spotPerKwh={per_kwh_cents:.2f}c/kWh (wholesale only)")
                 else:
-                    # Fallback to perKwh (for ActualInterval or when advancedPrice unavailable)
+                    # Fallback to perKwh (total price)
                     per_kwh_cents = point.get('perKwh', 0)
-                    if interval_type == 'ForecastInterval' and not advanced_price:
-                        logger.warning(f"ForecastInterval at {nem_time} missing advancedPrice, using perKwh={per_kwh_cents}")
+                    logger.debug(f"{nem_time}: spotPerKwh not available, using perKwh={per_kwh_cents:.2f}c/kWh (total price)")
 
                 # Amber API convention: feedIn (sell) prices are negative when you get paid
                 # Tesla convention: sell prices are positive when you get paid
