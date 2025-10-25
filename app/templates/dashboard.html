@@ -177,6 +177,7 @@
         }
 
         // Fetch and display real 5-minute interval forecast from Amber API
+        // Matches the Amber app's individual 5-minute slot display
         async function generate5MinForecast() {
             const forecastDiv = document.getElementById('five-min-forecast');
 
@@ -197,89 +198,50 @@
                     return;
                 }
 
-                // Group intervals by 30-minute periods
-                const periods = {};
+                // Get current 5-minute interval
                 const now = new Date();
                 const currentHour = now.getHours();
-                const currentMin = Math.floor(now.getMinutes() / 30) * 30;
+                const currentMinute = Math.floor(now.getMinutes() / 5) * 5;
 
-                generalIntervals.forEach(interval => {
+                // Generate HTML for individual 5-minute slots (matching Amber app)
+                let html = '<div style="display: flex; gap: 0.5em; overflow-x: auto; padding: 0.5em 0;">';
+
+                generalIntervals.forEach((interval, idx) => {
                     const startTime = new Date(interval.startTime);
                     const hour = startTime.getHours();
                     const minute = startTime.getMinutes();
+                    const timeLabel = `${hour}:${String(minute).padStart(2, '0')}`;
 
-                    // Determine which 30-min period this belongs to
-                    const periodMin = Math.floor(minute / 30) * 30;
-                    const periodKey = `${hour}:${String(periodMin).padStart(2, '0')}`;
+                    // Check if this is the current 5-minute interval
+                    const isCurrent = (hour === currentHour && minute === currentMinute);
 
-                    if (!periods[periodKey]) {
-                        periods[periodKey] = {
-                            hour: hour,
-                            minute: periodMin,
-                            intervals: [],
-                            isCurrent: hour === currentHour && periodMin === currentMin
-                        };
+                    // Determine circle color based on price (matching Amber app thresholds)
+                    let circleColor = '#f59e0b'; // orange (default)
+                    const absPrice = Math.abs(interval.perKwh);
+                    if (absPrice < 25) {
+                        circleColor = '#fbbf24'; // yellow/light orange (low-medium)
+                    } else if (absPrice >= 40) {
+                        circleColor = '#f97316'; // darker orange (high)
                     }
+
+                    // Border style: orange for current, subtle for others
+                    const borderStyle = isCurrent ? '3px solid #f97316' : '1px solid rgba(255,255,255,0.15)';
+                    const bgStyle = isCurrent ? 'rgba(249, 115, 22, 0.1)' : 'rgba(255,255,255,0.03)';
 
                     // Find matching feedin interval
                     const feedin = feedinIntervals.find(f => f.startTime === interval.startTime);
 
-                    periods[periodKey].intervals.push({
-                        time: `${hour}:${String(minute).padStart(2, '0')}`,
-                        price: interval.perKwh,
-                        feedinPrice: feedin ? feedin.perKwh : null,
-                        renewables: interval.renewables || 0,
-                        spikeStatus: interval.spikeStatus || 'none'
-                    });
+                    html += `
+                        <div style="border: ${borderStyle}; border-radius: 12px; padding: 0.7em; min-width: 70px; background: ${bgStyle}; text-align: center;">
+                            <div style="font-size: 0.75em; font-weight: ${isCurrent ? 'bold' : 'normal'}; margin-bottom: 0.4em; opacity: 0.9;">${timeLabel}</div>
+                            <div style="color: ${circleColor}; font-size: 2.5em; line-height: 1;">●</div>
+                            <div style="font-size: 1em; font-weight: bold; margin-top: 0.3em;">${absPrice.toFixed(0)}¢</div>
+                            <div style="font-size: 0.75em; opacity: 0.7; margin-top: 0.2em;">${interval.renewables || 0}%</div>
+                        </div>
+                    `;
                 });
 
-                // Generate HTML for each 30-min period
-                let html = '';
-                const sortedPeriods = Object.values(periods).sort((a, b) => {
-                    if (a.hour !== b.hour) return a.hour - b.hour;
-                    return a.minute - b.minute;
-                });
-
-                sortedPeriods.forEach((period, periodIdx) => {
-                    const periodLabel = `${period.hour}:${String(period.minute).padStart(2, '0')}`;
-                    const borderStyle = period.isCurrent ? '3px solid #fbbf24' : '1px solid rgba(255,255,255,0.2)';
-
-                    html += `<div style="border: ${borderStyle}; border-radius: 12px; padding: 0.8em; min-width: fit-content; background: ${period.isCurrent ? 'rgba(251, 191, 36, 0.15)' : 'rgba(255,255,255,0.05)'}; margin-right: 0.5em;">`;
-                    html += `<div style="display: flex; gap: 0.5em; align-items: center;">`;
-
-                    // Show period label or "NOW"
-                    if (period.isCurrent) {
-                        html += `<div style="font-size: 0.75em; font-weight: bold; background: #fbbf24; color: #1e3a8a; padding: 0.3em 0.5em; border-radius: 4px;">NOW</div>`;
-                    }
-
-                    period.intervals.forEach((interval, idx) => {
-                        // Determine circle color based on price
-                        let circleColor = '#22c55e'; // green (low)
-                        if (Math.abs(interval.price) > 40) {
-                            circleColor = '#ef4444'; // red (high)
-                        } else if (Math.abs(interval.price) > 20) {
-                            circleColor = '#eab308'; // yellow (medium)
-                        }
-
-                        // Show spike warning if present
-                        let priceSymbol = '●';
-                        if (interval.spikeStatus === 'spike') {
-                            priceSymbol = '⚠️';
-                        }
-
-                        html += `
-                            <div style="text-align: center; min-width: 60px;">
-                                ${idx === 0 ? `<div style="font-size: 0.7em; font-weight: bold; margin-bottom: 0.3em;">${interval.time}</div>` : `<div style="font-size: 0.65em; opacity: 0.8; margin-bottom: 0.3em;">${interval.time.split(':')[1]}</div>`}
-                                <div style="color: ${circleColor}; font-size: 1.8em; line-height: 1;">${priceSymbol}</div>
-                                <div style="font-size: 0.95em; font-weight: bold; margin-top: 0.2em;">${Math.abs(interval.price).toFixed(0)}¢</div>
-                                <div style="font-size: 0.7em; opacity: 0.7;">${interval.renewables}%</div>
-                            </div>
-                        `;
-                    });
-
-                    html += `</div></div>`;
-                });
-
+                html += '</div>';
                 forecastDiv.innerHTML = html;
 
             } catch (error) {
