@@ -111,14 +111,14 @@
 
             if (channel === 'general') {
                 // Import selected
-                importSelector.querySelector('div:last-child').innerHTML = 'IMPORT (BUY) ✓';
-                exportSelector.querySelector('div:last-child').innerHTML = 'FEED-IN (SELL)';
+                importSelector.querySelector(':scope > div:last-child').innerHTML = 'IMPORT (BUY) ✓';
+                exportSelector.querySelector(':scope > div:last-child').innerHTML = 'FEED-IN (SELL)';
                 importSelector.style.transform = 'scale(1.05)';
                 exportSelector.style.transform = 'scale(1)';
             } else {
                 // Export selected
-                importSelector.querySelector('div:last-child').innerHTML = 'IMPORT (BUY)';
-                exportSelector.querySelector('div:last-child').innerHTML = 'FEED-IN (SELL) ✓';
+                importSelector.querySelector(':scope > div:last-child').innerHTML = 'IMPORT (BUY)';
+                exportSelector.querySelector(':scope > div:last-child').innerHTML = 'FEED-IN (SELL) ✓';
                 importSelector.style.transform = 'scale(1)';
                 exportSelector.style.transform = 'scale(1.05)';
             }
