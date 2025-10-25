@@ -177,7 +177,7 @@
         }
 
         // Fetch and display real 5-minute interval forecast from Amber API
-        // Matches the Amber app's individual 5-minute slot display
+        // Shows current 30-min period (from now) + next 30-min period
         async function generate5MinForecast() {
             const forecastDiv = document.getElementById('five-min-forecast');
 
@@ -198,15 +198,45 @@
                     return;
                 }
 
-                // Get current 5-minute interval
+                // Get current 5-minute interval and 30-minute period
                 const now = new Date();
                 const currentHour = now.getHours();
                 const currentMinute = Math.floor(now.getMinutes() / 5) * 5;
+                const current30MinPeriod = Math.floor(now.getMinutes() / 30) * 30; // 0 or 30
+
+                // Calculate end of current 30-min period and end of next 30-min period
+                const currentPeriodEnd = current30MinPeriod + 30;
+                const nextPeriodEnd = currentPeriodEnd + 30;
+
+                // Filter intervals: from current interval to end of next 30-min period
+                const filteredIntervals = generalIntervals.filter(interval => {
+                    const startTime = new Date(interval.startTime);
+                    const hour = startTime.getHours();
+                    const minute = startTime.getMinutes();
+
+                    // Same hour, minute >= current minute, minute < next period end
+                    if (hour === currentHour) {
+                        if (nextPeriodEnd <= 60) {
+                            // Next period doesn't cross hour boundary
+                            return minute >= currentMinute && minute < nextPeriodEnd;
+                        } else {
+                            // Next period crosses hour boundary
+                            return minute >= currentMinute;
+                        }
+                    }
+
+                    // Next hour (if next period crosses hour boundary)
+                    if (nextPeriodEnd > 60 && hour === (currentHour + 1) % 24) {
+                        return minute < (nextPeriodEnd - 60);
+                    }
+
+                    return false;
+                });
 
                 // Generate HTML for individual 5-minute slots (matching Amber app)
                 let html = '<div style="display: flex; gap: 0.5em; overflow-x: auto; padding: 0.5em 0;">';
 
-                generalIntervals.forEach((interval, idx) => {
+                filteredIntervals.forEach((interval, idx) => {
                     const startTime = new Date(interval.startTime);
                     const hour = startTime.getHours();
                     const minute = startTime.getMinutes();
