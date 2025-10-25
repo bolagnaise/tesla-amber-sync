@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 
 {% block content %}
+    <style>
+        #import-selector:hover, #export-selector:hover {
+            opacity: 0.85;
+        }
+    </style>
+
     <hgroup>
         <h1>Dashboard</h1>
         <h2>Real-time energy monitoring and pricing</h2>
@@ -26,15 +32,15 @@
             <div id="current-interval-time" style="font-size: 1.1em; font-weight: bold; margin-top: 0.3em;">--:-- - --:--</div>
         </header>
         <div style="display: flex; justify-content: center; gap: 2em; margin-bottom: 1.5em;">
-            <div style="text-align: center;">
-                <div style="background: rgba(253, 224, 71, 0.95); color: #1e3a8a; border-radius: 50%; width: 180px; height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin: 0 auto;">
+            <div id="import-selector" onclick="selectPriceChannel('general')" style="text-align: center; cursor: pointer; transition: transform 0.2s;">
+                <div style="background: rgba(253, 224, 71, 0.95); color: #1e3a8a; border-radius: 50%; width: 180px; height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
                     <div id="current-general-price" style="font-size: 3.5em; font-weight: bold; line-height: 1;">--¢</div>
                     <div style="font-size: 0.9em; margin-top: 0.2em;">/kWh</div>
                     <div id="current-renewables" style="font-size: 1em; margin-top: 0.5em; opacity: 0.8;">--% renewables</div>
                 </div>
-                <div style="margin-top: 0.5em; font-size: 0.85em; opacity: 0.9;">IMPORT (BUY)</div>
+                <div style="margin-top: 0.5em; font-size: 0.85em; opacity: 0.9;">IMPORT (BUY) ✓</div>
             </div>
-            <div style="text-align: center;">
+            <div id="export-selector" onclick="selectPriceChannel('feedIn')" style="text-align: center; cursor: pointer; transition: transform 0.2s;">
                 <div style="background: rgba(34, 197, 94, 0.2); border: 2px solid rgba(34, 197, 94, 0.5); border-radius: 12px; padding: 1em; min-width: 100px;">
                     <div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 0.3em;">⚡ EXPORT</div>
                     <div id="current-feedin-price" style="font-size: 2em; font-weight: bold;">--¢</div>
@@ -100,6 +106,35 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
     <script>
+        // Track selected price channel (general = import, feedIn = export)
+        let selectedChannel = 'general';
+
+        // Function to select price channel and update display
+        function selectPriceChannel(channel) {
+            selectedChannel = channel;
+
+            // Update visual indicators
+            const importSelector = document.getElementById('import-selector');
+            const exportSelector = document.getElementById('export-selector');
+
+            if (channel === 'general') {
+                // Import selected
+                importSelector.querySelector('div:last-child').innerHTML = 'IMPORT (BUY) ✓';
+                exportSelector.querySelector('div:last-child').innerHTML = 'FEED-IN (SELL)';
+                importSelector.style.transform = 'scale(1.05)';
+                exportSelector.style.transform = 'scale(1)';
+            } else {
+                // Export selected
+                importSelector.querySelector('div:last-child').innerHTML = 'IMPORT (BUY)';
+                exportSelector.querySelector('div:last-child').innerHTML = 'FEED-IN (SELL) ✓';
+                importSelector.style.transform = 'scale(1)';
+                exportSelector.style.transform = 'scale(1.05)';
+            }
+
+            // Regenerate forecast with selected channel
+            generate5MinForecast();
+        }
+
         // Check API status
         async function checkAPIStatus() {
             try {
@@ -193,7 +228,10 @@
                 const generalIntervals = data.general || [];
                 const feedinIntervals = data.feedIn || [];
 
-                if (generalIntervals.length === 0) {
+                // Select intervals based on selected channel
+                const sourceIntervals = selectedChannel === 'general' ? generalIntervals : feedinIntervals;
+
+                if (sourceIntervals.length === 0) {
                     forecastDiv.innerHTML = '<p style="color: rgba(255,255,255,0.7);">No forecast data available</p>';
                     return;
                 }
@@ -209,7 +247,7 @@
                 const nextPeriodEnd = currentPeriodEnd + 30;
 
                 // Filter intervals: from current interval to end of next 30-min period
-                const filteredIntervals = generalIntervals.filter(interval => {
+                const filteredIntervals = sourceIntervals.filter(interval => {
                     const startTime = new Date(interval.startTime);
                     const hour = startTime.getHours();
                     const minute = startTime.getMinutes();
@@ -245,21 +283,32 @@
                     // Check if this is the current 5-minute interval
                     const isCurrent = (hour === currentHour && minute === currentMinute);
 
-                    // Determine circle color based on price (matching Amber app thresholds)
-                    let circleColor = '#f59e0b'; // orange (default)
+                    // Determine circle color based on price and channel type
+                    let circleColor;
                     const absPrice = Math.abs(interval.perKwh);
-                    if (absPrice < 25) {
-                        circleColor = '#fbbf24'; // yellow/light orange (low-medium)
-                    } else if (absPrice >= 40) {
-                        circleColor = '#f97316'; // darker orange (high)
+
+                    if (selectedChannel === 'general') {
+                        // Import prices - orange/yellow scale
+                        circleColor = '#f59e0b'; // orange (default)
+                        if (absPrice < 25) {
+                            circleColor = '#fbbf24'; // yellow/light orange (low-medium)
+                        } else if (absPrice >= 40) {
+                            circleColor = '#f97316'; // darker orange (high)
+                        }
+                    } else {
+                        // Export prices - green scale
+                        circleColor = '#22c55e'; // green (default)
+                        if (absPrice < 5) {
+                            circleColor = '#86efac'; // light green (very low)
+                        } else if (absPrice >= 10) {
+                            circleColor = '#16a34a'; // darker green (high)
+                        }
                     }
 
-                    // Border style: orange for current, subtle for others
-                    const borderStyle = isCurrent ? '3px solid #f97316' : '1px solid rgba(255,255,255,0.15)';
-                    const bgStyle = isCurrent ? 'rgba(249, 115, 22, 0.1)' : 'rgba(255,255,255,0.03)';
-
-                    // Find matching feedin interval
-                    const feedin = feedinIntervals.find(f => f.startTime === interval.startTime);
+                    // Border style: colored for current, subtle for others
+                    const borderColor = selectedChannel === 'general' ? '#f97316' : '#22c55e';
+                    const borderStyle = isCurrent ? `3px solid ${borderColor}` : '1px solid rgba(255,255,255,0.15)';
+                    const bgStyle = isCurrent ? (selectedChannel === 'general' ? 'rgba(249, 115, 22, 0.1)' : 'rgba(34, 197, 94, 0.1)') : 'rgba(255,255,255,0.03)';
 
                     html += `
                         <div style="border: ${borderStyle}; border-radius: 12px; padding: 0.7em; min-width: 70px; background: ${bgStyle}; text-align: center;">
