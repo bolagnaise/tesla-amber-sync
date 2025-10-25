@@ -200,7 +200,7 @@
 
                 document.getElementById('current-interval-time').textContent = `${startTime} - ${endTime}`;
                 document.getElementById('current-general-price').textContent = `${Math.abs(generalPrice.perKwh).toFixed(0)}¢`;
-                document.getElementById('current-renewables').textContent = `${generalPrice.renewables || 0}% renewables`;
+                document.getElementById('current-renewables').textContent = `${Math.round(generalPrice.renewables || 0)}% renewables`;
             }
 
             if (feedinPrice) {
