@@ -32,6 +32,10 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     login.init_app(app)
 
+    # Run migrations check (version upgrades, SECRET_KEY changes, etc.)
+    from app.migrations_handler import run_migrations
+    run_migrations(app, app.config['SECRET_KEY'])
+
     from app.routes import bp as main_bp
     app.register_blueprint(main_bp)
     logger.info("Blueprint registered")
