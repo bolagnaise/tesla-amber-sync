@@ -4,6 +4,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
 import os
+import secrets
 import logging
 
 # Set up logging
@@ -124,3 +125,93 @@ def generate_tesla_key_pair():
 
     logger.info("Successfully generated Tesla Fleet API key pair")
     return private_pem, public_pem
+
+
+def get_or_create_secret_key():
+    """
+    Get Flask SECRET_KEY from environment variable or auto-generate it.
+    If missing, generates a secure random key and writes it to .env file.
+
+    Returns:
+        str: The SECRET_KEY
+    """
+    basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    env_file = os.path.join(basedir, '.env')
+
+    # Check environment variable first
+    secret_key = os.environ.get('SECRET_KEY')
+
+    # If no key exists or it's the default dev key, generate a new one
+    if not secret_key or secret_key == 'dev-secret-key-please-change-in-production':
+        logger.warning("⚠️  No SECRET_KEY found - generating new key")
+
+        # Generate a secure random key
+        secret_key = secrets.token_hex(32)
+
+        # Update .env file
+        try:
+            # Read existing .env content if it exists
+            env_content = []
+            if os.path.exists(env_file):
+                with open(env_file, 'r') as f:
+                    env_content = f.readlines()
+
+            # Remove any existing SECRET_KEY line
+            env_content = [line for line in env_content if not line.startswith('SECRET_KEY=')]
+
+            # Add new SECRET_KEY
+            env_content.append(f'SECRET_KEY={secret_key}\n')
+
+            # Write back to .env
+            with open(env_file, 'w') as f:
+                f.writelines(env_content)
+
+            # Set restrictive permissions
+            os.chmod(env_file, 0o600)
+
+            logger.info(f"✓ SECRET_KEY generated and saved to {env_file}")
+            logger.info("⚠️  IMPORTANT: Back up your .env file! Without it, all user sessions will be invalidated.")
+
+            # Update environment variable for current process
+            os.environ['SECRET_KEY'] = secret_key
+
+        except Exception as e:
+            logger.error(f"Error writing SECRET_KEY to .env: {e}")
+            logger.warning("Using generated key for this session only (not persisted)")
+
+    return secret_key
+
+
+def get_security_keys_info():
+    """
+    Get information about current security keys for display in settings.
+
+    Returns:
+        dict: Dictionary with key information
+    """
+    basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+    # Get SECRET_KEY
+    secret_key = os.environ.get('SECRET_KEY', 'Not set')
+
+    # Get FERNET_ENCRYPTION_KEY location
+    fernet_key_source = None
+    if os.environ.get('FERNET_ENCRYPTION_KEY'):
+        fernet_key_source = 'Environment variable (.env)'
+        fernet_key = os.environ.get('FERNET_ENCRYPTION_KEY')
+    elif os.path.exists(FERNET_KEY_FILE):
+        fernet_key_source = f'File: {FERNET_KEY_FILE}'
+        with open(FERNET_KEY_FILE, 'rb') as f:
+            fernet_key = f.read().decode()
+    else:
+        fernet_key_source = 'Not found'
+        fernet_key = 'Not set'
+
+    return {
+        'secret_key': secret_key,
+        'secret_key_source': 'Environment variable (.env)',
+        'fernet_key': fernet_key,
+        'fernet_key_source': fernet_key_source,
+        'env_file': os.path.join(basedir, '.env'),
+        'fernet_key_file': FERNET_KEY_FILE
+    }
