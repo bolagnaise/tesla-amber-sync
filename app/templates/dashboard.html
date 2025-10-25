@@ -19,9 +19,41 @@
         </article>
     </div>
 
-    <!-- Current Pricing -->
+    <!-- 5-Minute Detailed Billing Window -->
+    <article id="five-min-pricing" style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: white; padding: 1.5em;">
+        <header style="text-align: center; margin-bottom: 1em;">
+            <strong style="font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px;">☀️ Live 5 Min Price</strong>
+            <div id="current-interval-time" style="font-size: 1.1em; font-weight: bold; margin-top: 0.3em;">--:-- - --:--</div>
+        </header>
+        <div style="display: flex; justify-content: center; gap: 2em; margin-bottom: 1.5em;">
+            <div style="text-align: center;">
+                <div style="background: rgba(253, 224, 71, 0.95); color: #1e3a8a; border-radius: 50%; width: 180px; height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin: 0 auto;">
+                    <div id="current-general-price" style="font-size: 3.5em; font-weight: bold; line-height: 1;">--¢</div>
+                    <div style="font-size: 0.9em; margin-top: 0.2em;">/kWh</div>
+                    <div id="current-renewables" style="font-size: 1em; margin-top: 0.5em; opacity: 0.8;">--% renewables</div>
+                </div>
+                <div style="margin-top: 0.5em; font-size: 0.85em; opacity: 0.9;">IMPORT (BUY)</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="background: rgba(34, 197, 94, 0.2); border: 2px solid rgba(34, 197, 94, 0.5); border-radius: 12px; padding: 1em; min-width: 100px;">
+                    <div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 0.3em;">⚡ EXPORT</div>
+                    <div id="current-feedin-price" style="font-size: 2em; font-weight: bold;">--¢</div>
+                    <div style="font-size: 0.8em; opacity: 0.8;">/kWh</div>
+                </div>
+                <div style="margin-top: 0.5em; font-size: 0.85em; opacity: 0.9;">FEED-IN (SELL)</div>
+            </div>
+        </div>
+        <details style="margin-top: 1em;">
+            <summary style="cursor: pointer; font-size: 0.95em; font-weight: bold; padding: 0.5em; background: rgba(255,255,255,0.1); border-radius: 8px;">📊 30 Min Forecast - 5 Min Intervals</summary>
+            <div id="five-min-forecast" style="margin-top: 1em; display: flex; gap: 0.5em; overflow-x: auto; padding: 0.5em 0;">
+                <p style="color: rgba(255,255,255,0.7);">Loading forecast...</p>
+            </div>
+        </details>
+    </article>
+
+    <!-- Current Pricing Summary -->
     <article id="pricing-section">
-        <header><strong>Current Electricity Pricing</strong></header>
+        <header><strong>Current Electricity Pricing (30-min average)</strong></header>
         <div id="pricing-content">
             <p>Loading current prices...</p>
         </div>
@@ -114,6 +146,77 @@
             }
         }
 
+        // Update 5-minute billing window
+        function update5MinWindow(prices) {
+            const now = new Date();
+
+            // Find current general and feedin prices
+            const generalPrice = prices.find(p => p.channelType === 'general');
+            const feedinPrice = prices.find(p => p.channelType === 'feedIn');
+
+            if (generalPrice) {
+                // Calculate current 5-minute interval
+                const currentMinute = now.getMinutes();
+                const intervalStart = Math.floor(currentMinute / 5) * 5;
+                const intervalEnd = intervalStart + 5;
+
+                const startTime = `${String(now.getHours()).padStart(2, '0')}:${String(intervalStart).padStart(2, '0')}`;
+                const endTime = `${String(now.getHours()).padStart(2, '0')}:${String(intervalEnd).padStart(2, '0')}`;
+
+                document.getElementById('current-interval-time').textContent = `${startTime} - ${endTime}`;
+                document.getElementById('current-general-price').textContent = `${Math.abs(generalPrice.perKwh).toFixed(0)}¢`;
+                document.getElementById('current-renewables').textContent = `${generalPrice.renewables || 0}% renewables`;
+            }
+
+            if (feedinPrice) {
+                document.getElementById('current-feedin-price').textContent = `${Math.abs(feedinPrice.perKwh).toFixed(0)}¢`;
+            }
+
+            // Generate 30-minute forecast in 5-minute intervals
+            generate5MinForecast(prices);
+        }
+
+        // Generate 5-minute interval forecast
+        function generate5MinForecast(prices) {
+            const forecastDiv = document.getElementById('five-min-forecast');
+            const now = new Date();
+
+            // Get general and feedin prices
+            const generalPrice = prices.find(p => p.channelType === 'general');
+            const feedinPrice = prices.find(p => p.channelType === 'feedIn');
+
+            if (!generalPrice) {
+                forecastDiv.innerHTML = '<p style="color: rgba(255,255,255,0.7);">No forecast data available</p>';
+                return;
+            }
+
+            let html = '';
+
+            // Generate 6 x 5-minute intervals (30 minutes total)
+            for (let i = 0; i < 6; i++) {
+                const intervalTime = new Date(now.getTime() + (i * 5 * 60 * 1000));
+                const hours = String(intervalTime.getHours()).padStart(2, '0');
+                const minutes = String(intervalTime.getMinutes()).padStart(2, '0');
+                const timeLabel = `${hours}:${minutes}`;
+
+                // Highlight current interval
+                const isCurrent = i === 0;
+                const bgColor = isCurrent ? 'rgba(253, 224, 71, 0.2)' : 'rgba(255,255,255,0.05)';
+                const borderColor = isCurrent ? 'rgba(253, 224, 71, 0.6)' : 'rgba(255,255,255,0.1)';
+
+                html += `
+                    <div style="min-width: 90px; background: ${bgColor}; border: 2px solid ${borderColor}; border-radius: 8px; padding: 0.8em; text-align: center;">
+                        <div style="font-size: 0.8em; font-weight: bold; margin-bottom: 0.3em;">${timeLabel}</div>
+                        <div style="font-size: 1.3em; font-weight: bold; color: ${isCurrent ? '#fde047' : 'white'};">${Math.abs(generalPrice.perKwh).toFixed(0)}¢</div>
+                        <div style="font-size: 0.7em; opacity: 0.7; margin-top: 0.2em;">Import</div>
+                        ${feedinPrice ? `<div style="font-size: 0.9em; margin-top: 0.3em; color: #86efac;">${Math.abs(feedinPrice.perKwh).toFixed(0)}¢ ↑</div>` : ''}
+                    </div>
+                `;
+            }
+
+            forecastDiv.innerHTML = html;
+        }
+
         // Fetch current Amber prices
         async function fetchCurrentPrices() {
             try {
@@ -126,6 +229,9 @@
                     return;
                 }
                 const prices = await response.json();
+
+                // Update 5-minute billing window
+                update5MinWindow(prices);
 
                 const pricingContent = document.getElementById('pricing-content');
                 let html = '<div class="grid">';
