@@ -5,7 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 import logging
 import atexit
 
@@ -50,11 +50,11 @@ def create_app(config_class=Config):
     logger.info("Initializing background scheduler for automatic TOU sync")
     scheduler = BackgroundScheduler()
 
-    # Add job to sync all users' TOU schedules every 30 minutes (aligned with Amber's update cycle)
+    # Add job to sync all users' TOU schedules at :00 and :30 of every hour (aligned with Amber's update cycle)
     from app.tasks import sync_all_users
     scheduler.add_job(
         func=sync_all_users,
-        trigger=IntervalTrigger(minutes=30),
+        trigger=CronTrigger(minute='0,30'),
         id='sync_tou_schedules',
         name='Sync TOU schedules from Amber to Tesla',
         replace_existing=True
@@ -62,7 +62,7 @@ def create_app(config_class=Config):
 
     # Start the scheduler
     scheduler.start()
-    logger.info("Background scheduler started - TOU sync will run every 30 minutes (aligned with Amber's update cycle)")
+    logger.info("Background scheduler started - TOU sync will run at :00 and :30 of every hour")
 
     # Shut down the scheduler when exiting the app
     atexit.register(lambda: scheduler.shutdown())
