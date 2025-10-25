@@ -12,11 +12,13 @@
 
 ## Features
 
-- 🔋 **Automatic TOU Tariff Sync** - Updates Tesla Powerwall with Amber Electric pricing every 30 minutes
-- 📊 **Real-time Pricing Dashboard** - Monitor current and historical electricity prices
+- 🔋 **Automatic TOU Tariff Sync** - Updates Tesla Powerwall with Amber Electric pricing at :00 and :30 of every hour
+- 📊 **Real-time Pricing Dashboard** - Monitor current and historical electricity prices with 5-minute interval forecasts
+- ⚡ **5-Minute Price Intervals** - Live 5-minute electricity pricing matching Amber Electric's granular data
 - 🔐 **Dual Tesla Authentication** - Support for both Tesla Fleet API and Teslemetry (recommended)
-- 🔒 **Secure Credential Storage** - All API tokens encrypted at rest
-- ⏱️ **Background Scheduler** - Automatic syncing runs every 30 minutes (aligned with Amber's update cycle)
+- 🔒 **Secure Credential Storage** - All API tokens encrypted at rest with auto-generated encryption keys
+- 🔑 **Auto-Generated Security Keys** - SECRET_KEY and Fernet encryption key automatically generated on first run
+- ⏱️ **Background Scheduler** - Automatic syncing runs at :00 and :30 of every hour (aligned with Amber's update cycle)
 - 🐳 **Docker Ready** - Pre-built multi-architecture images for easy deployment
 
 ## Quick Start
@@ -33,7 +35,7 @@ curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/docke
 curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/.env.example
 mv .env.example .env
 
-# Edit .env with your Tesla credentials (encryption key auto-generated on first run)
+# Edit .env with your Tesla credentials (SECRET_KEY and encryption key auto-generated on first run)
 nano .env
 
 # Create data directory for persistence
@@ -56,21 +58,24 @@ docker run -d \
   --name tesla-amber-sync \
   -p 5001:5001 \
   -v $(pwd)/data:/app/data \
-  -e SECRET_KEY=your-secret-key-here \
   --restart unless-stopped \
   bolagnaise/tesla-amber-sync:latest
 
-# Note: Encryption key is auto-generated and saved to ./data/.fernet_key
+# Note: SECRET_KEY and Fernet encryption key are auto-generated on first run
+# - SECRET_KEY is saved to .env file (auto-created in container)
+# - Fernet key is saved to ./data/.fernet_key
+# - View keys in the dashboard's Security Keys section to back them up
 # Tesla OAuth credentials can be configured via the Environment Settings page in the web UI
 ```
 
 **Environment Variables:**
 
 ```bash
-# Required
-SECRET_KEY=your-random-secret-key-here
+# All security keys are auto-generated on first run - no manual setup required!
+# Only set these if you want to use specific keys (e.g., migrating from another instance)
 
 # Optional - Auto-generated if not provided
+# SECRET_KEY=your-random-secret-key-here
 # FERNET_ENCRYPTION_KEY=your-custom-key-here
 
 # Tesla Developer Credentials (Optional - can be configured via web UI)
@@ -81,9 +86,13 @@ SECRET_KEY=your-random-secret-key-here
 ```
 
 **Note on Configuration:**
-- **Encryption Key:** Automatically generated and saved to `./data/.fernet_key` on first run. Only set `FERNET_ENCRYPTION_KEY` if you want to use a specific key (e.g., migrating from another instance).
+- **Security Keys:** Both SECRET_KEY and FERNET_ENCRYPTION_KEY are automatically generated on first run
+  - SECRET_KEY: Saved to `.env` file
+  - FERNET_ENCRYPTION_KEY: Saved to `./data/.fernet_key`
+  - Only set manually if migrating from another instance or want to use specific keys
+- **View Keys:** Access the Security Keys section in the dashboard to view and backup your keys
 - **Tesla OAuth Credentials:** Can be configured via the web UI (Environment Settings page) or set as environment variables. Web UI configuration is recommended for easier setup.
-- **Important:** Back up `./data/.fernet_key` - without it, you cannot decrypt stored credentials
+- **Important:** Back up your `.env` file and `./data/.fernet_key` - without these keys, you cannot decrypt stored credentials
 
 **Docker Hub Image Details:**
 - **Repository:** `bolagnaise/tesla-amber-sync`
@@ -300,21 +309,27 @@ After logging in:
 ### Automatic Sync
 
 The app automatically:
-- Syncs TOU tariff every 30 minutes (aligned with Amber Electric's update cycle)
-- Fetches latest pricing forecasts from Amber API
+- Syncs TOU tariff at :00 and :30 of every hour (aligned with Amber Electric's update cycle)
+- Fetches latest pricing forecasts from Amber API including 5-minute intervals
 - Sends optimized rates to Tesla Powerwall
 
 **Sync Timing:**
-- **Frequency:** Every 30 minutes
-- **Alignment:** Matches Amber Electric's pricing update schedule
+- **Schedule:** Runs at :00 and :30 of every hour (e.g., 4:00 PM, 4:30 PM, 5:00 PM, etc.)
+- **Alignment:** Perfectly matches Amber Electric's 30-minute pricing update schedule
 - **Forecast Window:** 48 half-hour periods (24 hours ahead)
 
 ### Monitoring
 
-- **Current Prices**: Real-time Amber pricing
+- **5-Minute Live Pricing**: Real-time electricity prices with 5-minute granular forecasts
+  - Current 5-minute interval highlighted with border
+  - Import (BUY) and Export (SELL) pricing toggle
+  - Color-coded pricing: Green (<20¢), Yellow (20-30¢), Orange (30-50¢), Red (≥50¢)
+  - Renewable percentage for each interval
+  - Shows current + next 30-minute period
 - **Battery Status**: Powerwall charge level, power flow
 - **Price History**: 24-hour price chart
 - **TOU Schedule**: Upcoming 24-hour tariff plan
+- **Security Keys**: View and backup auto-generated encryption keys
 
 ## Architecture
 
@@ -324,8 +339,8 @@ The app automatically:
 - **Production Server**: Gunicorn (4 workers, 120s timeout)
 - **Database**: SQLite (PostgreSQL supported)
 - **Auth**: Flask-Login
-- **Scheduler**: APScheduler (30-minute intervals)
-- **Encryption**: Fernet (cryptography)
+- **Scheduler**: APScheduler (cron trigger at :00 and :30 of every hour)
+- **Encryption**: Fernet (cryptography) with auto-generated keys
 - **Containerization**: Docker (multi-arch: amd64, arm64)
 - **CI/CD**: GitHub Actions (automated builds)
 
@@ -427,11 +442,11 @@ server {
 ### Environment Variables (Production)
 
 ```bash
-# Required
-SECRET_KEY=strong-random-secret
+# Security Keys (Optional - auto-generated if not provided)
+# SECRET_KEY=strong-random-secret
+# FERNET_ENCRYPTION_KEY=your-fernet-key
 
-# Optional
-FERNET_ENCRYPTION_KEY=your-fernet-key
+# Database (Optional)
 DATABASE_URL=postgresql://user:pass@localhost/dbname
 
 # Tesla OAuth Credentials (Optional - can be configured via web UI)
@@ -441,7 +456,10 @@ DATABASE_URL=postgresql://user:pass@localhost/dbname
 # APP_DOMAIN=https://yourdomain.com
 ```
 
-**Note:** Tesla OAuth credentials can now be configured via the Environment Settings page in the web UI. This is recommended for easier management and eliminates the need to restart the container when updating credentials.
+**Notes:**
+- **Security Keys:** Both SECRET_KEY and FERNET_ENCRYPTION_KEY are auto-generated on first run. View them in the dashboard's Security Keys section for backup.
+- **Tesla OAuth Credentials:** Can be configured via the Environment Settings page in the web UI. This is recommended for easier management and eliminates the need to restart the container when updating credentials.
+- **Important:** Back up your `.env` file and `./data/.fernet_key` for disaster recovery.
 
 ### Run with Gunicorn
 
