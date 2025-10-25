@@ -131,9 +131,16 @@ class AmberTariffConverter:
         """
         Build a rolling 24-hour tariff where past periods use tomorrow's prices
 
-        If it's 12:00 PM now:
-        - PERIOD_12_00 to PERIOD_23_30 → today's prices
-        - PERIOD_00_00 to PERIOD_11_30 → tomorrow's prices
+        IMPORTANT: Prices are shifted LEFT by one 30-min slot to give Tesla advance notice.
+        This allows the battery to prepare for upcoming price changes.
+
+        Example (if current time is 4:15 PM):
+        - PERIOD_04_00 (4:00-4:30) → uses 4:30 price (next slot)
+        - PERIOD_04_30 (4:30-5:00) → uses 5:00 price (next slot)
+        - PERIOD_05_00 (5:00-5:30) → uses 5:30 price (next slot)
+
+        This means if there's a price spike at 5:00 PM, the battery knows about it
+        at 4:30 PM and has 30 minutes to prepare (charge before spike, etc.)
 
         Returns:
             (general_prices, feedin_prices) as dicts mapping PERIOD_XX_XX to price
@@ -155,16 +162,33 @@ class AmberTariffConverter:
             for minute in [0, 30]:
                 period_key = f"PERIOD_{hour:02d}_{minute:02d}"
 
-                # Determine if this period has already passed today
-                if (hour < current_hour) or (hour == current_hour and minute < current_minute):
-                    # Past period - use tomorrow's price
-                    date_to_use = tomorrow
+                # Calculate the NEXT 30-minute slot (shift left by one slot)
+                # This gives Tesla 30 minutes advance notice of price changes
+                next_minute = 30 if minute == 0 else 0
+                next_hour = hour if minute == 0 else (hour + 1) % 24
+
+                # If we rolled over to next day (23:30 -> 00:00), adjust date
+                if next_hour == 0 and hour == 23 and minute == 30:
+                    # Wrapping from 23:30 to 00:00 next day
+                    # Determine if this period has already passed today
+                    if (hour < current_hour) or (hour == current_hour and minute < current_minute):
+                        # Past period - use day after tomorrow's price
+                        date_to_use = tomorrow + timedelta(days=1)
+                    else:
+                        # Future period - use tomorrow's price
+                        date_to_use = tomorrow
                 else:
-                    # Future period - use today's price
-                    date_to_use = today
+                    # Normal case: determine if this period has already passed today
+                    if (hour < current_hour) or (hour == current_hour and minute < current_minute):
+                        # Past period - use tomorrow's price
+                        date_to_use = tomorrow
+                    else:
+                        # Future period - use today's price
+                        date_to_use = today
 
                 date_str = date_to_use.isoformat()
-                lookup_key = (date_str, hour, minute)
+                # Use the NEXT slot's time for lookup (shifted left)
+                lookup_key = (date_str, next_hour, next_minute)
 
                 # Get general price (buy price)
                 if lookup_key in general_lookup:
@@ -177,17 +201,18 @@ class AmberTariffConverter:
                         general_prices[period_key] = 0
                     else:
                         general_prices[period_key] = buy_price
+                        logger.debug(f"{period_key} (using {next_hour:02d}:{next_minute:02d} price): ${buy_price:.4f}")
                 else:
-                    # If tomorrow's forecast not available, fallback to today's actual/current price
+                    # If next slot's forecast not available, fallback to current slot's price
                     fallback_key = (today.isoformat(), hour, minute)
                     if fallback_key in general_lookup:
                         prices = general_lookup[fallback_key]
                         buy_price = max(0, sum(prices) / len(prices))
-                        logger.info(f"No forecast for {period_key} on {date_str}, using today's price: ${buy_price:.4f}")
+                        logger.info(f"{period_key}: No forecast for next slot ({next_hour:02d}:{next_minute:02d}), using current slot price: ${buy_price:.4f}")
                         general_prices[period_key] = buy_price
                     else:
                         # Last resort: use 0 (shouldn't happen for current day)
-                        logger.warning(f"No price data for {period_key} on {date_str} or {today.isoformat()}, using 0.00")
+                        logger.warning(f"{period_key}: No price data available (current or next slot), using 0.00")
                         general_prices[period_key] = 0
 
                 # Get feedin price (sell price)
@@ -215,8 +240,10 @@ class AmberTariffConverter:
                         logger.debug(f"{period_key}: Sell price adjusted: {original_sell:.4f} -> {sell_price:.4f} ({', '.join(adjustments)})")
 
                     feedin_prices[period_key] = sell_price
+                    if not adjustments:
+                        logger.debug(f"{period_key} (using {next_hour:02d}:{next_minute:02d} sell price): ${sell_price:.4f}")
                 else:
-                    # If tomorrow's forecast not available, fallback to today's actual/current price
+                    # If next slot's forecast not available, fallback to current slot's price
                     fallback_key = (today.isoformat(), hour, minute)
                     if fallback_key in feedin_lookup:
                         prices = feedin_lookup[fallback_key]
@@ -224,11 +251,11 @@ class AmberTariffConverter:
                         # Tesla restriction: sell price cannot exceed buy price
                         if period_key in general_prices and sell_price > general_prices[period_key]:
                             sell_price = general_prices[period_key]
-                        logger.info(f"No forecast for {period_key} feedIn on {date_str}, using today's price: ${sell_price:.4f}")
+                        logger.info(f"{period_key}: No forecast for next slot ({next_hour:02d}:{next_minute:02d}) feedIn, using current slot price: ${sell_price:.4f}")
                         feedin_prices[period_key] = sell_price
                     else:
                         # Last resort: use 0 (shouldn't happen for current day)
-                        logger.warning(f"No feedIn price data for {period_key} on {date_str} or {today.isoformat()}, using 0.00")
+                        logger.warning(f"{period_key}: No feedIn price data available (current or next slot), using 0.00")
                         feedin_prices[period_key] = 0
 
         logger.info(f"Rolling 24h window: {len([k for k in general_prices.keys()])} periods from {today} and {tomorrow}")
