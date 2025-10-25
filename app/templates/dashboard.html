@@ -337,70 +337,10 @@
                 // Update 5-minute billing window
                 update5MinWindow(prices);
 
-                const pricingContent = document.getElementById('pricing-content');
-                let html = '<div class="grid">';
-
-                prices.forEach(channel => {
-                    const spikeColor = channel.spikeStatus === 'spike' ? 'red' :
-                                      channel.spikeStatus === 'potential' ? 'orange' : 'green';
-
-                    // Determine channel label and pricing logic
-                    let channelLabel = channel.channelType.toUpperCase();
-                    let priceValue = channel.perKwh;
-                    let spotValue = channel.spotPerKwh;
-                    let priceSign = '';
-
-                    if (channel.channelType === 'feedIn') {
-                        // Feed-in tariff: negative values mean you receive money for exporting
-                        channelLabel = 'FEED-IN (EXPORT)';
-                        priceValue = Math.abs(priceValue);
-                        spotValue = spotValue ? Math.abs(spotValue) : null;
-                        priceSign = '+'; // You receive money
-                    } else if (channel.channelType === 'general') {
-                        // General usage: normally positive (you pay), but can be negative (you get paid)
-                        channelLabel = 'GENERAL (IMPORT)';
-                        if (priceValue < 0) {
-                            priceValue = Math.abs(priceValue);
-                            spotValue = spotValue && spotValue < 0 ? Math.abs(spotValue) : spotValue;
-                            priceSign = '+'; // You get paid to import!
-                            channelLabel = 'GENERAL (IMPORT - PAID!)';
-                        }
-                    }
-
-                    // Format spike status
-                    let spikeStatus = 'None';
-                    if (channel.spikeStatus === 'spike') spikeStatus = 'Active';
-                    else if (channel.spikeStatus === 'potential') spikeStatus = 'Potential';
-
-                    // Format data type
-                    const dataType = channel.forecast ? 'Forecast' : 'Actual';
-
-                    html += `
-                        <article style="margin: 0; padding: 1em; text-align: center;">
-                            <header><strong>${channelLabel}</strong></header>
-                            <p style="font-size: 2.5em; margin: 0; color: ${spikeColor};">
-                                <strong>${priceSign}${priceValue.toFixed(2)}¢</strong>
-                            </p>
-                            <p style="margin: 0.5em 0 0 0; font-size: 0.85em; color: #888;">
-                                per kWh
-                            </p>
-                            <small style="color: #666;">
-                                ${spotValue !== null ? `Spot: ${priceSign}${spotValue.toFixed(2)}¢<br>` : ''}
-                                <strong>Spike:</strong> ${spikeStatus} • <strong>Type:</strong> ${dataType}
-                            </small>
-                        </article>
-                    `;
-                });
-
-                html += '</div>';
-                pricingContent.innerHTML = html;
-
                 // Fetch and update price history
                 await fetchPriceHistory();
             } catch (error) {
                 console.error('Error fetching current prices:', error);
-                document.getElementById('pricing-content').innerHTML =
-                    '<p style="color: red;">Error loading prices. Please check your API token in Settings.</p>';
             }
         }
 
