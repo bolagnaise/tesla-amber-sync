@@ -94,17 +94,6 @@
         <canvas id="priceChart" style="max-height: 300px;"></canvas>
     </article>
 
-    <!-- Security Keys -->
-    <article id="security-keys-section">
-        <header>
-            <strong>🔐 Security Keys</strong>
-            <span style="font-size: 0.85em; opacity: 0.7; margin-left: 1em;">Auto-generated encryption keys - back these up!</span>
-        </header>
-        <div id="security-keys-content" style="margin-top: 1em;">
-            <p style="opacity: 0.7;">Loading security keys...</p>
-        </div>
-    </article>
-
     <!-- Chart.js Library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
@@ -692,105 +681,6 @@
             }
         }
 
-        // Fetch and display security keys
-        async function fetchSecurityKeys() {
-            try {
-                const response = await fetch('/api/security-keys');
-                const keys = await response.json();
-                const content = document.getElementById('security-keys-content');
-
-                content.innerHTML = `
-                    <div style="background: rgba(255,255,255,0.05); padding: 1.5em; border-radius: 8px;">
-                        <div style="margin-bottom: 1.5em;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5em;">
-                                <strong style="font-size: 0.95em;">Flask SECRET_KEY</strong>
-                                <div>
-                                    <button onclick="toggleKeyVisibility('secret-key')" style="font-size: 0.85em; margin-right: 0.5em;">👁️ Show</button>
-                                    <button onclick="copyToClipboard('${keys.secret_key}', 'SECRET_KEY')" style="font-size: 0.85em;">📋 Copy</button>
-                                </div>
-                            </div>
-                            <div style="font-family: monospace; background: rgba(0,0,0,0.3); padding: 0.75em; border-radius: 4px; word-break: break-all; font-size: 0.85em;">
-                                <span id="secret-key" data-hidden="true" data-value="${keys.secret_key}">••••••••••••••••••••••••••••••••</span>
-                            </div>
-                            <div style="font-size: 0.8em; opacity: 0.7; margin-top: 0.5em;">
-                                Source: ${keys.secret_key_source}
-                            </div>
-                            <div style="font-size: 0.8em; opacity: 0.6; margin-top: 0.3em; font-style: italic;">
-                                Used for Flask session cookies and CSRF protection
-                            </div>
-                        </div>
-
-                        <div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5em;">
-                                <strong style="font-size: 0.95em;">Fernet Encryption Key</strong>
-                                <div>
-                                    <button onclick="toggleKeyVisibility('fernet-key')" style="font-size: 0.85em; margin-right: 0.5em;">👁️ Show</button>
-                                    <button onclick="copyToClipboard('${keys.fernet_key}', 'FERNET_ENCRYPTION_KEY')" style="font-size: 0.85em;">📋 Copy</button>
-                                </div>
-                            </div>
-                            <div style="font-family: monospace; background: rgba(0,0,0,0.3); padding: 0.75em; border-radius: 4px; word-break: break-all; font-size: 0.85em;">
-                                <span id="fernet-key" data-hidden="true" data-value="${keys.fernet_key}">••••••••••••••••••••••••••••••••</span>
-                            </div>
-                            <div style="font-size: 0.8em; opacity: 0.7; margin-top: 0.5em;">
-                                Source: ${keys.fernet_key_source}
-                            </div>
-                            <div style="font-size: 0.8em; opacity: 0.6; margin-top: 0.3em; font-style: italic;">
-                                Used to encrypt API tokens in the database
-                            </div>
-                        </div>
-
-                        <div style="margin-top: 1.5em; padding: 1em; background: rgba(255, 193, 7, 0.1); border-left: 3px solid #ffc107; border-radius: 4px;">
-                            <strong style="color: #ffc107; font-size: 0.9em;">⚠️ Important Backup Information</strong>
-                            <ul style="margin: 0.5em 0 0 1.5em; font-size: 0.85em; opacity: 0.9;">
-                                <li>These keys were automatically generated on first run</li>
-                                <li>Back up your .env file and data/.fernet_key file</li>
-                                <li>Without these keys, you cannot decrypt stored credentials</li>
-                                <li>Changing SECRET_KEY will log out all users</li>
-                            </ul>
-                        </div>
-                    </div>
-                `;
-            } catch (error) {
-                console.error('Error fetching security keys:', error);
-                document.getElementById('security-keys-content').innerHTML = `
-                    <p style="color: red;">❌ Error loading security keys: ${error.message}</p>
-                `;
-            }
-        }
-
-        // Toggle key visibility
-        function toggleKeyVisibility(keyId) {
-            const element = document.getElementById(keyId);
-            const isHidden = element.getAttribute('data-hidden') === 'true';
-            const value = element.getAttribute('data-value');
-            const button = event.target;
-
-            if (isHidden) {
-                element.textContent = value;
-                element.setAttribute('data-hidden', 'false');
-                button.textContent = '🙈 Hide';
-            } else {
-                element.textContent = '••••••••••••••••••••••••••••••••';
-                element.setAttribute('data-hidden', 'true');
-                button.textContent = '👁️ Show';
-            }
-        }
-
-        // Copy to clipboard
-        function copyToClipboard(text, label) {
-            navigator.clipboard.writeText(text).then(() => {
-                const button = event.target;
-                const originalText = button.textContent;
-                button.textContent = '✓ Copied!';
-                setTimeout(() => {
-                    button.textContent = originalText;
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy:', err);
-                alert('Failed to copy to clipboard');
-            });
-        }
-
         // Refresh button handler
         document.getElementById('refresh-schedule-btn')?.addEventListener('click', fetchTOUSchedule);
 
@@ -800,7 +690,6 @@
         // Initial load
         checkAPIStatus();
         fetchTOUSchedule();
-        fetchSecurityKeys();
 
         // Refresh current prices every 1 minute (Amber updates every 5 mins, so we catch updates quickly)
         setInterval(fetchCurrentPrices, 60 * 1000);

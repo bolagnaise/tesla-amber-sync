@@ -288,16 +288,6 @@ def api_status():
     return jsonify(status)
 
 
-@bp.route('/api/security-keys')
-@login_required
-def security_keys():
-    """Get information about security keys for display in settings"""
-    from app.utils import get_security_keys_info
-    logger.info(f"Security keys info requested by user: {current_user.email}")
-    keys_info = get_security_keys_info()
-    return jsonify(keys_info)
-
-
 @bp.route('/api/amber/current-price')
 @login_required
 def amber_current_price():
