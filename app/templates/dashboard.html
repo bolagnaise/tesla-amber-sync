@@ -315,7 +315,7 @@
                             <div style="font-size: 0.75em; font-weight: ${isCurrent ? 'bold' : 'normal'}; margin-bottom: 0.4em; opacity: 0.9;">${timeLabel}</div>
                             <div style="color: ${circleColor}; font-size: 2.5em; line-height: 1;">●</div>
                             <div style="font-size: 1em; font-weight: bold; margin-top: 0.3em;">${absPrice.toFixed(0)}¢</div>
-                            <div style="font-size: 0.75em; opacity: 0.7; margin-top: 0.2em;">${interval.renewables || 0}%</div>
+                            <div style="font-size: 0.75em; opacity: 0.7; margin-top: 0.2em;">${Math.round(interval.renewables || 0)}%</div>
                         </div>
                     `;
                 });
