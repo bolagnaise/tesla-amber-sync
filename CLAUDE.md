@@ -102,12 +102,16 @@ flask shell
 
 ## Environment Variables
 
-Required in `.env`:
-- `SECRET_KEY`: Flask session secret
-- `FERNET_ENCRYPTION_KEY`: Fernet key for token encryption (generate with `Fernet.generate_key().decode()`)
+Auto-generated on first run (optional in `.env`):
+- `SECRET_KEY`: Flask session secret - auto-generated and saved to `.env` if not present
+- `FERNET_ENCRYPTION_KEY`: Fernet key for token encryption - auto-generated and saved to `data/.fernet_key` if not present
+
+Optional in `.env` (can also be configured via web UI):
 - `TESLA_CLIENT_ID`: Tesla OAuth client ID
 - `TESLA_CLIENT_SECRET`: Tesla OAuth client secret
 - `TESLA_REDIRECT_URI`: Tesla OAuth callback URL (e.g., `http://localhost:5000/tesla/callback`)
+
+**Note:** All security keys are auto-generated on first run. Users can view and back them up via the Security Keys section in the dashboard.
 
 ## Key Implementation Details
 
