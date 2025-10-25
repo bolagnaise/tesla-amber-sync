@@ -172,49 +172,120 @@
                 document.getElementById('current-feedin-price').textContent = `${Math.abs(feedinPrice.perKwh).toFixed(0)}¢`;
             }
 
-            // Generate 30-minute forecast in 5-minute intervals
-            generate5MinForecast(prices);
+            // Fetch and display 5-minute forecast (separate API call)
+            generate5MinForecast();
         }
 
-        // Generate 5-minute interval forecast
-        function generate5MinForecast(prices) {
+        // Fetch and display real 5-minute interval forecast from Amber API
+        async function generate5MinForecast() {
             const forecastDiv = document.getElementById('five-min-forecast');
-            const now = new Date();
 
-            // Get general and feedin prices
-            const generalPrice = prices.find(p => p.channelType === 'general');
-            const feedinPrice = prices.find(p => p.channelType === 'feedIn');
+            try {
+                // Fetch 5-minute interval data from API
+                const response = await fetch('/api/amber/5min-forecast');
+                if (!response.ok) {
+                    forecastDiv.innerHTML = '<p style="color: rgba(255,255,255,0.7);">5-minute forecast not available</p>';
+                    return;
+                }
 
-            if (!generalPrice) {
-                forecastDiv.innerHTML = '<p style="color: rgba(255,255,255,0.7);">No forecast data available</p>';
-                return;
+                const data = await response.json();
+                const generalIntervals = data.general || [];
+                const feedinIntervals = data.feedIn || [];
+
+                if (generalIntervals.length === 0) {
+                    forecastDiv.innerHTML = '<p style="color: rgba(255,255,255,0.7);">No forecast data available</p>';
+                    return;
+                }
+
+                // Group intervals by 30-minute periods
+                const periods = {};
+                const now = new Date();
+                const currentHour = now.getHours();
+                const currentMin = Math.floor(now.getMinutes() / 30) * 30;
+
+                generalIntervals.forEach(interval => {
+                    const startTime = new Date(interval.startTime);
+                    const hour = startTime.getHours();
+                    const minute = startTime.getMinutes();
+
+                    // Determine which 30-min period this belongs to
+                    const periodMin = Math.floor(minute / 30) * 30;
+                    const periodKey = `${hour}:${String(periodMin).padStart(2, '0')}`;
+
+                    if (!periods[periodKey]) {
+                        periods[periodKey] = {
+                            hour: hour,
+                            minute: periodMin,
+                            intervals: [],
+                            isCurrent: hour === currentHour && periodMin === currentMin
+                        };
+                    }
+
+                    // Find matching feedin interval
+                    const feedin = feedinIntervals.find(f => f.startTime === interval.startTime);
+
+                    periods[periodKey].intervals.push({
+                        time: `${hour}:${String(minute).padStart(2, '0')}`,
+                        price: interval.perKwh,
+                        feedinPrice: feedin ? feedin.perKwh : null,
+                        renewables: interval.renewables || 0,
+                        spikeStatus: interval.spikeStatus || 'none'
+                    });
+                });
+
+                // Generate HTML for each 30-min period
+                let html = '';
+                const sortedPeriods = Object.values(periods).sort((a, b) => {
+                    if (a.hour !== b.hour) return a.hour - b.hour;
+                    return a.minute - b.minute;
+                });
+
+                sortedPeriods.forEach((period, periodIdx) => {
+                    const periodLabel = `${period.hour}:${String(period.minute).padStart(2, '0')}`;
+                    const borderStyle = period.isCurrent ? '3px solid #fbbf24' : '1px solid rgba(255,255,255,0.2)';
+
+                    html += `<div style="border: ${borderStyle}; border-radius: 12px; padding: 0.8em; min-width: fit-content; background: ${period.isCurrent ? 'rgba(251, 191, 36, 0.15)' : 'rgba(255,255,255,0.05)'}; margin-right: 0.5em;">`;
+                    html += `<div style="display: flex; gap: 0.5em; align-items: center;">`;
+
+                    // Show period label or "NOW"
+                    if (period.isCurrent) {
+                        html += `<div style="font-size: 0.75em; font-weight: bold; background: #fbbf24; color: #1e3a8a; padding: 0.3em 0.5em; border-radius: 4px;">NOW</div>`;
+                    }
+
+                    period.intervals.forEach((interval, idx) => {
+                        // Determine circle color based on price
+                        let circleColor = '#22c55e'; // green (low)
+                        if (Math.abs(interval.price) > 40) {
+                            circleColor = '#ef4444'; // red (high)
+                        } else if (Math.abs(interval.price) > 20) {
+                            circleColor = '#eab308'; // yellow (medium)
+                        }
+
+                        // Show spike warning if present
+                        let priceSymbol = '●';
+                        if (interval.spikeStatus === 'spike') {
+                            priceSymbol = '⚠️';
+                        }
+
+                        html += `
+                            <div style="text-align: center; min-width: 60px;">
+                                ${idx === 0 ? `<div style="font-size: 0.7em; font-weight: bold; margin-bottom: 0.3em;">${interval.time}</div>` : `<div style="font-size: 0.65em; opacity: 0.8; margin-bottom: 0.3em;">${interval.time.split(':')[1]}</div>`}
+                                <div style="color: ${circleColor}; font-size: 1.8em; line-height: 1;">${priceSymbol}</div>
+                                <div style="font-size: 0.95em; font-weight: bold; margin-top: 0.2em;">${Math.abs(interval.price).toFixed(0)}¢</div>
+                                <div style="font-size: 0.7em; opacity: 0.7;">${interval.renewables}%</div>
+                            </div>
+                        `;
+                    });
+
+                    html += `</div></div>`;
+                });
+
+                forecastDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error('Error fetching 5-min forecast:', error);
+                forecastDiv.innerHTML = '<p style="color: rgba(255,255,255,0.7);">Error loading forecast</p>';
             }
-
-            let html = '';
-
-            // Generate 6 x 5-minute intervals (30 minutes total)
-            for (let i = 0; i < 6; i++) {
-                const intervalTime = new Date(now.getTime() + (i * 5 * 60 * 1000));
-                const hours = String(intervalTime.getHours()).padStart(2, '0');
-                const minutes = String(intervalTime.getMinutes()).padStart(2, '0');
-                const timeLabel = `${hours}:${minutes}`;
-
-                // Highlight current interval
-                const isCurrent = i === 0;
-                const bgColor = isCurrent ? 'rgba(253, 224, 71, 0.2)' : 'rgba(255,255,255,0.05)';
-                const borderColor = isCurrent ? 'rgba(253, 224, 71, 0.6)' : 'rgba(255,255,255,0.1)';
-
-                html += `
-                    <div style="min-width: 90px; background: ${bgColor}; border: 2px solid ${borderColor}; border-radius: 8px; padding: 0.8em; text-align: center;">
-                        <div style="font-size: 0.8em; font-weight: bold; margin-bottom: 0.3em;">${timeLabel}</div>
-                        <div style="font-size: 1.3em; font-weight: bold; color: ${isCurrent ? '#fde047' : 'white'};">${Math.abs(generalPrice.perKwh).toFixed(0)}¢</div>
-                        <div style="font-size: 0.7em; opacity: 0.7; margin-top: 0.2em;">Import</div>
-                        ${feedinPrice ? `<div style="font-size: 0.9em; margin-top: 0.3em; color: #86efac;">${Math.abs(feedinPrice.perKwh).toFixed(0)}¢ ↑</div>` : ''}
-                    </div>
-                `;
-            }
-
-            forecastDiv.innerHTML = html;
         }
 
         // Fetch current Amber prices

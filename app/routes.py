@@ -335,6 +335,38 @@ def amber_current_price():
     return jsonify(prices)
 
 
+@bp.route('/api/amber/5min-forecast')
+@login_required
+def amber_5min_forecast():
+    """Get 5-minute interval forecast for the next hour"""
+    logger.info(f"5-minute forecast requested by user: {current_user.email}")
+
+    amber_client = get_amber_client(current_user)
+    if not amber_client:
+        logger.warning("Amber client not available for 5-min forecast")
+        return jsonify({'error': 'Amber API not configured'}), 400
+
+    # Get 1 hour of forecast data at 5-minute resolution
+    forecast = amber_client.get_price_forecast(next_hours=1, resolution=5)
+    if not forecast:
+        logger.error("Failed to fetch 5-minute forecast")
+        return jsonify({'error': 'Failed to fetch 5-minute forecast'}), 500
+
+    # Group by channel type and return
+    general_intervals = [i for i in forecast if i.get('channelType') == 'general']
+    feedin_intervals = [i for i in forecast if i.get('channelType') == 'feedIn']
+
+    result = {
+        'fetch_time': datetime.utcnow().isoformat(),
+        'total_intervals': len(forecast),
+        'general': general_intervals,
+        'feedIn': feedin_intervals
+    }
+
+    logger.info(f"5-min forecast: {len(general_intervals)} general, {len(feedin_intervals)} feedIn intervals")
+    return jsonify(result)
+
+
 @bp.route('/api/amber/debug-forecast')
 @login_required
 def amber_debug_forecast():

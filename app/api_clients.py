@@ -84,8 +84,17 @@ class AmberAPIClient:
             logger.error(f"Error fetching sites: {e}")
             return []
 
-    def get_price_forecast(self, site_id=None, start_date=None, end_date=None, next_hours=24):
-        """Get price forecast for a site"""
+    def get_price_forecast(self, site_id=None, start_date=None, end_date=None, next_hours=24, resolution=None):
+        """
+        Get price forecast for a site
+
+        Args:
+            site_id: Site ID (defaults to first site)
+            start_date: Start date (defaults to now)
+            end_date: End date (defaults to start + next_hours)
+            next_hours: Hours to fetch if end_date not specified
+            resolution: Interval resolution in minutes (5 or 30, defaults to billing interval)
+        """
         try:
             # If no site_id provided, get the first site
             if not site_id:
@@ -101,11 +110,17 @@ class AmberAPIClient:
             if not end_date:
                 end_date = start_date + timedelta(hours=next_hours)
 
-            logger.info(f"Fetching {next_hours}h price forecast for site {site_id}")
+            res_str = f" at {resolution}min resolution" if resolution else ""
+            logger.info(f"Fetching {next_hours}h price forecast{res_str} for site {site_id}")
             params = {
                 "startDate": start_date.isoformat(),
                 "endDate": end_date.isoformat()
             }
+
+            # Add resolution parameter if specified (5 or 30 minutes)
+            if resolution:
+                params["resolution"] = resolution
+
             response = requests.get(
                 f"{self.base_url}/sites/{site_id}/prices",
                 headers=self.headers,
