@@ -466,7 +466,6 @@ def tesla_status():
     # Add firmware version to response if available
     if site_info:
         site_status['firmware_version'] = site_info.get('version', 'Unknown')
-        site_status['battery_type'] = site_info.get('battery_type', 'Unknown')
         logger.info(f"Firmware version: {site_status['firmware_version']}")
 
     return jsonify(site_status)
