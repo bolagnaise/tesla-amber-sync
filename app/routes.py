@@ -545,9 +545,8 @@ def energy_calendar_history():
     logger.info(f"Energy calendar history requested by user: {current_user.email}")
 
     # Get parameters
-    period = request.args.get('period', 'day')  # day, week, month, year, lifetime
-    start_date = request.args.get('start_date')  # YYYY-MM-DD
-    end_date = request.args.get('end_date')  # YYYY-MM-DD
+    period = request.args.get('period', 'month')  # day, week, month, year, lifetime
+    end_date_str = request.args.get('end_date')  # Optional: datetime with timezone
 
     # Get Tesla client
     tesla_client = get_tesla_client(current_user)
@@ -559,14 +558,27 @@ def energy_calendar_history():
         logger.warning("No Tesla site ID configured for calendar history")
         return jsonify({'error': 'No Tesla site ID configured'}), 400
 
+    # Convert end_date to proper format if provided
+    # Otherwise, get_calendar_history will use current time
+    end_date = None
+    if end_date_str:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        try:
+            # Parse YYYY-MM-DD and convert to datetime with Brisbane timezone
+            brisbane_tz = ZoneInfo('Australia/Brisbane')
+            dt = datetime.strptime(end_date_str, '%Y-%m-%d')
+            end_dt = dt.replace(hour=23, minute=59, second=59, tzinfo=brisbane_tz)
+            end_date = end_dt.isoformat()
+        except Exception as e:
+            logger.warning(f"Invalid end_date format: {end_date_str}, using default: {e}")
+
     # Fetch calendar history
     history = tesla_client.get_calendar_history(
         site_id=current_user.tesla_energy_site_id,
         kind='energy',
         period=period,
-        start_date=start_date,
-        end_date=end_date,
-        time_zone='Australia/Brisbane'
+        end_date=end_date
     )
 
     if not history:

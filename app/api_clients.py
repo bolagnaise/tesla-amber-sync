@@ -275,38 +275,38 @@ class TeslemetryAPIClient:
             logger.error(f"Error getting battery level via Teslemetry: {e}")
             return None
 
-    def get_calendar_history(self, site_id, kind='energy', period='day', start_date=None, end_date=None, time_zone='Australia/Brisbane'):
+    def get_calendar_history(self, site_id, kind='energy', period='day', end_date=None):
         """
         Get historical energy data from Tesla calendar history
 
         Args:
             site_id: Energy site ID
-            kind: 'energy' or 'backup'
+            kind: 'energy' or 'power'
             period: 'day', 'week', 'month', 'year', or 'lifetime'
-            start_date: Start date (YYYY-MM-DD format)
-            end_date: End date (YYYY-MM-DD format)
-            time_zone: Timezone string (default: Australia/Brisbane)
+            end_date: End date (datetime string with timezone, e.g., '2025-10-26T23:59:59+10:00')
 
         Returns:
             dict: Calendar history data with time_series array
         """
         try:
-            from datetime import datetime, timedelta
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
 
-            # Default to last 7 days if no dates provided
+            # Default to current time in Brisbane timezone if no end_date provided
+            # Use 11:59 PM to avoid midnight issues
             if not end_date:
-                end_date = datetime.now().strftime('%Y-%m-%d')
-            if not start_date:
-                start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+                brisbane_tz = ZoneInfo('Australia/Brisbane')
+                now = datetime.now(brisbane_tz)
+                # Use 23:59:59 to avoid midnight issues
+                end_dt = now.replace(hour=23, minute=59, second=59)
+                end_date = end_dt.isoformat()
 
-            logger.info(f"Fetching calendar history for site {site_id} via Teslemetry: kind={kind}, period={period}, {start_date} to {end_date}")
+            logger.info(f"Fetching calendar history for site {site_id} via Teslemetry: kind={kind}, period={period}, end_date={end_date}")
 
             params = {
                 'kind': kind,
                 'period': period,
-                'start_date': start_date,
-                'end_date': end_date,
-                'time_zone': time_zone
+                'end_date': end_date
             }
 
             response = requests.get(
@@ -618,38 +618,38 @@ class TeslaFleetAPIClient:
             logger.error(f"Error getting battery level via Fleet API: {e}")
             return None
 
-    def get_calendar_history(self, site_id, kind='energy', period='day', start_date=None, end_date=None, time_zone='Australia/Brisbane'):
+    def get_calendar_history(self, site_id, kind='energy', period='day', end_date=None):
         """
         Get historical energy data from Tesla calendar history
 
         Args:
             site_id: Energy site ID
-            kind: 'energy' or 'backup'
+            kind: 'energy' or 'power'
             period: 'day', 'week', 'month', 'year', or 'lifetime'
-            start_date: Start date (YYYY-MM-DD format)
-            end_date: End date (YYYY-MM-DD format)
-            time_zone: Timezone string (default: Australia/Brisbane)
+            end_date: End date (datetime string with timezone, e.g., '2025-10-26T23:59:59+10:00')
 
         Returns:
             dict: Calendar history data with time_series array
         """
         try:
-            from datetime import datetime, timedelta
+            from datetime import datetime
+            from zoneinfo import ZoneInfo
 
-            # Default to last 7 days if no dates provided
+            # Default to current time in Brisbane timezone if no end_date provided
+            # Use 11:59 PM to avoid midnight issues
             if not end_date:
-                end_date = datetime.now().strftime('%Y-%m-%d')
-            if not start_date:
-                start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+                brisbane_tz = ZoneInfo('Australia/Brisbane')
+                now = datetime.now(brisbane_tz)
+                # Use 23:59:59 to avoid midnight issues
+                end_dt = now.replace(hour=23, minute=59, second=59)
+                end_date = end_dt.isoformat()
 
-            logger.info(f"Fetching calendar history for site {site_id} via Fleet API: kind={kind}, period={period}, {start_date} to {end_date}")
+            logger.info(f"Fetching calendar history for site {site_id} via Fleet API: kind={kind}, period={period}, end_date={end_date}")
 
             params = {
                 'kind': kind,
                 'period': period,
-                'start_date': start_date,
-                'end_date': end_date,
-                'time_zone': time_zone
+                'end_date': end_date
             }
 
             response = requests.get(
