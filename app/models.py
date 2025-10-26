@@ -57,6 +57,7 @@ class User(UserMixin, db.Model):
 
     # Relationships
     price_records = db.relationship('PriceRecord', backref='user', lazy='dynamic')
+    energy_records = db.relationship('EnergyRecord', backref='user', lazy='dynamic')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -97,3 +98,24 @@ class PriceRecord(db.Model):
 
     def __repr__(self):
         return f'<PriceRecord {self.timestamp} - {self.per_kwh}c/kWh>'
+
+
+class EnergyRecord(db.Model):
+    """Stores historical energy usage data from Tesla Powerwall"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+    # Timestamp
+    timestamp = db.Column(db.DateTime, index=True, default=datetime.utcnow)
+
+    # Energy data in watts (W)
+    solar_power = db.Column(db.Float, default=0.0)  # Solar generation (W)
+    battery_power = db.Column(db.Float, default=0.0)  # Battery power (+ discharge, - charge) (W)
+    grid_power = db.Column(db.Float, default=0.0)  # Grid power (+ import, - export) (W)
+    load_power = db.Column(db.Float, default=0.0)  # Home/load consumption (W)
+
+    # Battery state
+    battery_level = db.Column(db.Float)  # Battery percentage (0-100)
+
+    def __repr__(self):
+        return f'<EnergyRecord {self.timestamp} - Solar:{self.solar_power}W Grid:{self.grid_power}W>'

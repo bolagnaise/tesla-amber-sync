@@ -497,6 +497,47 @@ def price_history():
     return jsonify(data)
 
 
+@bp.route('/api/energy-history')
+@login_required
+def energy_history():
+    """Get historical energy usage data for graphing"""
+    logger.info(f"Energy history requested by user: {current_user.email}")
+
+    # Get timeframe parameter (default to 'day')
+    timeframe = request.args.get('timeframe', 'day')
+
+    # Calculate limit based on timeframe
+    # For 'day' view: 5-minute intervals for 24 hours = 288 records
+    # For 'month' view: hourly averages for 30 days = 720 records (but we'll sample)
+    # For 'year' view: daily averages for 365 days = 365 records
+    if timeframe == 'day':
+        limit = 288  # 24 hours * 12 (5-minute intervals per hour)
+    elif timeframe == 'month':
+        limit = 720  # 30 days * 24 hours
+    else:  # year
+        limit = 365  # 365 days
+
+    # Get energy records
+    from app.models import EnergyRecord
+    records = EnergyRecord.query.filter_by(
+        user_id=current_user.id
+    ).order_by(
+        EnergyRecord.timestamp.desc()
+    ).limit(limit).all()
+
+    data = [{
+        'timestamp': record.timestamp.isoformat(),
+        'solar_power': record.solar_power,
+        'battery_power': record.battery_power,
+        'grid_power': record.grid_power,
+        'load_power': record.load_power,
+        'battery_level': record.battery_level
+    } for record in reversed(records)]
+
+    logger.info(f"Returning {len(data)} energy history records for timeframe: {timeframe}")
+    return jsonify(data)
+
+
 @bp.route('/api/tou-schedule')
 @login_required
 def tou_schedule():

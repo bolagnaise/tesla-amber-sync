@@ -51,7 +51,7 @@ def create_app(config_class=Config):
     scheduler = BackgroundScheduler()
 
     # Add job to sync all users' TOU schedules at :00 and :30 of every hour (aligned with Amber's update cycle)
-    from app.tasks import sync_all_users, save_price_history
+    from app.tasks import sync_all_users, save_price_history, save_energy_usage
     scheduler.add_job(
         func=sync_all_users,
         trigger=CronTrigger(minute='0,30'),
@@ -69,11 +69,21 @@ def create_app(config_class=Config):
         replace_existing=True
     )
 
+    # Add job to save energy usage every 5 minutes for continuous tracking
+    scheduler.add_job(
+        func=save_energy_usage,
+        trigger=CronTrigger(minute='*/5'),
+        id='save_energy_usage',
+        name='Save Tesla energy usage to database',
+        replace_existing=True
+    )
+
     # Start the scheduler
     scheduler.start()
     logger.info("Background scheduler started:")
     logger.info("  - TOU sync will run at :00 and :30 of every hour")
     logger.info("  - Price history collection will run every 5 minutes")
+    logger.info("  - Energy usage logging will run every 5 minutes")
 
     # Shut down the scheduler when exiting the app
     atexit.register(lambda: scheduler.shutdown())

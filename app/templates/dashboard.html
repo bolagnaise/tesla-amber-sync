@@ -94,6 +94,47 @@
         <canvas id="priceChart" style="max-height: 300px;"></canvas>
     </article>
 
+    <!-- Energy Usage Logging -->
+    <article id="energy-usage-section">
+        <header>
+            <strong>Energy Usage History</strong>
+            <div style="float: right;">
+                <select id="timeframe-selector" style="font-size: 0.9em;">
+                    <option value="day" selected>Day</option>
+                    <option value="month">Month</option>
+                    <option value="year">Year</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- Energy Charts Grid -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin-top: 1em;">
+            <!-- Solar Chart -->
+            <div>
+                <h4 style="margin: 0 0 0.5em 0;">Solar Generation</h4>
+                <canvas id="solarChart" style="max-height: 200px;"></canvas>
+            </div>
+
+            <!-- Grid Chart -->
+            <div>
+                <h4 style="margin: 0 0 0.5em 0;">Grid Power</h4>
+                <canvas id="gridChart" style="max-height: 200px;"></canvas>
+            </div>
+
+            <!-- Battery Chart -->
+            <div>
+                <h4 style="margin: 0 0 0.5em 0;">Battery Power</h4>
+                <canvas id="batteryChart" style="max-height: 200px;"></canvas>
+            </div>
+
+            <!-- Load Chart -->
+            <div>
+                <h4 style="margin: 0 0 0.5em 0;">Home Load</h4>
+                <canvas id="loadChart" style="max-height: 200px;"></canvas>
+            </div>
+        </div>
+    </article>
+
     <!-- Chart.js Library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
@@ -701,6 +742,111 @@
         setInterval(checkAPIStatus, 5 * 60 * 1000);
         // Refresh TOU schedule every hour
         setInterval(fetchTOUSchedule, 60 * 60 * 1000);
+        // Fetch energy usage history on load and when timeframe changes
+        fetchEnergyUsageHistory();
+        document.getElementById('timeframe-selector').addEventListener('change', fetchEnergyUsageHistory);
+        // Refresh energy charts every 5 minutes
+        setInterval(fetchEnergyUsageHistory, 5 * 60 * 1000);
+
+        // Energy Usage Charts
+        let solarChart = null;
+        let gridChart = null;
+        let batteryChart = null;
+        let loadChart = null;
+
+        async function fetchEnergyUsageHistory() {
+            try {
+                const timeframe = document.getElementById('timeframe-selector').value;
+                const response = await fetch(`/api/energy-history?timeframe=${timeframe}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch energy history');
+                }
+                const history = await response.json();
+
+                if (history.length === 0) {
+                    return;
+                }
+
+                // Prepare data
+                const labels = history.map(record => {
+                    const date = new Date(record.timestamp);
+                    if (timeframe === 'day') {
+                        return date.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+                    } else if (timeframe === 'month') {
+                        return date.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
+                    } else {
+                        return date.toLocaleDateString('en-AU', { month: 'short', year: 'numeric' });
+                    }
+                });
+
+                const solarData = history.map(r => r.solar_power / 1000); // Convert to kW
+                const gridData = history.map(r => r.grid_power / 1000);
+                const batteryData = history.map(r => r.battery_power / 1000);
+                const loadData = history.map(r => r.load_power / 1000);
+
+                // Update charts
+                updateEnergyChart('solarChart', solarChart, labels, solarData, 'Solar Generation (kW)', 'rgb(255, 193, 7)', (chart) => { solarChart = chart; });
+                updateEnergyChart('gridChart', gridChart, labels, gridData, 'Grid Power (kW)', 'rgb(76, 175, 80)', (chart) => { gridChart = chart; });
+                updateEnergyChart('batteryChart', batteryChart, labels, batteryData, 'Battery Power (kW)', 'rgb(33, 150, 243)', (chart) => { batteryChart = chart; });
+                updateEnergyChart('loadChart', loadChart, labels, loadData, 'Home Load (kW)', 'rgb(156, 39, 176)', (chart) => { loadChart = chart; });
+
+            } catch (error) {
+                console.error('Error fetching energy usage history:', error);
+            }
+        }
+
+        function updateEnergyChart(canvasId, existingChart, labels, data, label, color, setChart) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+
+            // Destroy existing chart if it exists
+            if (existingChart) {
+                existingChart.destroy();
+            }
+
+            const newChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        borderColor: color,
+                        backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.1)'),
+                        borderWidth: 2,
+                        tension: 0.1,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: label
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
+
+            setChart(newChart);
+        }
     </script>
 
     <style>

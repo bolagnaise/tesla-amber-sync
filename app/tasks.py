@@ -2,7 +2,7 @@
 """Background tasks for automatic syncing"""
 import logging
 from datetime import datetime
-from app.models import User, PriceRecord
+from app.models import User, PriceRecord, EnergyRecord
 from app.api_clients import get_amber_client, get_tesla_client
 from app.tariff_converter import AmberTariffConverter
 
@@ -201,4 +201,81 @@ def save_price_history():
             continue
 
     logger.info(f"=== Price history collection completed: {success_count} users successful, {error_count} errors ===")
+    return success_count, error_count
+
+
+def save_energy_usage():
+    """
+    Automatically save Tesla Powerwall energy usage data to database for historical tracking
+    This runs periodically in the background to capture solar, grid, battery, and load power
+    """
+    from app import db
+
+    logger.debug("=== Starting automatic energy usage collection ===")
+
+    users = User.query.all()
+
+    if not users:
+        logger.debug("No users found for energy usage collection")
+        return
+
+    success_count = 0
+    error_count = 0
+
+    for user in users:
+        try:
+            # Skip users without Tesla configuration
+            if not user.tesla_energy_site_id:
+                logger.debug(f"Skipping user {user.email} - no Tesla site ID")
+                continue
+
+            logger.debug(f"Collecting energy usage for user: {user.email}")
+
+            # Get Tesla client
+            tesla_client = get_tesla_client(user)
+            if not tesla_client:
+                logger.warning(f"Failed to get Tesla client for user {user.email}")
+                error_count += 1
+                continue
+
+            # Get site status (contains power flow data)
+            site_status = tesla_client.get_site_status(user.tesla_energy_site_id)
+            if not site_status:
+                logger.warning(f"No site status available for user {user.email}")
+                error_count += 1
+                continue
+
+            # Extract power data (in watts)
+            solar_power = site_status.get('solar_power', 0.0)
+            battery_power = site_status.get('battery_power', 0.0)
+            grid_power = site_status.get('grid_power', 0.0)
+            load_power = site_status.get('load_power', 0.0)
+            battery_level = site_status.get('percentage_charged', 0.0)
+
+            # Create energy record
+            record = EnergyRecord(
+                user_id=user.id,
+                solar_power=solar_power,
+                battery_power=battery_power,
+                grid_power=grid_power,
+                load_power=load_power,
+                battery_level=battery_level,
+                timestamp=datetime.utcnow()
+            )
+
+            db.session.add(record)
+            db.session.commit()
+
+            logger.debug(f"✅ Saved energy record for user {user.email}: Solar={solar_power}W Grid={grid_power}W Battery={battery_power}W Load={load_power}W")
+            success_count += 1
+
+        except Exception as e:
+            logger.error(f"Error collecting energy usage for user {user.email}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            db.session.rollback()
+            error_count += 1
+            continue
+
+    logger.debug(f"=== Energy usage collection completed: {success_count} users successful, {error_count} errors ===")
     return success_count, error_count
