@@ -442,7 +442,7 @@ def amber_debug_forecast():
 @bp.route('/api/tesla/status')
 @login_required
 def tesla_status():
-    """Get Tesla Powerwall status"""
+    """Get Tesla Powerwall status including firmware version"""
     logger.info(f"Tesla status requested by user: {current_user.email}")
 
     tesla_client = get_tesla_client(current_user)
@@ -454,10 +454,20 @@ def tesla_status():
         logger.warning("No Tesla site ID configured")
         return jsonify({'error': 'No Tesla site ID configured'}), 400
 
+    # Get live status
     site_status = tesla_client.get_site_status(current_user.tesla_energy_site_id)
     if not site_status:
         logger.error("Failed to fetch Tesla site status")
         return jsonify({'error': 'Failed to fetch site status'}), 500
+
+    # Get site info for firmware version
+    site_info = tesla_client.get_site_info(current_user.tesla_energy_site_id)
+
+    # Add firmware version to response if available
+    if site_info:
+        site_status['firmware_version'] = site_info.get('version', 'Unknown')
+        site_status['battery_type'] = site_info.get('battery_type', 'Unknown')
+        logger.info(f"Firmware version: {site_status['firmware_version']}")
 
     return jsonify(site_status)
 

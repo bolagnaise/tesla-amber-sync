@@ -363,6 +363,10 @@
                 const batteryColor = batteryLevel > 80 ? 'green' :
                                     batteryLevel > 50 ? 'orange' : 'red';
 
+                // Extract firmware version and battery type
+                const firmwareVersion = status.firmware_version || 'Unknown';
+                const batteryType = status.battery_type || 'Unknown';
+
                 batteryContent.innerHTML = `
                     <div class="grid">
                         <div style="text-align: center;">
@@ -375,6 +379,8 @@
                             <p style="margin: 0.5em 0;"><strong>Solar:</strong> ${(status.solar_power / 1000).toFixed(2)} kW</p>
                             <p style="margin: 0.5em 0;"><strong>Battery:</strong> ${(status.battery_power / 1000).toFixed(2)} kW</p>
                             <p style="margin: 0.5em 0;"><strong>Grid:</strong> ${(status.grid_power / 1000).toFixed(2)} kW</p>
+                            <p style="margin: 0.5em 0; padding-top: 0.5em; border-top: 1px solid rgba(255,255,255,0.1);"><strong>Firmware:</strong> <span style="font-family: monospace;">${firmwareVersion}</span></p>
+                            <p style="margin: 0.5em 0;"><strong>Type:</strong> ${batteryType}</p>
                         </div>
                     </div>
                 `;
