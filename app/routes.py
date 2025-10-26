@@ -477,10 +477,11 @@ def price_history():
     """Get historical price data"""
     logger.info(f"Price history requested by user: {current_user.email}")
 
-    # Get last 24 hours of price data
+    # Get last 24 hours of price data (only actual prices, not forecasts)
     records = PriceRecord.query.filter_by(
         user_id=current_user.id,
-        channel_type='general'
+        channel_type='general',
+        forecast=False
     ).order_by(
         PriceRecord.timestamp.desc()
     ).limit(48).all()
