@@ -135,6 +135,24 @@
         </div>
     </article>
 
+    <!-- Energy Summaries (from Tesla Calendar History) -->
+    <article id="energy-summaries-section">
+        <header>
+            <strong>Energy Summaries (Historical Totals)</strong>
+            <div style="float: right;">
+                <select id="summary-period-selector" style="font-size: 0.9em;">
+                    <option value="week">This Week</option>
+                    <option value="month" selected>This Month</option>
+                    <option value="year">This Year</option>
+                </select>
+                <button id="refresh-summaries-btn" style="font-size: 0.9em; margin-left: 0.5em;">Refresh</button>
+            </div>
+        </header>
+        <div id="energy-summaries-content" style="margin-top: 1em;">
+            <p>Loading energy summaries...</p>
+        </div>
+    </article>
+
     <!-- Chart.js Library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
@@ -847,6 +865,89 @@
 
             setChart(newChart);
         }
+
+        // Energy Summaries from Tesla Calendar History
+        async function fetchEnergySummaries() {
+            try {
+                const period = document.getElementById('summary-period-selector').value;
+                const response = await fetch(`/api/energy-calendar-history?period=${period}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch energy summaries');
+                }
+                const data = await response.json();
+
+                if (!data.time_series || data.time_series.length === 0) {
+                    document.getElementById('energy-summaries-content').innerHTML = '<p style="color: #888;">No historical data available for this period.</p>';
+                    return;
+                }
+
+                // Calculate totals from time series
+                let totalSolar = 0;
+                let totalGridImport = 0;
+                let totalGridExport = 0;
+                let totalBatteryCharge = 0;
+                let totalBatteryDischarge = 0;
+                let totalConsumer = 0;
+
+                data.time_series.forEach(entry => {
+                    totalSolar += entry.solar_energy_exported || 0;
+                    totalGridImport += entry.grid_energy_imported || 0;
+                    totalGridExport += entry.grid_energy_exported_from_solar || 0;
+                    totalGridExport += entry.grid_energy_exported_from_battery || 0;
+                    totalBatteryCharge += entry.battery_energy_imported_from_grid || 0;
+                    totalBatteryCharge += entry.battery_energy_imported_from_solar || 0;
+                    totalBatteryDischarge += entry.battery_energy_exported || 0;
+                    totalConsumer += entry.consumer_energy_imported_from_grid || 0;
+                    totalConsumer += entry.consumer_energy_imported_from_solar || 0;
+                    totalConsumer += entry.consumer_energy_imported_from_battery || 0;
+                });
+
+                // Display summaries in a grid
+                const summariesHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1em;">
+                        <div style="background: rgba(255, 193, 7, 0.1); border-left: 4px solid rgb(255, 193, 7); padding: 1em;">
+                            <h4 style="margin: 0; color: rgb(255, 193, 7);">Solar Generated</h4>
+                            <p style="font-size: 2em; margin: 0.5em 0 0 0;">${(totalSolar / 1000).toFixed(1)} kWh</p>
+                        </div>
+                        <div style="background: rgba(76, 175, 80, 0.1); border-left: 4px solid rgb(76, 175, 80); padding: 1em;">
+                            <h4 style="margin: 0; color: rgb(76, 175, 80);">Grid Import</h4>
+                            <p style="font-size: 2em; margin: 0.5em 0 0 0;">${(totalGridImport / 1000).toFixed(1)} kWh</p>
+                        </div>
+                        <div style="background: rgba(139, 195, 74, 0.1); border-left: 4px solid rgb(139, 195, 74); padding: 1em;">
+                            <h4 style="margin: 0; color: rgb(139, 195, 74);">Grid Export</h4>
+                            <p style="font-size: 2em; margin: 0.5em 0 0 0;">${(totalGridExport / 1000).toFixed(1)} kWh</p>
+                        </div>
+                        <div style="background: rgba(33, 150, 243, 0.1); border-left: 4px solid rgb(33, 150, 243); padding: 1em;">
+                            <h4 style="margin: 0; color: rgb(33, 150, 243);">Battery Charge</h4>
+                            <p style="font-size: 2em; margin: 0.5em 0 0 0;">${(totalBatteryCharge / 1000).toFixed(1)} kWh</p>
+                        </div>
+                        <div style="background: rgba(63, 81, 181, 0.1); border-left: 4px solid rgb(63, 81, 181); padding: 1em;">
+                            <h4 style="margin: 0; color: rgb(63, 81, 181);">Battery Discharge</h4>
+                            <p style="font-size: 2em; margin: 0.5em 0 0 0;">${(totalBatteryDischarge / 1000).toFixed(1)} kWh</p>
+                        </div>
+                        <div style="background: rgba(156, 39, 176, 0.1); border-left: 4px solid rgb(156, 39, 176); padding: 1em;">
+                            <h4 style="margin: 0; color: rgb(156, 39, 176);">Home Consumption</h4>
+                            <p style="font-size: 2em; margin: 0.5em 0 0 0;">${(totalConsumer / 1000).toFixed(1)} kWh</p>
+                        </div>
+                    </div>
+                    <p style="margin-top: 1em; color: #666; font-size: 0.9em;">
+                        <strong>Period:</strong> ${period === 'week' ? 'This Week' : period === 'month' ? 'This Month' : 'This Year'}
+                        (${data.time_series.length} ${data.time_series.length === 1 ? 'day' : 'days'})
+                    </p>
+                `;
+
+                document.getElementById('energy-summaries-content').innerHTML = summariesHTML;
+
+            } catch (error) {
+                console.error('Error fetching energy summaries:', error);
+                document.getElementById('energy-summaries-content').innerHTML = '<p style="color: red;">Error loading energy summaries. Tesla calendar history may not be available.</p>';
+            }
+        }
+
+        // Initialize summaries
+        fetchEnergySummaries();
+        document.getElementById('summary-period-selector').addEventListener('change', fetchEnergySummaries);
+        document.getElementById('refresh-summaries-btn').addEventListener('click', fetchEnergySummaries);
     </script>
 
     <style>

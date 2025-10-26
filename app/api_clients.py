@@ -275,6 +275,54 @@ class TeslemetryAPIClient:
             logger.error(f"Error getting battery level via Teslemetry: {e}")
             return None
 
+    def get_calendar_history(self, site_id, kind='energy', period='day', start_date=None, end_date=None, time_zone='Australia/Brisbane'):
+        """
+        Get historical energy data from Tesla calendar history
+
+        Args:
+            site_id: Energy site ID
+            kind: 'energy' or 'backup'
+            period: 'day', 'week', 'month', 'year', or 'lifetime'
+            start_date: Start date (YYYY-MM-DD format)
+            end_date: End date (YYYY-MM-DD format)
+            time_zone: Timezone string (default: Australia/Brisbane)
+
+        Returns:
+            dict: Calendar history data with time_series array
+        """
+        try:
+            from datetime import datetime, timedelta
+
+            # Default to last 7 days if no dates provided
+            if not end_date:
+                end_date = datetime.now().strftime('%Y-%m-%d')
+            if not start_date:
+                start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+
+            logger.info(f"Fetching calendar history for site {site_id} via Teslemetry: kind={kind}, period={period}, {start_date} to {end_date}")
+
+            params = {
+                'kind': kind,
+                'period': period,
+                'start_date': start_date,
+                'end_date': end_date,
+                'time_zone': time_zone
+            }
+
+            response = requests.get(
+                f"{self.base_url}/api/1/energy_sites/{site_id}/calendar_history",
+                headers=self.headers,
+                params=params,
+                timeout=15
+            )
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"Successfully fetched calendar history via Teslemetry")
+            return data.get('response', {})
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching calendar history via Teslemetry: {e}")
+            return None
+
     def set_operation_mode(self, site_id, mode):
         """
         Set the Powerwall operation mode
@@ -568,6 +616,54 @@ class TeslaFleetAPIClient:
             return None
         except Exception as e:
             logger.error(f"Error getting battery level via Fleet API: {e}")
+            return None
+
+    def get_calendar_history(self, site_id, kind='energy', period='day', start_date=None, end_date=None, time_zone='Australia/Brisbane'):
+        """
+        Get historical energy data from Tesla calendar history
+
+        Args:
+            site_id: Energy site ID
+            kind: 'energy' or 'backup'
+            period: 'day', 'week', 'month', 'year', or 'lifetime'
+            start_date: Start date (YYYY-MM-DD format)
+            end_date: End date (YYYY-MM-DD format)
+            time_zone: Timezone string (default: Australia/Brisbane)
+
+        Returns:
+            dict: Calendar history data with time_series array
+        """
+        try:
+            from datetime import datetime, timedelta
+
+            # Default to last 7 days if no dates provided
+            if not end_date:
+                end_date = datetime.now().strftime('%Y-%m-%d')
+            if not start_date:
+                start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+
+            logger.info(f"Fetching calendar history for site {site_id} via Fleet API: kind={kind}, period={period}, {start_date} to {end_date}")
+
+            params = {
+                'kind': kind,
+                'period': period,
+                'start_date': start_date,
+                'end_date': end_date,
+                'time_zone': time_zone
+            }
+
+            response = requests.get(
+                f"{self.base_url}/api/1/energy_sites/{site_id}/calendar_history",
+                headers=self.headers,
+                params=params,
+                timeout=15
+            )
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"Successfully fetched calendar history via Fleet API")
+            return data.get('response', {})
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching calendar history via Fleet API: {e}")
             return None
 
     def set_operation_mode(self, site_id, mode):

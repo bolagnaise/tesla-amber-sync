@@ -538,6 +538,56 @@ def energy_history():
     return jsonify(data)
 
 
+@bp.route('/api/energy-calendar-history')
+@login_required
+def energy_calendar_history():
+    """Get historical energy summaries from Tesla calendar history API"""
+    logger.info(f"Energy calendar history requested by user: {current_user.email}")
+
+    # Get parameters
+    period = request.args.get('period', 'day')  # day, week, month, year, lifetime
+    start_date = request.args.get('start_date')  # YYYY-MM-DD
+    end_date = request.args.get('end_date')  # YYYY-MM-DD
+
+    # Get Tesla client
+    tesla_client = get_tesla_client(current_user)
+    if not tesla_client:
+        logger.warning("Tesla client not available for calendar history")
+        return jsonify({'error': 'Tesla API not configured'}), 400
+
+    if not current_user.tesla_energy_site_id:
+        logger.warning("No Tesla site ID configured for calendar history")
+        return jsonify({'error': 'No Tesla site ID configured'}), 400
+
+    # Fetch calendar history
+    history = tesla_client.get_calendar_history(
+        site_id=current_user.tesla_energy_site_id,
+        kind='energy',
+        period=period,
+        start_date=start_date,
+        end_date=end_date,
+        time_zone='Australia/Brisbane'
+    )
+
+    if not history:
+        logger.error("Failed to fetch calendar history")
+        return jsonify({'error': 'Failed to fetch calendar history'}), 500
+
+    # Extract time series data
+    time_series = history.get('time_series', [])
+
+    # Format response
+    data = {
+        'period': period,
+        'time_series': time_series,
+        'serial_number': history.get('serial_number'),
+        'installation_date': history.get('installation_date')
+    }
+
+    logger.info(f"Returning calendar history: {len(time_series)} records for period '{period}'")
+    return jsonify(data)
+
+
 @bp.route('/api/tou-schedule')
 @login_required
 def tou_schedule():
