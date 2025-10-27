@@ -156,6 +156,7 @@
 
     <!-- Chart.js Library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 
     <script>
         // Track selected price channel (general = import, feedIn = export)
@@ -573,14 +574,43 @@
                             </thead>
                             <tbody>`;
 
+                    // Get current time in Brisbane timezone for highlighting current period
+                    const now = new Date();
+                    const currentHour = now.getHours();
+                    const currentMinute = now.getMinutes();
+
                     periods.forEach((period, i) => {
                         const buyColor = period.buy_price > stats.buy.avg * 1.2 ? '#ff6b6b' :
                                         period.buy_price < stats.buy.avg * 0.8 ? '#51cf66' : '#fff';
                         const sellColor = period.sell_price > stats.sell.avg * 1.2 ? '#51cf66' :
                                          period.sell_price < stats.sell.avg * 0.8 ? '#ff6b6b' : '#fff';
 
-                        html += `<tr style="border-bottom: 1px solid #333;">
-                            <td style="padding: 0.5em;">${period.time}</td>
+                        // Parse period time (format: "HH:MM - HH:MM")
+                        const timeMatch = period.time.match(/(\d{1,2}):(\d{2})/);
+                        let isCurrentPeriod = false;
+
+                        if (timeMatch) {
+                            const periodHour = parseInt(timeMatch[1]);
+                            const periodMinute = parseInt(timeMatch[2]);
+
+                            // Check if current time falls within this 30-min period
+                            if (periodHour === currentHour &&
+                                Math.floor(currentMinute / 30) === Math.floor(periodMinute / 30)) {
+                                isCurrentPeriod = true;
+                            }
+                        }
+
+                        // Add visual indicators for current period
+                        const rowStyle = isCurrentPeriod
+                            ? 'border-bottom: 1px solid #333; background: rgba(81, 207, 102, 0.15); border-left: 3px solid #51cf66;'
+                            : 'border-bottom: 1px solid #333;';
+
+                        const timeDisplay = isCurrentPeriod
+                            ? `<strong>▶ ${period.time}</strong>`
+                            : period.time;
+
+                        html += `<tr style="${rowStyle}">
+                            <td style="padding: 0.5em;">${timeDisplay}</td>
                             <td style="text-align: right; padding: 0.5em; color: ${buyColor}; font-weight: bold;">
                                 ${period.buy_price.toFixed(2)}
                             </td>
@@ -593,6 +623,7 @@
                     html += `</tbody></table></div>`;
 
                     html += `<p style="font-size: 0.8em; color: #666; margin-top: 1em;">
+                        <span style="color: #51cf66;">▶</span> Current period &nbsp;
                         <span style="color: #51cf66;">●</span> Green = Good price &nbsp;
                         <span style="color: #ff6b6b;">●</span> Red = High price &nbsp;
                         <span style="color: #fff;">●</span> White = Average
@@ -625,6 +656,50 @@
             const labels = periods.map(period => period.time);
             const buyPrices = periods.map(period => period.buy_price);
             const sellPrices = periods.map(period => period.sell_price);
+
+            // Find current period index for vertical line
+            const now = new Date();
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            let currentPeriodIndex = -1;
+
+            periods.forEach((period, i) => {
+                const timeMatch = period.time.match(/(\d{1,2}):(\d{2})/);
+                if (timeMatch) {
+                    const periodHour = parseInt(timeMatch[1]);
+                    const periodMinute = parseInt(timeMatch[2]);
+
+                    if (periodHour === currentHour &&
+                        Math.floor(currentMinute / 30) === Math.floor(periodMinute / 30)) {
+                        currentPeriodIndex = i;
+                    }
+                }
+            });
+
+            // Prepare annotation for current time
+            const annotations = {};
+            if (currentPeriodIndex >= 0) {
+                annotations.currentTime = {
+                    type: 'line',
+                    xMin: currentPeriodIndex,
+                    xMax: currentPeriodIndex,
+                    borderColor: 'rgba(81, 207, 102, 0.8)',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    label: {
+                        display: true,
+                        content: 'NOW',
+                        position: 'start',
+                        backgroundColor: 'rgba(81, 207, 102, 0.8)',
+                        color: '#1e1e1e',
+                        font: {
+                            weight: 'bold',
+                            size: 11
+                        },
+                        padding: 4
+                    }
+                };
+            }
 
             forecastChart = new Chart(ctx, {
                 type: 'line',
@@ -673,6 +748,9 @@
                                     return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + '¢/kWh';
                                 }
                             }
+                        },
+                        annotation: {
+                            annotations: annotations
                         }
                     },
                     scales: {
