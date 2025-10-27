@@ -837,8 +837,8 @@
         setInterval(fetchCurrentPrices, 60 * 1000);
         // Check API status every 5 minutes
         setInterval(checkAPIStatus, 5 * 60 * 1000);
-        // Refresh TOU schedule every hour
-        setInterval(fetchTOUSchedule, 60 * 60 * 1000);
+        // Refresh TOU schedule every 30 minutes (aligned with Amber's update cycle at :00 and :30)
+        setInterval(fetchTOUSchedule, 30 * 60 * 1000);
         // Fetch energy usage history on load and when timeframe changes
         fetchEnergyUsageHistory();
         document.getElementById('timeframe-selector').addEventListener('change', fetchEnergyUsageHistory);
