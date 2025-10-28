@@ -21,6 +21,13 @@ def upgrade():
     with op.batch_alter_table('user', schema=None) as batch_op:
         batch_op.add_column(sa.Column('sync_enabled', sa.Boolean(), nullable=True))
 
+    # Set default value for existing users (sync enabled by default)
+    op.execute("UPDATE user SET sync_enabled = 1 WHERE sync_enabled IS NULL")
+
+    # Make the column non-nullable after setting defaults
+    with op.batch_alter_table('user', schema=None) as batch_op:
+        batch_op.alter_column('sync_enabled', nullable=False, server_default='1')
+
     # ### end Alembic commands ###
 
 
