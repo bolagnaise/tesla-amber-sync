@@ -211,6 +211,15 @@
                 </label>
             </fieldset>
 
+            <fieldset style="margin-top: 1em;">
+                <legend>User Preferences</legend>
+                <label for="timezone">
+                    {{ form.timezone.label }}
+                    <small>Select your local timezone for accurate time display in logs and charts.</small>
+                    {{ form.timezone() }}
+                </label>
+            </fieldset>
+
             {{ form.submit(class_="primary", style="margin-top: 1em;") }}
         </form>
     </article>
