@@ -95,10 +95,10 @@ def create_app(config_class=Config):
             replace_existing=True
         )
 
-        # Add job to save energy usage every 5 minutes for continuous tracking
+        # Add job to save energy usage every minute for granular tracking (within Teslemetry 1/min limit)
         scheduler.add_job(
             func=run_save_energy_usage,
-            trigger=CronTrigger(minute='*/5'),
+            trigger=CronTrigger(minute='*'),
             id='save_energy_usage',
             name='Save Tesla energy usage to database',
             replace_existing=True
@@ -109,7 +109,7 @@ def create_app(config_class=Config):
         logger.info("✅ Background scheduler started:")
         logger.info("  - TOU sync will run every 5 minutes (Amber updates forecasts every 5 min)")
         logger.info("  - Price history collection will run every 5 minutes")
-        logger.info("  - Energy usage logging will run every 5 minutes")
+        logger.info("  - Energy usage logging will run every minute (Teslemetry allows 1/min)")
 
         # Shut down the scheduler and release lock when exiting the app
         def cleanup():
