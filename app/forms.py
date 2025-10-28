@@ -27,20 +27,12 @@ class SettingsForm(FlaskForm):
     tesla_site_id = StringField('Tesla Energy Site ID')
     teslemetry_api_key = StringField('Teslemetry API Key (get from teslemetry.com)')
     timezone = SelectField('Timezone', choices=[
-        ('Australia/Brisbane', 'Australia/Brisbane (AEST/AEDT)'),
-        ('Australia/Sydney', 'Australia/Sydney (AEST/AEDT)'),
-        ('Australia/Melbourne', 'Australia/Melbourne (AEST/AEDT)'),
-        ('Australia/Adelaide', 'Australia/Adelaide (ACST/ACDT)'),
-        ('Australia/Perth', 'Australia/Perth (AWST)'),
-        ('Australia/Darwin', 'Australia/Darwin (ACST)'),
-        ('Pacific/Auckland', 'New Zealand (NZST/NZDT)'),
-        ('UTC', 'UTC'),
-        ('America/New_York', 'US Eastern (EST/EDT)'),
-        ('America/Chicago', 'US Central (CST/CDT)'),
-        ('America/Denver', 'US Mountain (MST/MDT)'),
-        ('America/Los_Angeles', 'US Pacific (PST/PDT)'),
-        ('Europe/London', 'UK (GMT/BST)'),
-        ('Europe/Paris', 'Central Europe (CET/CEST)'),
+        ('Australia/Brisbane', 'Brisbane (AEST/AEDT)'),
+        ('Australia/Sydney', 'Sydney (AEST/AEDT)'),
+        ('Australia/Melbourne', 'Melbourne (AEST/AEDT)'),
+        ('Australia/Adelaide', 'Adelaide (ACST/ACDT)'),
+        ('Australia/Perth', 'Perth (AWST)'),
+        ('Australia/Darwin', 'Darwin (ACST)'),
     ])
     submit = SubmitField('Save Settings')
 
