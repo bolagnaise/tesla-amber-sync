@@ -52,8 +52,22 @@ def create_app(config_class=Config):
 
     # Add job to sync all users' TOU schedules at :00 and :30 of every hour (aligned with Amber's update cycle)
     from app.tasks import sync_all_users, save_price_history, save_energy_usage
+
+    # Wrapper functions to run tasks within app context
+    def run_sync_all_users():
+        with app.app_context():
+            sync_all_users()
+
+    def run_save_price_history():
+        with app.app_context():
+            save_price_history()
+
+    def run_save_energy_usage():
+        with app.app_context():
+            save_energy_usage()
+
     scheduler.add_job(
-        func=sync_all_users,
+        func=run_sync_all_users,
         trigger=CronTrigger(minute='0,30'),
         id='sync_tou_schedules',
         name='Sync TOU schedules from Amber to Tesla',
@@ -62,7 +76,7 @@ def create_app(config_class=Config):
 
     # Add job to save price history every 5 minutes for continuous tracking
     scheduler.add_job(
-        func=save_price_history,
+        func=run_save_price_history,
         trigger=CronTrigger(minute='*/5'),
         id='save_price_history',
         name='Save Amber price history to database',
@@ -71,7 +85,7 @@ def create_app(config_class=Config):
 
     # Add job to save energy usage every 5 minutes for continuous tracking
     scheduler.add_job(
-        func=save_energy_usage,
+        func=run_save_energy_usage,
         trigger=CronTrigger(minute='*/5'),
         id='save_energy_usage',
         name='Save Tesla energy usage to database',
