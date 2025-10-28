@@ -842,8 +842,8 @@
         // Fetch energy usage history on load and when timeframe changes
         fetchEnergyUsageHistory();
         document.getElementById('timeframe-selector').addEventListener('change', fetchEnergyUsageHistory);
-        // Refresh energy charts every 5 minutes
-        setInterval(fetchEnergyUsageHistory, 5 * 60 * 1000);
+        // Refresh energy charts every 30 seconds
+        setInterval(fetchEnergyUsageHistory, 30 * 1000);
 
         // Energy Usage Charts
         let solarChart = null;
