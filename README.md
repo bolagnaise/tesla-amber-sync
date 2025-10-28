@@ -12,11 +12,13 @@
 
 ## Features
 
-- 🔋 **Automatic TOU Tariff Sync** - Updates Tesla Powerwall with Amber Electric pricing every 30 minutes
-- 📊 **Real-time Pricing Dashboard** - Monitor current and historical electricity prices
+- 🔋 **Automatic TOU Tariff Sync** - Updates Tesla Powerwall with Amber Electric pricing every 5 minutes
+- 📊 **Real-time Pricing Dashboard** - Monitor current and historical electricity prices with live updates
+- ⚡ **Near Real-Time Energy Monitoring** - Energy usage charts update every 30 seconds
+- 🌏 **Timezone Support** - Configure your local timezone for accurate time display
 - 🔐 **Dual Tesla Authentication** - Support for both Tesla Fleet API and Teslemetry (recommended)
 - 🔒 **Secure Credential Storage** - All API tokens encrypted at rest
-- ⏱️ **Background Scheduler** - Automatic syncing runs every 30 minutes (aligned with Amber's update cycle)
+- ⏱️ **Background Scheduler** - Automatic syncing runs every 5 minutes (aligned with Amber's forecast updates)
 - 🐳 **Docker Ready** - Pre-built multi-architecture images for easy deployment
 
 ## Quick Start
@@ -291,7 +293,12 @@ After logging in:
    - Enter your Tesla energy site ID
    - Save settings
 
-5. **Verify Connection**
+5. **Configure Timezone** (Optional)
+   - Select your Australian timezone from the dropdown
+   - All charts and timestamps will use your selected timezone
+   - Defaults to Brisbane (AEST/AEDT)
+
+6. **Verify Connection**
    - Check API status indicators turn green
    - View current prices and battery status
 
@@ -300,21 +307,24 @@ After logging in:
 ### Automatic Sync
 
 The app automatically:
-- Syncs TOU tariff every 30 minutes (aligned with Amber Electric's update cycle)
+- Syncs TOU tariff every 5 minutes (aligned with Amber Electric's forecast updates)
 - Fetches latest pricing forecasts from Amber API
 - Sends optimized rates to Tesla Powerwall
 
 **Sync Timing:**
-- **Frequency:** Every 30 minutes
-- **Alignment:** Matches Amber Electric's pricing update schedule
+- **Frequency:** Every 5 minutes
+- **Alignment:** Matches Amber Electric's pricing forecast update schedule (updated every 5 minutes)
 - **Forecast Window:** 48 half-hour periods (24 hours ahead)
+- **Tesla Format:** Tesla still receives 30-minute TOU schedules, but with the latest forecast data
 
 ### Monitoring
 
-- **Current Prices**: Real-time Amber pricing
+- **Current Prices**: Real-time Amber pricing with 5-minute interval updates
 - **Battery Status**: Powerwall charge level, power flow
-- **Price History**: 24-hour price chart
-- **TOU Schedule**: Upcoming 24-hour tariff plan
+- **Energy Usage**: Near real-time charts (30-second updates) with enhanced hover tooltips
+- **Price History**: 24-hour price chart with timezone-adjusted timestamps
+- **TOU Schedule**: Upcoming 24-hour tariff plan (auto-refreshes every 30 minutes)
+- **Timezone Configuration**: Set your local timezone for accurate time display across all charts
 
 ## Architecture
 
@@ -324,8 +334,9 @@ The app automatically:
 - **Production Server**: Gunicorn (4 workers, 120s timeout)
 - **Database**: SQLite (PostgreSQL supported)
 - **Auth**: Flask-Login
-- **Scheduler**: APScheduler (30-minute intervals)
+- **Scheduler**: APScheduler (5-minute TOU sync, 5-minute data collection)
 - **Encryption**: Fernet (cryptography)
+- **Timezone Support**: Python zoneinfo (IANA timezones)
 - **Containerization**: Docker (multi-arch: amd64, arm64)
 - **CI/CD**: GitHub Actions (automated builds)
 
