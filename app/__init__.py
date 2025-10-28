@@ -68,7 +68,7 @@ def create_app(config_class=Config):
 
     scheduler.add_job(
         func=run_sync_all_users,
-        trigger=CronTrigger(minute='0,30'),
+        trigger=CronTrigger(minute='*/5'),
         id='sync_tou_schedules',
         name='Sync TOU schedules from Amber to Tesla',
         replace_existing=True
@@ -95,7 +95,7 @@ def create_app(config_class=Config):
     # Start the scheduler
     scheduler.start()
     logger.info("Background scheduler started:")
-    logger.info("  - TOU sync will run at :00 and :30 of every hour")
+    logger.info("  - TOU sync will run every 5 minutes (Amber updates forecasts every 5 min)")
     logger.info("  - Price history collection will run every 5 minutes")
     logger.info("  - Energy usage logging will run every 5 minutes")
 
