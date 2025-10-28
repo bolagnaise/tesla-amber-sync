@@ -166,6 +166,10 @@ def settings():
             logger.info("Encrypting and saving Teslemetry API key")
             current_user.teslemetry_api_key_encrypted = encrypt_token(form.teslemetry_api_key.data)
 
+        if form.timezone.data:
+            logger.info(f"Saving timezone: {form.timezone.data}")
+            current_user.timezone = form.timezone.data
+
         try:
             db.session.commit()
             logger.info("Settings saved successfully to database")
@@ -195,6 +199,10 @@ def settings():
     except Exception as e:
         logger.error(f"Error decrypting teslemetry api key: {e}")
         form.teslemetry_api_key.data = None
+
+    # Set timezone to user's preference (default to Australia/Brisbane if not set)
+    form.timezone.data = current_user.timezone or 'Australia/Brisbane'
+    logger.debug(f"Timezone: {form.timezone.data}")
 
     logger.info(f"Rendering settings page - Has Amber token: {bool(current_user.amber_api_token_encrypted)}, Has Teslemetry key: {bool(current_user.teslemetry_api_key_encrypted)}, Tesla Site ID: {current_user.tesla_energy_site_id}")
     return render_template('settings.html', title='Settings', form=form)
