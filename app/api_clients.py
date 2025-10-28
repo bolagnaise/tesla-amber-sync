@@ -275,7 +275,7 @@ class TeslemetryAPIClient:
             logger.error(f"Error getting battery level via Teslemetry: {e}")
             return None
 
-    def get_calendar_history(self, site_id, kind='energy', period='day', end_date=None):
+    def get_calendar_history(self, site_id, kind='energy', period='day', end_date=None, timezone='Australia/Brisbane'):
         """
         Get historical energy data from Tesla calendar history
 
@@ -284,6 +284,7 @@ class TeslemetryAPIClient:
             kind: 'energy' or 'power'
             period: 'day', 'week', 'month', 'year', or 'lifetime'
             end_date: End date (datetime string with timezone, e.g., '2025-10-26T23:59:59+10:00')
+            timezone: IANA timezone string (e.g., 'Australia/Brisbane', 'America/New_York')
 
         Returns:
             dict: Calendar history data with time_series array
@@ -292,11 +293,11 @@ class TeslemetryAPIClient:
             from datetime import datetime
             from zoneinfo import ZoneInfo
 
-            # Default to current time in Brisbane timezone if no end_date provided
+            # Default to current time in user's timezone if no end_date provided
             # Use 11:59 PM to avoid midnight issues
             if not end_date:
-                brisbane_tz = ZoneInfo('Australia/Brisbane')
-                now = datetime.now(brisbane_tz)
+                user_tz = ZoneInfo(timezone)
+                now = datetime.now(user_tz)
                 # Use 23:59:59 to avoid midnight issues
                 end_dt = now.replace(hour=23, minute=59, second=59)
                 end_date = end_dt.isoformat()
@@ -618,7 +619,7 @@ class TeslaFleetAPIClient:
             logger.error(f"Error getting battery level via Fleet API: {e}")
             return None
 
-    def get_calendar_history(self, site_id, kind='energy', period='day', end_date=None):
+    def get_calendar_history(self, site_id, kind='energy', period='day', end_date=None, timezone='Australia/Brisbane'):
         """
         Get historical energy data from Tesla calendar history
 
@@ -627,6 +628,7 @@ class TeslaFleetAPIClient:
             kind: 'energy' or 'power'
             period: 'day', 'week', 'month', 'year', or 'lifetime'
             end_date: End date (datetime string with timezone, e.g., '2025-10-26T23:59:59+10:00')
+            timezone: IANA timezone string (e.g., 'Australia/Brisbane', 'America/New_York')
 
         Returns:
             dict: Calendar history data with time_series array
@@ -635,11 +637,11 @@ class TeslaFleetAPIClient:
             from datetime import datetime
             from zoneinfo import ZoneInfo
 
-            # Default to current time in Brisbane timezone if no end_date provided
+            # Default to current time in user's timezone if no end_date provided
             # Use 11:59 PM to avoid midnight issues
             if not end_date:
-                brisbane_tz = ZoneInfo('Australia/Brisbane')
-                now = datetime.now(brisbane_tz)
+                user_tz = ZoneInfo(timezone)
+                now = datetime.now(user_tz)
                 # Use 23:59:59 to avoid midnight issues
                 end_dt = now.replace(hour=23, minute=59, second=59)
                 end_date = end_dt.isoformat()

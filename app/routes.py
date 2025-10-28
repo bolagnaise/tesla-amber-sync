@@ -573,10 +573,10 @@ def energy_calendar_history():
         from datetime import datetime
         from zoneinfo import ZoneInfo
         try:
-            # Parse YYYY-MM-DD and convert to datetime with Brisbane timezone
-            brisbane_tz = ZoneInfo('Australia/Brisbane')
+            # Parse YYYY-MM-DD and convert to datetime with user's timezone
+            user_tz = ZoneInfo(current_user.timezone or 'Australia/Brisbane')
             dt = datetime.strptime(end_date_str, '%Y-%m-%d')
-            end_dt = dt.replace(hour=23, minute=59, second=59, tzinfo=brisbane_tz)
+            end_dt = dt.replace(hour=23, minute=59, second=59, tzinfo=user_tz)
             end_date = end_dt.isoformat()
         except Exception as e:
             logger.warning(f"Invalid end_date format: {end_date_str}, using default: {e}")
@@ -586,7 +586,8 @@ def energy_calendar_history():
         site_id=current_user.tesla_energy_site_id,
         kind='energy',
         period=period,
-        end_date=end_date
+        end_date=end_date,
+        timezone=current_user.timezone or 'Australia/Brisbane'
     )
 
     if not history:
