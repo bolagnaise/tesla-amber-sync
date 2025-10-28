@@ -38,6 +38,7 @@ class User(UserMixin, db.Model):
 
     # User Preferences
     timezone = db.Column(db.String(50), default='Australia/Brisbane')  # IANA timezone string
+    sync_enabled = db.Column(db.Boolean, default=True)  # Enable/disable automatic Tesla syncing
 
     # Manual Control Override
     manual_control_mode = db.Column(db.String(20))  # 'charge', 'discharge', or None

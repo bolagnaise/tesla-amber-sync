@@ -74,6 +74,9 @@
             <div style="float: right;">
                 <button id="refresh-schedule-btn" style="font-size: 0.9em; margin-right: 0.5em;">Refresh</button>
                 {% if current_user.tesla_energy_site_id and (current_user.teslemetry_api_key_encrypted or current_user.tesla_access_token_encrypted) %}
+                <button id="toggle-sync-btn" class="{% if current_user.sync_enabled %}secondary{% else %}contrast{% endif %}" style="font-size: 0.9em; margin-right: 0.5em;">
+                    Auto-Sync: <span id="sync-status-text">{{ 'ON' if current_user.sync_enabled else 'OFF' }}</span>
+                </button>
                 <button id="sync-tesla-btn" class="primary" style="font-size: 0.9em;">Sync to Tesla</button>
                 {% endif %}
             </div>
@@ -823,11 +826,59 @@
             }
         }
 
+        // Toggle automatic syncing
+        async function toggleSync() {
+            const toggleBtn = document.getElementById('toggle-sync-btn');
+            const syncStatusText = document.getElementById('sync-status-text');
+            const syncStatus = document.getElementById('sync-status');
+
+            try {
+                // Disable button during request
+                toggleBtn.disabled = true;
+
+                const response = await fetch('/api/toggle-sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    // Update button appearance and text
+                    syncStatusText.textContent = result.sync_enabled ? 'ON' : 'OFF';
+                    toggleBtn.className = result.sync_enabled ? 'secondary' : 'contrast';
+
+                    // Show status message
+                    const statusColor = result.sync_enabled ? 'green' : 'orange';
+                    const statusIcon = result.sync_enabled ? '✅' : '⏸️';
+                    syncStatus.innerHTML = `<p style="color: ${statusColor};">${statusIcon} ${result.message}</p>`;
+
+                    // Auto-hide message after 5 seconds
+                    setTimeout(() => {
+                        syncStatus.innerHTML = '';
+                    }, 5000);
+                } else {
+                    throw new Error(result.error || 'Failed to toggle sync');
+                }
+            } catch (error) {
+                console.error('Error toggling sync:', error);
+                syncStatus.innerHTML = `<p style="color: red;">❌ Error: ${error.message}</p>`;
+            } finally {
+                // Re-enable button
+                toggleBtn.disabled = false;
+            }
+        }
+
         // Refresh button handler
         document.getElementById('refresh-schedule-btn')?.addEventListener('click', fetchTOUSchedule);
 
         // Sync button handler
         document.getElementById('sync-tesla-btn')?.addEventListener('click', syncTeslaSchedule);
+
+        // Toggle sync button handler
+        document.getElementById('toggle-sync-btn')?.addEventListener('click', toggleSync);
 
         // Initial load
         checkAPIStatus();

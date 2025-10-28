@@ -780,6 +780,30 @@ def sync_tesla_schedule():
         return jsonify({'error': f'Error syncing schedule: {str(e)}'}), 500
 
 
+@bp.route('/api/toggle-sync', methods=['POST'])
+@login_required
+def toggle_sync():
+    """Toggle automatic Tesla syncing on/off"""
+    try:
+        # Toggle the sync_enabled flag
+        current_user.sync_enabled = not current_user.sync_enabled
+        db.session.commit()
+
+        status = "enabled" if current_user.sync_enabled else "disabled"
+        logger.info(f"User {current_user.email} {status} automatic Tesla syncing")
+
+        return jsonify({
+            'success': True,
+            'sync_enabled': current_user.sync_enabled,
+            'message': f'Automatic syncing {status}'
+        })
+
+    except Exception as e:
+        logger.error(f"Error toggling sync: {e}")
+        db.session.rollback()
+        return jsonify({'error': f'Error toggling sync: {str(e)}'}), 500
+
+
 # Tesla Fleet API Routes (Virtual Keys Method)
 
 @bp.route('/.well-known/appspecific/com.tesla.3p.public-key.pem')

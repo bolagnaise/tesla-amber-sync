@@ -30,6 +30,11 @@ def sync_all_users():
 
     for user in users:
         try:
+            # Skip users who have disabled syncing
+            if not user.sync_enabled:
+                logger.debug(f"Skipping user {user.email} - syncing disabled")
+                continue
+
             # Skip users without required configuration
             if not user.amber_api_token_encrypted:
                 logger.debug(f"Skipping user {user.email} - no Amber token")
