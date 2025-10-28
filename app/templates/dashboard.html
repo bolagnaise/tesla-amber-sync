@@ -114,25 +114,45 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin-top: 1em;">
             <!-- Solar Chart -->
             <div>
-                <h4 style="margin: 0 0 0.5em 0;">Solar Generation</h4>
+                <h4 style="margin: 0 0 0.5em 0;">
+                    Solar Generation
+                    <div style="font-size: 0.8em; font-weight: normal; color: #666; margin-top: 0.2em;">
+                        <span id="solar-current-value">-- W</span>
+                    </div>
+                </h4>
                 <canvas id="solarChart" style="max-height: 200px;"></canvas>
             </div>
 
             <!-- Grid Chart -->
             <div>
-                <h4 style="margin: 0 0 0.5em 0;">Grid Power</h4>
+                <h4 style="margin: 0 0 0.5em 0;">
+                    Grid Power
+                    <div style="font-size: 0.8em; font-weight: normal; color: #666; margin-top: 0.2em;">
+                        <span id="grid-current-value">-- W</span>
+                    </div>
+                </h4>
                 <canvas id="gridChart" style="max-height: 200px;"></canvas>
             </div>
 
             <!-- Battery Chart -->
             <div>
-                <h4 style="margin: 0 0 0.5em 0;">Battery Power</h4>
+                <h4 style="margin: 0 0 0.5em 0;">
+                    Battery Power
+                    <div style="font-size: 0.8em; font-weight: normal; color: #666; margin-top: 0.2em;">
+                        <span id="battery-current-value">-- W</span>
+                    </div>
+                </h4>
                 <canvas id="batteryChart" style="max-height: 200px;"></canvas>
             </div>
 
             <!-- Load Chart -->
             <div>
-                <h4 style="margin: 0 0 0.5em 0;">Home Load</h4>
+                <h4 style="margin: 0 0 0.5em 0;">
+                    Home Load
+                    <div style="font-size: 0.8em; font-weight: normal; color: #666; margin-top: 0.2em;">
+                        <span id="load-current-value">-- W</span>
+                    </div>
+                </h4>
                 <canvas id="loadChart" style="max-height: 200px;"></canvas>
             </div>
         </div>
@@ -931,6 +951,43 @@
                 const gridData = history.map(r => r.grid_power / 1000);
                 const batteryData = history.map(r => r.battery_power / 1000);
                 const loadData = history.map(r => r.load_power / 1000);
+
+                // Update current real-time values (most recent reading)
+                const latest = history[history.length - 1];
+
+                // Helper function to format power with appropriate units
+                function formatPower(watts) {
+                    if (Math.abs(watts) >= 1000) {
+                        return `${(watts / 1000).toFixed(2)} kW`;
+                    }
+                    return `${watts.toFixed(0)} W`;
+                }
+
+                // Solar (always positive generation)
+                document.getElementById('solar-current-value').textContent = formatPower(latest.solar_power);
+
+                // Grid (+ importing, - exporting)
+                const gridElem = document.getElementById('grid-current-value');
+                if (latest.grid_power > 50) {
+                    gridElem.innerHTML = `↓ ${formatPower(latest.grid_power)} <span style="color: #e74c3c;">(importing)</span>`;
+                } else if (latest.grid_power < -50) {
+                    gridElem.innerHTML = `↑ ${formatPower(Math.abs(latest.grid_power))} <span style="color: #27ae60;">(exporting)</span>`;
+                } else {
+                    gridElem.textContent = formatPower(latest.grid_power);
+                }
+
+                // Battery (+ discharging, - charging)
+                const batteryElem = document.getElementById('battery-current-value');
+                if (latest.battery_power > 50) {
+                    batteryElem.innerHTML = `↑ ${formatPower(latest.battery_power)} <span style="color: #e67e22;">(discharging)</span>`;
+                } else if (latest.battery_power < -50) {
+                    batteryElem.innerHTML = `↓ ${formatPower(Math.abs(latest.battery_power))} <span style="color: #3498db;">(charging)</span>`;
+                } else {
+                    batteryElem.textContent = formatPower(latest.battery_power);
+                }
+
+                // Load (home consumption)
+                document.getElementById('load-current-value').textContent = formatPower(latest.load_power);
 
                 // Update charts
                 updateEnergyChart('solarChart', solarChart, labels, solarData, 'Solar Generation (kW)', 'rgb(255, 193, 7)', (chart) => { solarChart = chart; });
