@@ -36,6 +36,9 @@ class User(UserMixin, db.Model):
     last_update_status = db.Column(db.String(255))
     last_update_time = db.Column(db.DateTime)
 
+    # User Preferences
+    timezone = db.Column(db.String(50), default='Australia/Brisbane')  # IANA timezone string
+
     # Manual Control Override
     manual_control_mode = db.Column(db.String(20))  # 'charge', 'discharge', or None
     manual_control_end_time = db.Column(db.DateTime)  # When manual control expires
