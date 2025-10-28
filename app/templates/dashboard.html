@@ -180,6 +180,7 @@
     <!-- Chart.js Library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 
     <script>
         // Track selected price channel (general = import, feedIn = export)
@@ -935,22 +936,50 @@
                     return;
                 }
 
-                // Prepare data
-                const labels = history.map(record => {
-                    const date = new Date(record.timestamp);
-                    if (timeframe === 'day') {
-                        return date.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
-                    } else if (timeframe === 'month') {
-                        return date.toLocaleDateString('en-AU', { month: 'short', day: 'numeric' });
-                    } else {
-                        return date.toLocaleDateString('en-AU', { month: 'short', year: 'numeric' });
-                    }
-                });
+                // Prepare data with timestamps for proper time-based plotting
+                const dataPoints = history.map(record => ({
+                    timestamp: new Date(record.timestamp),
+                    solar: record.solar_power / 1000,
+                    grid: record.grid_power / 1000,
+                    battery: record.battery_power / 1000,
+                    load: record.load_power / 1000
+                }));
 
-                const solarData = history.map(r => r.solar_power / 1000); // Convert to kW
-                const gridData = history.map(r => r.grid_power / 1000);
-                const batteryData = history.map(r => r.battery_power / 1000);
-                const loadData = history.map(r => r.load_power / 1000);
+                // For 'day' timeframe, we want a fixed 24-hour axis from midnight to midnight
+                let xAxisConfig = null;
+                if (timeframe === 'day') {
+                    // Get today's date range (midnight to midnight)
+                    const now = new Date();
+                    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+                    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+                    xAxisConfig = {
+                        type: 'time',
+                        min: startOfDay.getTime(),
+                        max: endOfDay.getTime(),
+                        time: {
+                            unit: 'hour',
+                            displayFormats: {
+                                hour: 'ha' // 12AM, 6AM, 12PM, etc.
+                            },
+                            tooltipFormat: 'h:mm a'
+                        },
+                        ticks: {
+                            source: 'data',
+                            callback: function(value, index, ticks) {
+                                const date = new Date(value);
+                                const hour = date.getHours();
+                                // Only show labels for 12 AM, 6 AM, 12 PM, 6 PM
+                                if (hour === 0 || hour === 6 || hour === 12 || hour === 18) {
+                                    return date.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+                                }
+                                return '';
+                            },
+                            maxRotation: 0,
+                            minRotation: 0
+                        }
+                    };
+                }
 
                 // Update current real-time values (most recent reading)
                 try {
@@ -1016,17 +1045,17 @@
                 }
 
                 // Update charts
-                updateEnergyChart('solarChart', solarChart, labels, solarData, 'Solar Generation (kW)', 'rgb(255, 193, 7)', (chart) => { solarChart = chart; });
-                updateEnergyChart('gridChart', gridChart, labels, gridData, 'Grid Power (kW)', 'rgb(76, 175, 80)', (chart) => { gridChart = chart; });
-                updateEnergyChart('batteryChart', batteryChart, labels, batteryData, 'Battery Power (kW)', 'rgb(33, 150, 243)', (chart) => { batteryChart = chart; });
-                updateEnergyChart('loadChart', loadChart, labels, loadData, 'Home Load (kW)', 'rgb(156, 39, 176)', (chart) => { loadChart = chart; });
+                updateEnergyChart('solarChart', solarChart, dataPoints, 'solar', 'Solar Generation (kW)', 'rgb(255, 193, 7)', xAxisConfig, (chart) => { solarChart = chart; });
+                updateEnergyChart('gridChart', gridChart, dataPoints, 'grid', 'Grid Power (kW)', 'rgb(76, 175, 80)', xAxisConfig, (chart) => { gridChart = chart; });
+                updateEnergyChart('batteryChart', batteryChart, dataPoints, 'battery', 'Battery Power (kW)', 'rgb(33, 150, 243)', xAxisConfig, (chart) => { batteryChart = chart; });
+                updateEnergyChart('loadChart', loadChart, dataPoints, 'load', 'Home Load (kW)', 'rgb(156, 39, 176)', xAxisConfig, (chart) => { loadChart = chart; });
 
             } catch (error) {
                 console.error('Error fetching energy usage history:', error);
             }
         }
 
-        function updateEnergyChart(canvasId, existingChart, labels, data, label, color, setChart) {
+        function updateEnergyChart(canvasId, existingChart, dataPoints, dataKey, label, color, xAxisConfig, setChart) {
             const ctx = document.getElementById(canvasId).getContext('2d');
 
             // Destroy existing chart if it exists
@@ -1034,13 +1063,26 @@
                 existingChart.destroy();
             }
 
+            // Transform data points to Chart.js format
+            const chartData = dataPoints.map(point => ({
+                x: point.timestamp,
+                y: point[dataKey]
+            }));
+
+            // Configure x-axis (use provided config for day view, or default for other timeframes)
+            const xAxis = xAxisConfig || {
+                ticks: {
+                    maxRotation: 45,
+                    minRotation: 45
+                }
+            };
+
             const newChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
                     datasets: [{
                         label: label,
-                        data: data,
+                        data: chartData,
                         borderColor: color,
                         backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.1)'),
                         borderWidth: 2,
@@ -1048,7 +1090,8 @@
                         pointRadius: 0,
                         pointHoverRadius: 6,
                         pointHitRadius: 30,
-                        fill: true
+                        fill: true,
+                        spanGaps: true // Connect points even when there are gaps in data
                     }]
                 },
                 options: {
@@ -1083,7 +1126,7 @@
                                         label += ': ';
                                     }
                                     if (context.parsed.y !== null) {
-                                        label += context.parsed.y.toFixed(2);
+                                        label += context.parsed.y.toFixed(2) + ' kW';
                                     }
                                     return label;
                                 }
@@ -1098,12 +1141,7 @@
                                 text: label
                             }
                         },
-                        x: {
-                            ticks: {
-                                maxRotation: 45,
-                                minRotation: 45
-                            }
-                        }
+                        x: xAxis
                     }
                 }
             });
