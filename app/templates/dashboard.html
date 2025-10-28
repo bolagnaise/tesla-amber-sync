@@ -114,45 +114,85 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1em; margin-top: 1em;">
             <!-- Solar Chart -->
             <div>
-                <h4 style="margin: 0 0 0.5em 0;">
-                    Solar Generation
-                    <div style="font-size: 0.8em; font-weight: normal; color: #666; margin-top: 0.2em;">
-                        <span id="solar-current-value">-- W</span>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5em;">
+                    <div>
+                        <h4 style="margin: 0;">Solar Generation</h4>
+                        <div style="font-size: 0.8em; font-weight: normal; color: #666; margin-top: 0.2em;">
+                            <span id="solar-current-value">-- W</span>
+                        </div>
                     </div>
-                </h4>
+                    <div style="text-align: right;">
+                        <div style="font-size: 1.2em; font-weight: bold; color: #333;">
+                            <span id="solar-daily-total">-- kWh</span>
+                        </div>
+                        <div style="font-size: 0.75em; color: #666;">
+                            Generated
+                        </div>
+                    </div>
+                </div>
                 <canvas id="solarChart" style="max-height: 200px;"></canvas>
             </div>
 
             <!-- Grid Chart -->
             <div>
-                <h4 style="margin: 0 0 0.5em 0;">
-                    Grid Power
-                    <div style="font-size: 0.8em; font-weight: normal; color: #666; margin-top: 0.2em;">
-                        <span id="grid-current-value">-- W</span>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5em;">
+                    <div>
+                        <h4 style="margin: 0;">Grid Power</h4>
+                        <div style="font-size: 0.8em; font-weight: normal; color: #666; margin-top: 0.2em;">
+                            <span id="grid-current-value">-- W</span>
+                        </div>
                     </div>
-                </h4>
+                    <div style="text-align: right;">
+                        <div style="font-size: 1.2em; font-weight: bold; color: #333;">
+                            <span id="grid-daily-total">-- kWh</span>
+                        </div>
+                        <div style="font-size: 0.75em; color: #666;">
+                            <span id="grid-daily-label">Net</span>
+                        </div>
+                    </div>
+                </div>
                 <canvas id="gridChart" style="max-height: 200px;"></canvas>
             </div>
 
             <!-- Battery Chart -->
             <div>
-                <h4 style="margin: 0 0 0.5em 0;">
-                    Battery Power
-                    <div style="font-size: 0.8em; font-weight: normal; color: #666; margin-top: 0.2em;">
-                        <span id="battery-current-value">-- W</span>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5em;">
+                    <div>
+                        <h4 style="margin: 0;">Battery Power</h4>
+                        <div style="font-size: 0.8em; font-weight: normal; color: #666; margin-top: 0.2em;">
+                            <span id="battery-current-value">-- W</span>
+                        </div>
                     </div>
-                </h4>
+                    <div style="text-align: right;">
+                        <div style="font-size: 1.2em; font-weight: bold; color: #333;">
+                            <span id="battery-daily-total">-- kWh</span>
+                        </div>
+                        <div style="font-size: 0.75em; color: #666;">
+                            <span id="battery-daily-label">Net</span>
+                        </div>
+                    </div>
+                </div>
                 <canvas id="batteryChart" style="max-height: 200px;"></canvas>
             </div>
 
             <!-- Load Chart -->
             <div>
-                <h4 style="margin: 0 0 0.5em 0;">
-                    Home Load
-                    <div style="font-size: 0.8em; font-weight: normal; color: #666; margin-top: 0.2em;">
-                        <span id="load-current-value">-- W</span>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5em;">
+                    <div>
+                        <h4 style="margin: 0;">Home Load</h4>
+                        <div style="font-size: 0.8em; font-weight: normal; color: #666; margin-top: 0.2em;">
+                            <span id="load-current-value">-- W</span>
+                        </div>
                     </div>
-                </h4>
+                    <div style="text-align: right;">
+                        <div style="font-size: 1.2em; font-weight: bold; color: #333;">
+                            <span id="load-daily-total">-- kWh</span>
+                        </div>
+                        <div style="font-size: 0.75em; color: #666;">
+                            Consumed
+                        </div>
+                    </div>
+                </div>
                 <canvas id="loadChart" style="max-height: 200px;"></canvas>
             </div>
         </div>
@@ -1055,6 +1095,112 @@
                     }
                 } catch (error) {
                     console.error('Error updating current energy values:', error);
+                }
+
+                // Calculate daily energy totals (integrate power over time)
+                try {
+                    if (dataPoints.length > 1) {
+                        let solarEnergy = 0;
+                        let gridEnergyImport = 0;
+                        let gridEnergyExport = 0;
+                        let batteryEnergyCharge = 0;
+                        let batteryEnergyDischarge = 0;
+                        let loadEnergy = 0;
+
+                        // Integrate power over time using trapezoidal rule
+                        for (let i = 1; i < dataPoints.length; i++) {
+                            const prevPoint = dataPoints[i - 1];
+                            const currPoint = dataPoints[i];
+
+                            // Time difference in hours
+                            const timeDiffHours = (currPoint.timestamp - prevPoint.timestamp) / (1000 * 60 * 60);
+
+                            // Energy = average power × time (trapezoidal rule)
+                            const avgSolar = (prevPoint.solar + currPoint.solar) / 2;
+                            const avgGrid = (prevPoint.grid + currPoint.grid) / 2;
+                            const avgBattery = (prevPoint.battery + currPoint.battery) / 2;
+                            const avgLoad = (prevPoint.load + currPoint.load) / 2;
+
+                            solarEnergy += avgSolar * timeDiffHours;
+
+                            // Grid: separate import and export
+                            if (avgGrid > 0) {
+                                gridEnergyImport += avgGrid * timeDiffHours;
+                            } else {
+                                gridEnergyExport += Math.abs(avgGrid) * timeDiffHours;
+                            }
+
+                            // Battery: separate charge and discharge
+                            if (avgBattery > 0) {
+                                batteryEnergyDischarge += avgBattery * timeDiffHours;
+                            } else {
+                                batteryEnergyCharge += Math.abs(avgBattery) * timeDiffHours;
+                            }
+
+                            loadEnergy += avgLoad * timeDiffHours;
+                        }
+
+                        // Update solar total
+                        const solarTotalElem = document.getElementById('solar-daily-total');
+                        if (solarTotalElem) {
+                            solarTotalElem.textContent = solarEnergy.toFixed(1) + ' kWh';
+                        }
+
+                        // Update grid total (net or show import/export)
+                        const gridTotalElem = document.getElementById('grid-daily-total');
+                        const gridLabelElem = document.getElementById('grid-daily-label');
+                        if (gridTotalElem && gridLabelElem) {
+                            const gridNet = gridEnergyImport - gridEnergyExport;
+                            if (Math.abs(gridNet) < 0.1) {
+                                gridTotalElem.textContent = '0.0 kWh';
+                                gridLabelElem.textContent = 'Net';
+                            } else if (gridNet > 0) {
+                                gridTotalElem.textContent = gridEnergyImport.toFixed(1) + ' kWh';
+                                gridLabelElem.textContent = 'Imported';
+                                gridTotalElem.style.color = '#e74c3c';
+                            } else {
+                                gridTotalElem.textContent = gridEnergyExport.toFixed(1) + ' kWh';
+                                gridLabelElem.textContent = 'Exported';
+                                gridTotalElem.style.color = '#27ae60';
+                            }
+                        }
+
+                        // Update battery total (net or show charge/discharge)
+                        const batteryTotalElem = document.getElementById('battery-daily-total');
+                        const batteryLabelElem = document.getElementById('battery-daily-label');
+                        if (batteryTotalElem && batteryLabelElem) {
+                            const batteryNet = batteryEnergyDischarge - batteryEnergyCharge;
+                            if (Math.abs(batteryNet) < 0.1) {
+                                batteryTotalElem.textContent = '0.0 kWh';
+                                batteryLabelElem.textContent = 'Net';
+                            } else if (batteryNet > 0) {
+                                batteryTotalElem.textContent = batteryEnergyDischarge.toFixed(1) + ' kWh';
+                                batteryLabelElem.textContent = 'Discharged';
+                                batteryTotalElem.style.color = '#e67e22';
+                            } else {
+                                batteryTotalElem.textContent = batteryEnergyCharge.toFixed(1) + ' kWh';
+                                batteryLabelElem.textContent = 'Charged';
+                                batteryTotalElem.style.color = '#3498db';
+                            }
+                        }
+
+                        // Update load total
+                        const loadTotalElem = document.getElementById('load-daily-total');
+                        if (loadTotalElem) {
+                            loadTotalElem.textContent = loadEnergy.toFixed(1) + ' kWh';
+                        }
+
+                        console.log('Daily energy totals:', {
+                            solar: solarEnergy.toFixed(2),
+                            gridImport: gridEnergyImport.toFixed(2),
+                            gridExport: gridEnergyExport.toFixed(2),
+                            batteryCharge: batteryEnergyCharge.toFixed(2),
+                            batteryDischarge: batteryEnergyDischarge.toFixed(2),
+                            load: loadEnergy.toFixed(2)
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error calculating daily energy totals:', error);
                 }
 
                 // Update charts
