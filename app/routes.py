@@ -483,7 +483,13 @@ def tesla_status():
 @login_required
 def price_history():
     """Get historical price data"""
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+
     logger.info(f"Price history requested by user: {current_user.email}")
+
+    # Get user's timezone
+    user_tz = ZoneInfo(current_user.timezone or 'Australia/Brisbane')
 
     # Get last 24 hours of price data (only actual prices, not forecasts)
     records = PriceRecord.query.filter_by(
@@ -494,12 +500,23 @@ def price_history():
         PriceRecord.timestamp.desc()
     ).limit(48).all()
 
-    data = [{
-        'timestamp': record.timestamp.isoformat(),
-        'per_kwh': record.per_kwh,
-        'spike_status': record.spike_status,
-        'forecast': record.forecast
-    } for record in reversed(records)]
+    data = []
+    for record in reversed(records):
+        # Convert UTC timestamp to user's timezone
+        if record.timestamp.tzinfo is None:
+            # Assume UTC if no timezone info
+            utc_time = record.timestamp.replace(tzinfo=timezone.utc)
+        else:
+            utc_time = record.timestamp
+
+        local_time = utc_time.astimezone(user_tz)
+
+        data.append({
+            'timestamp': local_time.isoformat(),
+            'per_kwh': record.per_kwh,
+            'spike_status': record.spike_status,
+            'forecast': record.forecast
+        })
 
     logger.info(f"Returning {len(data)} price history records")
     return jsonify(data)
@@ -509,7 +526,13 @@ def price_history():
 @login_required
 def energy_history():
     """Get historical energy usage data for graphing"""
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+
     logger.info(f"Energy history requested by user: {current_user.email}")
+
+    # Get user's timezone
+    user_tz = ZoneInfo(current_user.timezone or 'Australia/Brisbane')
 
     # Get timeframe parameter (default to 'day')
     timeframe = request.args.get('timeframe', 'day')
@@ -533,14 +556,25 @@ def energy_history():
         EnergyRecord.timestamp.desc()
     ).limit(limit).all()
 
-    data = [{
-        'timestamp': record.timestamp.isoformat(),
-        'solar_power': record.solar_power,
-        'battery_power': record.battery_power,
-        'grid_power': record.grid_power,
-        'load_power': record.load_power,
-        'battery_level': record.battery_level
-    } for record in reversed(records)]
+    data = []
+    for record in reversed(records):
+        # Convert UTC timestamp to user's timezone
+        if record.timestamp.tzinfo is None:
+            # Assume UTC if no timezone info
+            utc_time = record.timestamp.replace(tzinfo=timezone.utc)
+        else:
+            utc_time = record.timestamp
+
+        local_time = utc_time.astimezone(user_tz)
+
+        data.append({
+            'timestamp': local_time.isoformat(),
+            'solar_power': record.solar_power,
+            'battery_power': record.battery_power,
+            'grid_power': record.grid_power,
+            'load_power': record.load_power,
+            'battery_level': record.battery_level
+        })
 
     logger.info(f"Returning {len(data)} energy history records for timeframe: {timeframe}")
     return jsonify(data)
