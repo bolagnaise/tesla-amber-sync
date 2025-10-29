@@ -999,38 +999,47 @@
                         max: endOfDay.getTime(),
                         time: {
                             unit: 'hour',
+                            stepSize: 6, // Generate ticks every 6 hours
                             displayFormats: {
-                                hour: 'ha' // 12AM, 6AM, 12PM, etc.
+                                hour: 'h a' // 12 AM, 6 AM, 12 PM, etc.
                             },
                             tooltipFormat: 'h:mm a'
                         },
                         ticks: {
                             source: 'auto',
-                            stepSize: 6, // Show ticks every 6 hours
+                            autoSkip: false,
+                            maxRotation: 0,
+                            minRotation: 0,
+                            major: {
+                                enabled: true
+                            },
                             callback: function(value, index, ticks) {
                                 const date = new Date(value);
                                 const hour = date.getHours();
-                                // Only show labels for 12 AM, 6 AM, 12 PM, 6 PM, and final 12 AM
-                                if (hour === 0) {
-                                    return '12 AM';
-                                } else if (hour === 6) {
-                                    return '6 AM';
-                                } else if (hour === 12) {
-                                    return '12 PM';
-                                } else if (hour === 18) {
-                                    return '6 PM';
+                                const minutes = date.getMinutes();
+
+                                // Only show labels at exact hours 0, 6, 12, 18
+                                if (minutes === 0 && (hour === 0 || hour === 6 || hour === 12 || hour === 18)) {
+                                    if (hour === 0) {
+                                        return '12 AM';
+                                    } else if (hour === 6) {
+                                        return '6 AM';
+                                    } else if (hour === 12) {
+                                        return '12 PM';
+                                    } else if (hour === 18) {
+                                        return '6 PM';
+                                    }
                                 }
                                 return '';
-                            },
-                            maxRotation: 0,
-                            minRotation: 0,
-                            autoSkip: false
+                            }
                         },
                         grid: {
                             display: true,
                             drawOnChartArea: true,
                             drawTicks: true
-                        }
+                        },
+                        bounds: 'ticks',
+                        offset: false
                     };
                 }
 
