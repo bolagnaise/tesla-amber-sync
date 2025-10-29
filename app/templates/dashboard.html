@@ -1222,11 +1222,18 @@
                 existingChart.destroy();
             }
 
-            // Transform data points to Chart.js format
-            const chartData = dataPoints.map(point => ({
+            // Transform data points to Chart.js format and apply data decimation for better performance
+            let chartData = dataPoints.map(point => ({
                 x: point.timestamp,
                 y: point[dataKey]
             }));
+
+            // Decimate data if there are too many points (keep every Nth point based on count)
+            // This improves performance and visualization clarity
+            if (chartData.length > 288) { // More than 288 points (one per 5 min)
+                const decimationFactor = Math.ceil(chartData.length / 288);
+                chartData = chartData.filter((point, index) => index % decimationFactor === 0 || index === chartData.length - 1);
+            }
 
             // Configure x-axis (use provided config for day view, or default for other timeframes)
             const xAxis = xAxisConfig || {
@@ -1235,6 +1242,17 @@
                     minRotation: 45
                 }
             };
+
+            // Calculate y-axis configuration with auto-scaling
+            // Find min/max values for better visualization
+            const yValues = chartData.map(d => d.y).filter(v => v != null);
+            const yMin = Math.min(...yValues);
+            const yMax = Math.max(...yValues);
+            const yRange = yMax - yMin;
+
+            // Add 10% padding to top and bottom for better visualization
+            const suggestedMin = yMin - (yRange * 0.1);
+            const suggestedMax = yMax + (yRange * 0.1);
 
             const newChart = new Chart(ctx, {
                 type: 'line',
@@ -1245,7 +1263,7 @@
                         borderColor: color,
                         backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.1)'),
                         borderWidth: 2,
-                        tension: 0.1,
+                        tension: 0.3, // Slightly smoother curves for decimated data
                         pointRadius: 0,
                         pointHoverRadius: 6,
                         pointHitRadius: 30,
@@ -1294,10 +1312,17 @@
                     },
                     scales: {
                         y: {
-                            beginAtZero: true,
+                            // Auto-scale based on data range with padding
+                            suggestedMin: Math.max(0, suggestedMin), // Don't go below 0 for positive-only values
+                            suggestedMax: suggestedMax,
+                            grace: '5%', // Additional grace padding
                             title: {
                                 display: true,
                                 text: label
+                            },
+                            ticks: {
+                                // Limit number of ticks for cleaner display
+                                maxTicksLimit: 6
                             }
                         },
                         x: xAxis
