@@ -20,6 +20,130 @@
 - 🔒 **Secure Credential Storage** - All API tokens encrypted at rest
 - ⏱️ **Background Scheduler** - Automatic syncing runs every 5 minutes (aligned with Amber's forecast updates)
 - 🐳 **Docker Ready** - Pre-built multi-architecture images for easy deployment
+- 🏠 **Home Assistant Integration** - Native HACS integration for seamless HA deployment
+
+## Installation Options
+
+Tesla-Amber-Sync is available in two deployment options:
+
+1. **[Home Assistant Integration](#home-assistant-integration)** - Native HA custom integration (Recommended for HA users)
+2. **[Docker Application](#docker-deployment)** - Standalone web app with dashboard
+
+---
+
+## Home Assistant Integration
+
+The easiest way to use Tesla-Amber-Sync if you're already running Home Assistant.
+
+### Features
+
+- ✅ **Native HA Integration** - Seamless integration with your Home Assistant instance
+- ✅ **HACS Installation** - Install and update via HACS (Home Assistant Community Store)
+- ✅ **Automatic Discovery** - Auto-discovers Tesla energy sites from Teslemetry
+- ✅ **Real-time Sensors** - Amber pricing and Tesla energy data as HA sensors
+- ✅ **TOU Sync Service** - Manual and automatic TOU schedule syncing
+- ✅ **No External Services** - Runs entirely within Home Assistant
+
+### Prerequisites
+
+- Home Assistant installed and running
+- HACS (Home Assistant Community Store) installed
+- Teslemetry account with API token (https://teslemetry.com)
+- Amber Electric account with API token (https://app.amber.com.au/developers)
+
+### Installation Steps
+
+1. **Install via HACS**
+   - Open HACS in Home Assistant
+   - Click the three dots in the top right
+   - Select "Custom repositories"
+   - Add repository URL: `https://github.com/bolagnaise/tesla-amber-sync`
+   - Category: `Integration`
+   - Click "Add"
+   - Click "Download" on the Tesla Amber Sync integration
+   - Restart Home Assistant
+
+2. **Add Integration**
+   - Go to Settings → Devices & Services
+   - Click "+ Add Integration"
+   - Search for "Tesla Amber Sync"
+   - Click to add
+
+3. **Configure**
+   - **Step 1: Amber Electric**
+     - Enter your Amber API token
+     - Get token from: https://app.amber.com.au/developers
+
+   - **Step 2: Teslemetry**
+     - Enter your Teslemetry API token
+     - Get token from: https://teslemetry.com
+
+   - **Step 3: Site Selection**
+     - Select your Tesla energy site from the dropdown
+     - Select Amber site (if you have multiple)
+     - Enable automatic TOU schedule syncing (recommended)
+
+4. **Verify Setup**
+   - Check that new sensors appear:
+     - `sensor.current_electricity_price`
+     - `sensor.solar_power`
+     - `sensor.grid_power`
+     - `sensor.battery_power`
+     - `sensor.home_load`
+     - `sensor.battery_level`
+   - Check that the switch appears:
+     - `switch.auto_sync_tou_schedule`
+
+### Available Services
+
+```yaml
+# Manually sync TOU schedule
+service: tesla_amber_sync.sync_tou_schedule
+
+# Refresh data from Amber and Teslemetry
+service: tesla_amber_sync.sync_now
+```
+
+### Example Automations
+
+**Sync TOU on price spike:**
+```yaml
+automation:
+  - alias: "Sync TOU on Price Spike"
+    trigger:
+      - platform: state
+        entity_id: sensor.current_electricity_price
+    condition:
+      - condition: numeric_state
+        entity_id: sensor.current_electricity_price
+        above: 0.30
+    action:
+      - service: tesla_amber_sync.sync_tou_schedule
+```
+
+**Daily TOU sync:**
+```yaml
+automation:
+  - alias: "Daily TOU Sync"
+    trigger:
+      - platform: time
+        at: "00:00:00"
+    action:
+      - service: tesla_amber_sync.sync_tou_schedule
+```
+
+### Troubleshooting
+
+- **No sensors appearing**: Check that the integration is enabled in Settings → Devices & Services
+- **Invalid API token**: Verify tokens at Amber and Teslemetry websites
+- **No Tesla sites found**: Ensure your Tesla account is linked in Teslemetry
+- **TOU sync failing**: Check Home Assistant logs for detailed error messages
+
+---
+
+## Docker Deployment
+
+Standalone web application with dashboard for users who prefer Docker or don't use Home Assistant.
 
 ## Quick Start
 
