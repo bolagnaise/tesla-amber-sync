@@ -72,13 +72,22 @@ async def get_tesla_sites(hass: HomeAssistant) -> list[dict[str, Any]]:
     # Iterate through all devices
     for device in device_registry.devices.values():
         # Only look at tesla_fleet integration devices
-        if not any(integration_domain == "tesla_fleet" for integration_domain, _ in device.identifiers):
+        has_tesla_fleet = False
+        for identifier_tuple in device.identifiers:
+            if len(identifier_tuple) >= 2 and identifier_tuple[0] == "tesla_fleet":
+                has_tesla_fleet = True
+                break
+
+        if not has_tesla_fleet:
             continue
 
         # Look for energy site identifier
         energy_site_id = None
-        for integration_domain, identifier in device.identifiers:
-            if integration_domain == "tesla_fleet":
+        for identifier_tuple in device.identifiers:
+            if len(identifier_tuple) >= 2 and identifier_tuple[0] == "tesla_fleet":
+                integration_domain = identifier_tuple[0]
+                identifier = identifier_tuple[1]
+
                 # The identifier is the site ID for energy sites
                 # Check if this device has any energy-related entities
                 has_energy_entities = False
