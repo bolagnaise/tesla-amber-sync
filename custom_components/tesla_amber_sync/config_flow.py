@@ -61,23 +61,41 @@ async def validate_amber_token(hass: HomeAssistant, api_token: str) -> dict[str,
 async def get_tesla_sites(hass: HomeAssistant) -> list[dict[str, Any]]:
     """Get list of Tesla energy sites from the Tesla Fleet integration."""
     tesla_sites = []
+    seen_sites = set()
 
     # Look for Tesla Fleet entities
     entity_registry = er.async_get(hass)
     device_registry = dr.async_get(hass)
 
-    for entity in entity_registry.entities.values():
-        if entity.platform == "tesla_fleet" and entity.domain == "sensor":
-            if "energy_site_id" in entity.unique_id:
-                # Extract site info
-                site_id = entity.unique_id.split("_")[0]
-                device = device_registry.async_get(entity.device_id)
-                if device:
-                    tesla_sites.append({
-                        "id": site_id,
-                        "name": device.name or f"Site {site_id}",
-                    })
+    _LOGGER.debug("Searching for Tesla Fleet entities...")
 
+    for entity in entity_registry.entities.values():
+        if entity.platform == "tesla_fleet":
+            _LOGGER.debug(f"Found Tesla Fleet entity: {entity.entity_id} (unique_id: {entity.unique_id})")
+
+            # Look for energy-related entities (battery, solar, etc.)
+            if any(keyword in entity.unique_id.lower() for keyword in [
+                "battery", "solar", "grid", "load", "energy_site",
+                "percentage_charged", "power_w"
+            ]):
+                # Try to extract site ID from unique_id
+                # Format is usually: {site_id}_{entity_name}
+                parts = entity.unique_id.split("_")
+                if parts:
+                    site_id = parts[0]
+
+                    if site_id not in seen_sites:
+                        device = device_registry.async_get(entity.device_id)
+                        device_name = device.name if device else "Tesla Energy Site"
+
+                        tesla_sites.append({
+                            "id": site_id,
+                            "name": device_name,
+                        })
+                        seen_sites.add(site_id)
+                        _LOGGER.info(f"Found Tesla energy site: {device_name} (ID: {site_id})")
+
+    _LOGGER.info(f"Discovered {len(tesla_sites)} Tesla energy site(s)")
     return tesla_sites
 
 
@@ -159,20 +177,26 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Get Tesla sites
         tesla_sites = await get_tesla_sites(self.hass)
 
-        if not tesla_sites:
-            return self.async_abort(reason="no_tesla_sites")
-
         # Build selection options
         amber_site_options = {
             site["id"]: site.get("nmi", site["id"])
             for site in self._amber_sites
         }
 
-        tesla_site_options = {site["id"]: site["name"] for site in tesla_sites}
+        data_schema_dict: dict[vol.Marker, Any] = {}
 
-        data_schema_dict: dict[vol.Marker, Any] = {
-            vol.Required(CONF_TESLA_SITE_ID): vol.In(tesla_site_options),
-        }
+        if tesla_sites:
+            # Auto-discovered sites - show dropdown
+            tesla_site_options = {site["id"]: site["name"] for site in tesla_sites}
+            data_schema_dict[vol.Required(CONF_TESLA_SITE_ID)] = vol.In(tesla_site_options)
+        else:
+            # No sites found - allow manual entry
+            _LOGGER.warning(
+                "No Tesla Fleet energy sites auto-discovered. "
+                "Please enter your Tesla energy site ID manually. "
+                "You can find this in the Tesla Fleet integration or Tesla app."
+            )
+            data_schema_dict[vol.Required(CONF_TESLA_SITE_ID)] = str
 
         # Only add Amber site selection if multiple sites
         if len(self._amber_sites) > 1:
