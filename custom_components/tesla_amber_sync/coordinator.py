@@ -10,6 +10,7 @@ import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
     DOMAIN,
@@ -102,7 +103,7 @@ class TeslaEnergyCoordinator(DataUpdateCoordinator):
         """Fetch data from Tesla Fleet integration entities."""
         try:
             # Get entity registry to find Tesla entities
-            entity_registry = self.hass.helpers.entity_registry.async_get(self.hass)
+            entity_registry = er.async_get(self.hass)
 
             energy_data: dict[str, Any] = {}
 

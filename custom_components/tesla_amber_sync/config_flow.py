@@ -11,6 +11,8 @@ from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
@@ -61,13 +63,14 @@ async def get_tesla_sites(hass: HomeAssistant) -> list[dict[str, Any]]:
     tesla_sites = []
 
     # Look for Tesla Fleet entities
-    entity_registry = hass.helpers.entity_registry.async_get(hass)
+    entity_registry = er.async_get(hass)
+    device_registry = dr.async_get(hass)
+
     for entity in entity_registry.entities.values():
         if entity.platform == "tesla_fleet" and entity.domain == "sensor":
             if "energy_site_id" in entity.unique_id:
                 # Extract site info
                 site_id = entity.unique_id.split("_")[0]
-                device_registry = hass.helpers.device_registry.async_get(hass)
                 device = device_registry.async_get(entity.device_id)
                 if device:
                     tesla_sites.append({
