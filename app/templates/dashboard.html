@@ -1000,6 +1000,15 @@
                     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
                     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
 
+                    // Create specific tick positions for 12 AM, 6 AM, 12 PM, 6 PM, 12 AM
+                    const tickPositions = [
+                        startOfDay.getTime(), // 12 AM start
+                        new Date(now.getFullYear(), now.getMonth(), now.getDate(), 6, 0, 0).getTime(), // 6 AM
+                        new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0).getTime(), // 12 PM
+                        new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0).getTime(), // 6 PM
+                        endOfDay.getTime() // 12 AM end
+                    ];
+
                     xAxisConfig = {
                         type: 'time',
                         min: startOfDay.getTime(),
@@ -1007,44 +1016,34 @@
                         time: {
                             unit: 'hour',
                             displayFormats: {
-                                hour: 'h a' // 12 AM, 6 AM, 12 PM, etc.
+                                hour: 'h a'
                             },
-                            tooltipFormat: 'h:mm a',
-                            minUnit: 'hour'
+                            tooltipFormat: 'h:mm a'
                         },
                         ticks: {
-                            source: 'data',
                             autoSkip: false,
                             maxRotation: 0,
                             minRotation: 0,
-                            includeBounds: true,
                             callback: function(value, index, ticks) {
                                 const date = new Date(value);
                                 const hour = date.getHours();
-                                const minutes = date.getMinutes();
 
-                                // Only show labels at exact hours 0, 6, 12, 18
-                                if (minutes === 0 && (hour === 0 || hour === 6 || hour === 12 || hour === 18)) {
-                                    if (hour === 0) {
-                                        return '12 AM';
-                                    } else if (hour === 6) {
-                                        return '6 AM';
-                                    } else if (hour === 12) {
-                                        return '12 PM';
-                                    } else if (hour === 18) {
-                                        return '6 PM';
-                                    }
+                                // Show labels for 0, 6, 12, 18 hours only
+                                if (hour === 0) {
+                                    return '12 AM';
+                                } else if (hour === 6) {
+                                    return '6 AM';
+                                } else if (hour === 12) {
+                                    return '12 PM';
+                                } else if (hour === 18) {
+                                    return '6 PM';
                                 }
                                 return '';
                             }
                         },
-                        grid: {
-                            display: true,
-                            drawOnChartArea: true,
-                            drawTicks: true
-                        },
-                        bounds: 'data',
-                        offset: false
+                        adapters: {
+                            date: {}
+                        }
                     };
                 }
 
