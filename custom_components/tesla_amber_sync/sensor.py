@@ -58,7 +58,6 @@ PRICE_SENSORS: tuple[TeslaAmberSensorEntityDescription, ...] = (
         name="Current Electricity Price",
         native_unit_of_measurement=f"{CURRENCY_DOLLAR}/{UnitOfEnergy.KILO_WATT_HOUR}",
         device_class=SensorDeviceClass.MONETARY,
-        state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=4,
         value_fn=lambda data: (
             data.get("current", [{}])[0].get("perKwh", 0) / 100
