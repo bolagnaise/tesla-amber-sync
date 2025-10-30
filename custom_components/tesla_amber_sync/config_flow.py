@@ -10,18 +10,17 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import selector
-from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     DOMAIN,
     CONF_AMBER_API_TOKEN,
     CONF_AMBER_SITE_ID,
+    CONF_TESLEMETRY_API_TOKEN,
     CONF_TESLA_SITE_ID,
     CONF_AUTO_SYNC_ENABLED,
     AMBER_API_BASE_URL,
+    TESLEMETRY_API_BASE_URL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,65 +57,51 @@ async def validate_amber_token(hass: HomeAssistant, api_token: str) -> dict[str,
         return {"success": False, "error": "unknown"}
 
 
-async def get_tesla_sites(hass: HomeAssistant) -> list[dict[str, Any]]:
-    """Get list of Tesla energy sites from the Tesla Fleet integration."""
-    tesla_sites = []
-    seen_site_ids = set()  # Track by site_id to avoid duplicates
+async def validate_teslemetry_token(
+    hass: HomeAssistant, api_token: str
+) -> dict[str, Any]:
+    """Validate the Teslemetry API token and get sites."""
+    session = async_get_clientsession(hass)
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json",
+    }
 
-    # Look for Tesla Fleet devices
-    device_registry = dr.async_get(hass)
-    entity_registry = er.async_get(hass)
+    try:
+        async with session.get(
+            f"{TESLEMETRY_API_BASE_URL}/api/1/products",
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as response:
+            if response.status == 200:
+                data = await response.json()
+                products = data.get("response", [])
 
-    _LOGGER.info("Searching for Tesla Fleet energy sites...")
+                # Filter for energy sites
+                energy_sites = [
+                    p for p in products
+                    if "energy_site_id" in p
+                ]
 
-    # Iterate through all devices
-    for device in device_registry.devices.values():
-        # Only look at tesla_fleet integration devices
-        has_tesla_fleet = False
-        for identifier_tuple in device.identifiers:
-            if len(identifier_tuple) >= 2 and identifier_tuple[0] == "tesla_fleet":
-                has_tesla_fleet = True
-                break
-
-        if not has_tesla_fleet:
-            continue
-
-        # Look for energy site identifier
-        energy_site_id = None
-        for identifier_tuple in device.identifiers:
-            if len(identifier_tuple) >= 2 and identifier_tuple[0] == "tesla_fleet":
-                integration_domain = identifier_tuple[0]
-                identifier = identifier_tuple[1]
-
-                # The identifier is the site ID for energy sites
-                # Check if this device has any energy-related entities
-                has_energy_entities = False
-                for entity in entity_registry.entities.values():
-                    if entity.device_id == device.id and entity.platform == "tesla_fleet":
-                        # Check if it's an energy sensor
-                        if any(keyword in (entity.unique_id or "").lower() for keyword in [
-                            "solar", "battery", "grid", "load", "percentage_charged"
-                        ]):
-                            has_energy_entities = True
-                            energy_site_id = identifier
-                            break
-
-                if has_energy_entities:
-                    break
-
-        if energy_site_id and energy_site_id not in seen_site_ids:
-            device_name = device.name or "Tesla Energy Site"
-
-            _LOGGER.info(f"Found Tesla energy site: {device_name} (ID: {energy_site_id})")
-
-            tesla_sites.append({
-                "id": energy_site_id,
-                "name": f"{device_name} ({energy_site_id[:12]}...)" if len(energy_site_id) > 12 else f"{device_name} ({energy_site_id})",
-            })
-            seen_site_ids.add(energy_site_id)
-
-    _LOGGER.info(f"Discovered {len(tesla_sites)} Tesla energy site(s) from Tesla Fleet")
-    return tesla_sites
+                if energy_sites:
+                    return {
+                        "success": True,
+                        "sites": energy_sites,
+                    }
+                else:
+                    return {"success": False, "error": "no_energy_sites"}
+            elif response.status == 401:
+                return {"success": False, "error": "invalid_auth"}
+            else:
+                error_text = await response.text()
+                _LOGGER.error("Teslemetry API error %s: %s", response.status, error_text)
+                return {"success": False, "error": "cannot_connect"}
+    except aiohttp.ClientError as err:
+        _LOGGER.exception("Error connecting to Teslemetry API: %s", err)
+        return {"success": False, "error": "cannot_connect"}
+    except Exception as err:
+        _LOGGER.exception("Unexpected error validating Teslemetry token: %s", err)
+        return {"success": False, "error": "unknown"}
 
 
 class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -128,15 +113,13 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Initialize the config flow."""
         self._amber_data: dict[str, Any] = {}
         self._amber_sites: list[dict[str, Any]] = []
+        self._teslemetry_data: dict[str, Any] = {}
+        self._tesla_sites: list[dict[str, Any]] = []
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle the initial step - check for Tesla Fleet integration."""
-        # Check if Tesla Fleet integration is configured
-        if "tesla_fleet" not in self.hass.config.components:
-            return self.async_abort(reason="tesla_fleet_required")
-
+        """Handle the initial step."""
         # Check if already configured
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
@@ -158,7 +141,7 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if validation_result["success"]:
                 self._amber_data = user_input
                 self._amber_sites = validation_result.get("sites", [])
-                return await self.async_step_site_selection()
+                return await self.async_step_teslemetry()
             else:
                 errors["base"] = validation_result.get("error", "unknown")
 
@@ -177,6 +160,40 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
+    async def async_step_teslemetry(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle Teslemetry API token entry."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            # Validate Teslemetry API token
+            validation_result = await validate_teslemetry_token(
+                self.hass, user_input[CONF_TESLEMETRY_API_TOKEN]
+            )
+
+            if validation_result["success"]:
+                self._teslemetry_data = user_input
+                self._tesla_sites = validation_result.get("sites", [])
+                return await self.async_step_site_selection()
+            else:
+                errors["base"] = validation_result.get("error", "unknown")
+
+        data_schema = vol.Schema(
+            {
+                vol.Required(CONF_TESLEMETRY_API_TOKEN): str,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="teslemetry",
+            data_schema=data_schema,
+            errors=errors,
+            description_placeholders={
+                "teslemetry_url": "https://teslemetry.com",
+            },
+        )
+
     async def async_step_site_selection(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -187,15 +204,13 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Combine all data
             data = {
                 **self._amber_data,
+                **self._teslemetry_data,
                 CONF_AMBER_SITE_ID: user_input.get(CONF_AMBER_SITE_ID),
                 CONF_TESLA_SITE_ID: user_input[CONF_TESLA_SITE_ID],
                 CONF_AUTO_SYNC_ENABLED: user_input.get(CONF_AUTO_SYNC_ENABLED, True),
             }
 
             return self.async_create_entry(title="Tesla Amber Sync", data=data)
-
-        # Get Tesla sites
-        tesla_sites = await get_tesla_sites(self.hass)
 
         # Build selection options
         amber_site_options = {
@@ -205,18 +220,19 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         data_schema_dict: dict[vol.Marker, Any] = {}
 
-        if tesla_sites:
-            # Auto-discovered sites - show dropdown
-            tesla_site_options = {site["id"]: site["name"] for site in tesla_sites}
+        if self._tesla_sites:
+            # Build Tesla site options from Teslemetry API response
+            tesla_site_options = {}
+            for site in self._tesla_sites:
+                site_id = str(site.get("energy_site_id"))
+                site_name = site.get("site_name", f"Tesla Energy Site {site_id}")
+                tesla_site_options[site_id] = f"{site_name} ({site_id})"
+
             data_schema_dict[vol.Required(CONF_TESLA_SITE_ID)] = vol.In(tesla_site_options)
         else:
-            # No sites found - allow manual entry
-            _LOGGER.warning(
-                "No Tesla Fleet energy sites auto-discovered. "
-                "Please enter your Tesla energy site ID manually. "
-                "You can find this in the Tesla Fleet integration or Tesla app."
-            )
-            data_schema_dict[vol.Required(CONF_TESLA_SITE_ID)] = str
+            # No sites found - should not happen if validation worked
+            _LOGGER.error("No Tesla energy sites found in Teslemetry account")
+            return self.async_abort(reason="no_energy_sites")
 
         # Only add Amber site selection if multiple sites
         if len(self._amber_sites) > 1:

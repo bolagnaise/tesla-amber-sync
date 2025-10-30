@@ -7,6 +7,7 @@ DOMAIN = "tesla_amber_sync"
 # Configuration keys
 CONF_AMBER_API_TOKEN = "amber_api_token"
 CONF_AMBER_SITE_ID = "amber_site_id"
+CONF_TESLEMETRY_API_TOKEN = "teslemetry_api_token"
 CONF_TESLA_SITE_ID = "tesla_site_id"
 CONF_AUTO_SYNC_ENABLED = "auto_sync_enabled"
 CONF_TIMEZONE = "timezone"
@@ -17,6 +18,9 @@ UPDATE_INTERVAL_ENERGY = timedelta(minutes=1)  # Tesla energy data every minute
 
 # Amber API
 AMBER_API_BASE_URL = "https://api.amber.com.au/v1"
+
+# Teslemetry API
+TESLEMETRY_API_BASE_URL = "https://api.teslemetry.com"
 
 # Services
 SERVICE_SYNC_TOU = "sync_tou_schedule"
