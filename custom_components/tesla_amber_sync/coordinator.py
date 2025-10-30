@@ -1,7 +1,7 @@
 """Data update coordinators for Tesla Amber Sync."""
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 from typing import Any
 
@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 from .const import (
     DOMAIN,
@@ -72,7 +73,7 @@ class AmberPriceCoordinator(DataUpdateCoordinator):
             return {
                 "current": current_prices,
                 "forecast": forecast_prices,
-                "last_update": self.hass.helpers.datetime.utcnow(),
+                "last_update": dt_util.utcnow(),
             }
 
         except aiohttp.ClientError as err:
@@ -136,7 +137,7 @@ class TeslaEnergyCoordinator(DataUpdateCoordinator):
                     self.site_id,
                 )
 
-            energy_data["last_update"] = self.hass.helpers.datetime.utcnow()
+            energy_data["last_update"] = dt_util.utcnow()
             return energy_data
 
         except Exception as err:
