@@ -74,13 +74,12 @@ async def get_tesla_sites(hass: HomeAssistant) -> list[dict[str, Any]]:
         if entity.platform != "tesla_fleet":
             continue
 
-        _LOGGER.debug(f"Found Tesla Fleet entity: {entity.entity_id} (unique_id: {entity.unique_id}, platform: {entity.platform})")
-
         # Look for energy-related entities (battery, solar, etc.)
         if any(keyword in entity.unique_id.lower() for keyword in [
             "battery", "solar", "grid", "load", "energy_site",
             "percentage_charged", "power"
         ]):
+            _LOGGER.info(f"Found Tesla Fleet energy entity: {entity.entity_id} (unique_id: {entity.unique_id}, platform: {entity.platform})")
             # Avoid duplicate entries from the same device
             if entity.device_id in seen_devices:
                 continue
@@ -119,6 +118,8 @@ async def get_tesla_sites(hass: HomeAssistant) -> list[dict[str, Any]]:
                         break
 
             device_name = device.name or "Tesla Energy Site"
+
+            _LOGGER.info(f"Extracted site_id: {site_id} from unique_id: {unique_id}")
 
             tesla_sites.append({
                 "id": site_id,
