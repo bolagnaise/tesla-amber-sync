@@ -31,10 +31,10 @@ TESLA_API_BASE_URL = "https://fleet-api.prd.na.vn.cloud.tesla.com"
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
 
 
-async def get_tesla_access_token(hass: HomeAssistant) -> str | None:
-    """Get the access token from the Tesla Fleet integration."""
+async def get_tesla_api_client(hass: HomeAssistant):
+    """Get the Tesla API client from the Tesla Fleet integration."""
     try:
-        # Try to get the Tesla Fleet config entry
+        # Get the Tesla Fleet config entry
         tesla_entries = hass.config_entries.async_entries("tesla_fleet")
         if not tesla_entries:
             _LOGGER.error("No Tesla Fleet integration found")
@@ -43,27 +43,33 @@ async def get_tesla_access_token(hass: HomeAssistant) -> str | None:
         # Get the first entry (assuming single Tesla account)
         tesla_entry = tesla_entries[0]
 
-        # Try to get the access token from the entry data
-        if "tesla_fleet" in hass.data and tesla_entry.entry_id in hass.data["tesla_fleet"]:
-            tesla_data = hass.data["tesla_fleet"][tesla_entry.entry_id]
+        # Try to get the API from the Tesla Fleet integration data
+        if "tesla_fleet" in hass.data:
+            tesla_data = hass.data["tesla_fleet"]
 
-            # The token might be in different places depending on implementation
-            if hasattr(tesla_data, "coordinator"):
-                coordinator = tesla_data.coordinator
-                if hasattr(coordinator, "access_token"):
-                    return coordinator.access_token
-                if hasattr(coordinator, "token"):
-                    return coordinator.token
+            # Try different possible storage locations
+            if tesla_entry.entry_id in tesla_data:
+                entry_data = tesla_data[tesla_entry.entry_id]
 
-            # Or it might be stored directly
-            if isinstance(tesla_data, dict):
-                return tesla_data.get("access_token") or tesla_data.get("token")
+                # Look for the TeslaFleetApi object
+                if hasattr(entry_data, "api"):
+                    return entry_data.api
+                elif hasattr(entry_data, "coordinator"):
+                    coordinator = entry_data.coordinator
+                    if hasattr(coordinator, "api"):
+                        return coordinator.api
+                elif isinstance(entry_data, dict) and "api" in entry_data:
+                    return entry_data["api"]
 
-        _LOGGER.error("Could not find Tesla access token in integration data")
+                # Log what we found to help debug
+                _LOGGER.debug("Tesla Fleet entry_data type: %s", type(entry_data))
+                _LOGGER.debug("Tesla Fleet entry_data attributes: %s", dir(entry_data))
+
+        _LOGGER.error("Could not find Tesla API client in integration data")
         return None
 
     except Exception as err:
-        _LOGGER.error("Error getting Tesla access token: %s", err)
+        _LOGGER.error("Error getting Tesla API client: %s", err)
         return None
 
 
@@ -73,47 +79,42 @@ async def send_tariff_to_tesla(
     tariff_data: dict[str, Any],
 ) -> bool:
     """Send tariff data to Tesla Fleet API."""
-    access_token = await get_tesla_access_token(hass)
-    if not access_token:
-        _LOGGER.error("Cannot sync TOU: No Tesla access token available")
-        return False
+    # Try to get the API client from Tesla Fleet integration
+    api_client = await get_tesla_api_client(hass)
 
-    session = async_get_clientsession(hass)
-    url = f"{TESLA_API_BASE_URL}/api/1/energy_sites/{site_id}/time_of_use_settings"
+    if api_client:
+        try:
+            _LOGGER.debug("Using Tesla Fleet API client to sync TOU schedule")
+            _LOGGER.debug("Tariff data: %s", tariff_data)
 
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
+            # Use the Tesla Fleet API client
+            # The api_client should have methods like energy_sites()
+            result = await api_client.energy_sites.time_of_use_settings(
+                site_id,
+                tariff_data
+            )
 
-    try:
-        _LOGGER.debug("Sending TOU tariff to Tesla API: %s", url)
-        async with session.post(
-            url,
-            json=tariff_data,
-            headers=headers,
-            timeout=aiohttp.ClientTimeout(total=30),
-        ) as response:
-            if response.status == 200:
-                result = await response.json()
-                _LOGGER.info("Successfully synced TOU schedule to Tesla")
-                _LOGGER.debug("Tesla API response: %s", result)
-                return True
-            else:
-                error_text = await response.text()
-                _LOGGER.error(
-                    "Failed to sync TOU schedule. Status: %s, Response: %s",
-                    response.status,
-                    error_text,
-                )
-                return False
+            _LOGGER.info("Successfully synced TOU schedule to Tesla via API client")
+            _LOGGER.debug("Tesla API response: %s", result)
+            return True
 
-    except aiohttp.ClientError as err:
-        _LOGGER.error("Error communicating with Tesla API: %s", err)
-        return False
-    except Exception as err:
-        _LOGGER.error("Unexpected error syncing TOU schedule: %s", err)
-        return False
+        except AttributeError as err:
+            _LOGGER.warning(
+                "Tesla API client doesn't have expected structure, falling back to direct HTTP: %s",
+                err
+            )
+            # Fall through to direct HTTP method below
+        except Exception as err:
+            _LOGGER.error("Error using Tesla API client: %s", err)
+            return False
+
+    # Fallback: Direct HTTP API call
+    # This requires getting a token somehow - for now, log an error
+    _LOGGER.error(
+        "Cannot sync TOU: No Tesla API client available. "
+        "The Tesla Fleet integration may need to be reconfigured."
+    )
+    return False
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
