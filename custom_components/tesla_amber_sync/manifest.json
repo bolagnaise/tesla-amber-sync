@@ -9,5 +9,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/benboller/tesla-amber-sync/issues",
   "requirements": ["aiohttp>=3.9.0"],
-  "version": "1.1.0"
+  "version": "1.2.0"
 }

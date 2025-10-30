@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import aiohttp
 import logging
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -11,6 +12,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
     DOMAIN,
@@ -109,6 +111,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "amber_coordinator": amber_coordinator,
         "tesla_coordinator": tesla_coordinator,
         "entry": entry,
+        "auto_sync_cancel": None,  # Will store the timer cancel function
     }
 
     # Set up platforms
@@ -161,6 +164,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, SERVICE_SYNC_TOU, handle_sync_tou)
     hass.services.async_register(DOMAIN, SERVICE_SYNC_NOW, handle_sync_now)
 
+    # Set up automatic TOU sync every 5 minutes if auto-sync is enabled
+    async def auto_sync_tou(now):
+        """Automatically sync TOU schedule if enabled."""
+        # Check if auto-sync switch is on
+        switch_entity_id = f"switch.{DOMAIN}_auto_sync"
+        switch_state = hass.states.get(switch_entity_id)
+
+        if switch_state and switch_state.state == "on":
+            _LOGGER.debug("Auto-sync enabled, triggering TOU sync")
+            await handle_sync_tou(None)
+        else:
+            _LOGGER.debug("Auto-sync disabled, skipping TOU sync")
+
+    # Start the automatic sync timer (every 5 minutes)
+    cancel_timer = async_track_time_interval(
+        hass,
+        auto_sync_tou,
+        timedelta(minutes=5),
+    )
+
+    # Store the cancel function so we can clean it up later
+    hass.data[DOMAIN][entry.entry_id]["auto_sync_cancel"] = cancel_timer
+
     _LOGGER.info("Tesla Amber Sync integration setup complete")
     return True
 
@@ -168,6 +194,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     _LOGGER.info("Unloading Tesla Amber Sync integration")
+
+    # Cancel the auto-sync timer if it exists
+    entry_data = hass.data[DOMAIN].get(entry.entry_id, {})
+    if cancel_timer := entry_data.get("auto_sync_cancel"):
+        cancel_timer()
+        _LOGGER.debug("Cancelled auto-sync timer")
 
     # Unload platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

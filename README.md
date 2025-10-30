@@ -41,7 +41,8 @@ The easiest way to use Tesla-Amber-Sync if you're already running Home Assistant
 - ✅ **HACS Installation** - Install and update via HACS (Home Assistant Community Store)
 - ✅ **Automatic Discovery** - Auto-discovers Tesla energy sites from Teslemetry
 - ✅ **Real-time Sensors** - Amber pricing and Tesla energy data as HA sensors
-- ✅ **TOU Sync Service** - Manual and automatic TOU schedule syncing
+- ✅ **Automatic TOU Sync** - Background syncing every 5 minutes (just like Docker version)
+- ✅ **Manual Services** - On-demand sync services for advanced automation
 - ✅ **No External Services** - Runs entirely within Home Assistant
 
 ### Prerequisites
@@ -94,7 +95,24 @@ The easiest way to use Tesla-Amber-Sync if you're already running Home Assistant
    - Check that the switch appears:
      - `switch.auto_sync_tou_schedule`
 
-### Available Services
+### Automatic TOU Syncing
+
+**The integration automatically syncs your TOU schedule every 5 minutes** (aligned with Amber Electric's forecast updates) when the auto-sync switch is enabled.
+
+**How it works:**
+1. Enable the `switch.auto_sync_tou_schedule` switch (enabled by default during setup)
+2. The integration runs a background timer that checks every 5 minutes
+3. If auto-sync is enabled, it automatically:
+   - Fetches the latest Amber pricing forecast
+   - Converts it to Tesla TOU format
+   - Sends it to your Powerwall via Teslemetry API
+4. If auto-sync is disabled, the timer skips syncing
+
+**No automation required!** Just leave the switch on and the integration handles everything automatically, just like the Docker version.
+
+You can disable automatic syncing by turning off the switch, and re-enable it anytime.
+
+### Available Services (Advanced)
 
 ```yaml
 # Manually sync TOU schedule
@@ -104,12 +122,14 @@ service: tesla_amber_sync.sync_tou_schedule
 service: tesla_amber_sync.sync_now
 ```
 
-### Example Automations
+### Example Automations (Optional)
 
-**Sync TOU on price spike:**
+These are optional automations for advanced users. **Auto-sync is automatic and doesn't require any automations.**
+
+**Force immediate sync on price spike:**
 ```yaml
 automation:
-  - alias: "Sync TOU on Price Spike"
+  - alias: "Force TOU Sync on Price Spike"
     trigger:
       - platform: state
         entity_id: sensor.current_electricity_price
@@ -121,15 +141,26 @@ automation:
       - service: tesla_amber_sync.sync_tou_schedule
 ```
 
-**Daily TOU sync:**
+**Disable auto-sync during off-peak hours:**
 ```yaml
 automation:
-  - alias: "Daily TOU Sync"
+  - alias: "Disable Auto-Sync at Night"
     trigger:
       - platform: time
-        at: "00:00:00"
+        at: "23:00:00"
     action:
-      - service: tesla_amber_sync.sync_tou_schedule
+      - service: switch.turn_off
+        target:
+          entity_id: switch.tesla_amber_sync_auto_sync
+
+  - alias: "Enable Auto-Sync in Morning"
+    trigger:
+      - platform: time
+        at: "06:00:00"
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.tesla_amber_sync_auto_sync
 ```
 
 ### Troubleshooting
