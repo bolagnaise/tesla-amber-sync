@@ -537,27 +537,47 @@ def energy_history():
     # Get timeframe parameter (default to 'day')
     timeframe = request.args.get('timeframe', 'day')
 
-    # Calculate limit based on timeframe
-    # For 'day' view: 5-minute intervals for 24 hours = 288 records
-    # For 'month' view: hourly averages for 30 days = 720 records (but we'll sample)
-    # For 'year' view: daily averages for 365 days = 365 records
-    if timeframe == 'day':
-        limit = 288  # 24 hours * 12 (5-minute intervals per hour)
-    elif timeframe == 'month':
-        limit = 720  # 30 days * 24 hours
-    else:  # year
-        limit = 365  # 365 days
-
-    # Get energy records
+    # Calculate time range based on timeframe
     from app.models import EnergyRecord
-    records = EnergyRecord.query.filter_by(
-        user_id=current_user.id
-    ).order_by(
-        EnergyRecord.timestamp.desc()
-    ).limit(limit).all()
+
+    if timeframe == 'day':
+        # Get today's data from midnight onwards in user's timezone
+        now_local = datetime.now(user_tz)
+        start_of_day_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        start_of_day_utc = start_of_day_local.astimezone(timezone.utc)
+
+        # Query records from midnight today onwards
+        records = EnergyRecord.query.filter(
+            EnergyRecord.user_id == current_user.id,
+            EnergyRecord.timestamp >= start_of_day_utc
+        ).order_by(
+            EnergyRecord.timestamp.asc()
+        ).all()
+
+    elif timeframe == 'month':
+        # Get last 30 days of data
+        limit = 720  # 30 days * 24 hours
+        records = EnergyRecord.query.filter_by(
+            user_id=current_user.id
+        ).order_by(
+            EnergyRecord.timestamp.desc()
+        ).limit(limit).all()
+
+    else:  # year
+        # Get last 365 days of data
+        limit = 8760  # 365 days * 24 hours
+        records = EnergyRecord.query.filter_by(
+            user_id=current_user.id
+        ).order_by(
+            EnergyRecord.timestamp.desc()
+        ).limit(limit).all()
 
     data = []
-    for record in reversed(records):
+    # For 'day' view, records are already in ascending order
+    # For 'month' and 'year', we need to reverse them (they're in desc order)
+    records_to_process = records if timeframe == 'day' else reversed(records)
+
+    for record in records_to_process:
         # Convert UTC timestamp to user's timezone
         if record.timestamp.tzinfo is None:
             # Assume UTC if no timezone info
