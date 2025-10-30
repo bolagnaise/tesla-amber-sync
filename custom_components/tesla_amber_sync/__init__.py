@@ -36,40 +36,57 @@ async def get_tesla_api_client(hass: HomeAssistant):
     try:
         # Get the Tesla Fleet config entry
         tesla_entries = hass.config_entries.async_entries("tesla_fleet")
+        _LOGGER.debug("Found %d Tesla Fleet entries", len(tesla_entries))
+
         if not tesla_entries:
             _LOGGER.error("No Tesla Fleet integration found")
             return None
 
         # Get the first entry (assuming single Tesla account)
         tesla_entry = tesla_entries[0]
+        _LOGGER.debug("Tesla Fleet entry ID: %s", tesla_entry.entry_id)
+
+        # Log what's in hass.data
+        _LOGGER.debug("Keys in hass.data: %s", list(hass.data.keys()))
 
         # Try to get the API from the Tesla Fleet integration data
         if "tesla_fleet" in hass.data:
             tesla_data = hass.data["tesla_fleet"]
+            _LOGGER.debug("Tesla Fleet data keys: %s", list(tesla_data.keys()) if isinstance(tesla_data, dict) else "not a dict")
 
             # Try different possible storage locations
             if tesla_entry.entry_id in tesla_data:
                 entry_data = tesla_data[tesla_entry.entry_id]
 
+                # Log what we found to help debug
+                _LOGGER.info("Tesla Fleet entry_data type: %s", type(entry_data))
+                if hasattr(entry_data, "__dict__"):
+                    _LOGGER.info("Tesla Fleet entry_data dict: %s", entry_data.__dict__.keys())
+                _LOGGER.info("Tesla Fleet entry_data attributes: %s", [attr for attr in dir(entry_data) if not attr.startswith("_")])
+
                 # Look for the TeslaFleetApi object
                 if hasattr(entry_data, "api"):
+                    _LOGGER.info("Found API client at entry_data.api")
                     return entry_data.api
                 elif hasattr(entry_data, "coordinator"):
                     coordinator = entry_data.coordinator
+                    _LOGGER.info("Found coordinator, type: %s", type(coordinator))
                     if hasattr(coordinator, "api"):
+                        _LOGGER.info("Found API client at coordinator.api")
                         return coordinator.api
                 elif isinstance(entry_data, dict) and "api" in entry_data:
+                    _LOGGER.info("Found API client in dict")
                     return entry_data["api"]
-
-                # Log what we found to help debug
-                _LOGGER.debug("Tesla Fleet entry_data type: %s", type(entry_data))
-                _LOGGER.debug("Tesla Fleet entry_data attributes: %s", dir(entry_data))
+            else:
+                _LOGGER.error("Entry ID %s not found in tesla_fleet data", tesla_entry.entry_id)
+        else:
+            _LOGGER.error("'tesla_fleet' key not found in hass.data")
 
         _LOGGER.error("Could not find Tesla API client in integration data")
         return None
 
     except Exception as err:
-        _LOGGER.error("Error getting Tesla API client: %s", err)
+        _LOGGER.exception("Error getting Tesla API client: %s", err)
         return None
 
 
