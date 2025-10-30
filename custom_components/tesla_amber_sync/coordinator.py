@@ -108,6 +108,9 @@ class TeslaEnergyCoordinator(DataUpdateCoordinator):
 
             energy_data: dict[str, Any] = {}
 
+            _LOGGER.debug("Looking for Tesla Fleet entities for site: %s", self.site_id)
+
+            found_entities = 0
             # Look for Tesla Fleet sensor entities related to this site
             for entity in entity_registry.entities.values():
                 if (
@@ -115,9 +118,22 @@ class TeslaEnergyCoordinator(DataUpdateCoordinator):
                     and entity.domain == "sensor"
                     and self.site_id in entity.unique_id
                 ):
+                    found_entities += 1
+                    _LOGGER.debug(
+                        "Found matching entity: %s (unique_id: %s)",
+                        entity.entity_id,
+                        entity.unique_id
+                    )
+
                     # Get the current state
                     state = self.hass.states.get(entity.entity_id)
                     if state:
+                        _LOGGER.debug(
+                            "Entity %s state: %s",
+                            entity.entity_id,
+                            state.state
+                        )
+
                         # Map entity types to our data structure
                         if "solar_power" in entity.unique_id:
                             energy_data["solar_power"] = float(state.state) if state.state not in ("unknown", "unavailable") else 0.0
@@ -129,6 +145,14 @@ class TeslaEnergyCoordinator(DataUpdateCoordinator):
                             energy_data["load_power"] = float(state.state) if state.state not in ("unknown", "unavailable") else 0.0
                         elif "battery_level" in entity.unique_id or "percentage_charged" in entity.unique_id:
                             energy_data["battery_level"] = float(state.state) if state.state not in ("unknown", "unavailable") else 0.0
+                    else:
+                        _LOGGER.debug("Entity %s has no state", entity.entity_id)
+
+            _LOGGER.debug(
+                "Found %d matching Tesla Fleet entities, extracted data: %s",
+                found_entities,
+                energy_data
+            )
 
             # If we didn't get data from entities, try to get it from the live status
             if not energy_data:
