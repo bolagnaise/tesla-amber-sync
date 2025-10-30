@@ -1,0 +1,47 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tesla Amber Sync Setup",
+        "description": "This integration requires the Tesla Fleet integration to be configured first."
+      },
+      "amber": {
+        "title": "Amber Electric Configuration",
+        "description": "Enter your Amber Electric API token. You can get this from {amber_url}",
+        "data": {
+          "amber_api_token": "Amber API Token"
+        }
+      },
+      "site_selection": {
+        "title": "Site Selection",
+        "description": "Select your Tesla energy site and configure auto-sync",
+        "data": {
+          "tesla_site_id": "Tesla Energy Site",
+          "amber_site_id": "Amber Site (if you have multiple)",
+          "auto_sync_enabled": "Enable automatic TOU schedule syncing"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid Amber API token. Please check your token and try again.",
+      "cannot_connect": "Unable to connect to Amber Electric API. Please check your internet connection.",
+      "no_sites": "No Amber Electric sites found for this account.",
+      "no_tesla_sites": "No Tesla energy sites found. Please configure the Tesla Fleet integration first.",
+      "unknown": "An unexpected error occurred. Please try again."
+    },
+    "abort": {
+      "already_configured": "Tesla Amber Sync is already configured.",
+      "tesla_fleet_required": "Tesla Fleet integration must be configured before setting up Tesla Amber Sync."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tesla Amber Sync Options",
+        "data": {
+          "auto_sync_enabled": "Enable automatic TOU schedule syncing"
+        }
+      }
+    }
+  }
+}

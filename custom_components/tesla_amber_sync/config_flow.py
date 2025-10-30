@@ -1,0 +1,225 @@
+"""Config flow for Tesla Amber Sync integration."""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import aiohttp
+import voluptuous as vol
+
+from homeassistant import config_entries
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import selector
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+from .const import (
+    DOMAIN,
+    CONF_AMBER_API_TOKEN,
+    CONF_AMBER_SITE_ID,
+    CONF_TESLA_SITE_ID,
+    CONF_AUTO_SYNC_ENABLED,
+    AMBER_API_BASE_URL,
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+
+async def validate_amber_token(hass: HomeAssistant, api_token: str) -> dict[str, Any]:
+    """Validate the Amber API token."""
+    session = async_get_clientsession(hass)
+    headers = {"Authorization": f"Bearer {api_token}"}
+
+    try:
+        async with session.get(
+            f"{AMBER_API_BASE_URL}/sites",
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as response:
+            if response.status == 200:
+                sites = await response.json()
+                if sites and len(sites) > 0:
+                    return {
+                        "success": True,
+                        "sites": sites,
+                    }
+                else:
+                    return {"success": False, "error": "no_sites"}
+            elif response.status == 401:
+                return {"success": False, "error": "invalid_auth"}
+            else:
+                return {"success": False, "error": "cannot_connect"}
+    except aiohttp.ClientError:
+        return {"success": False, "error": "cannot_connect"}
+    except Exception as err:
+        _LOGGER.exception("Unexpected error validating Amber token: %s", err)
+        return {"success": False, "error": "unknown"}
+
+
+async def get_tesla_sites(hass: HomeAssistant) -> list[dict[str, Any]]:
+    """Get list of Tesla energy sites from the Tesla Fleet integration."""
+    tesla_sites = []
+
+    # Look for Tesla Fleet entities
+    entity_registry = hass.helpers.entity_registry.async_get(hass)
+    for entity in entity_registry.entities.values():
+        if entity.platform == "tesla_fleet" and entity.domain == "sensor":
+            if "energy_site_id" in entity.unique_id:
+                # Extract site info
+                site_id = entity.unique_id.split("_")[0]
+                device_registry = hass.helpers.device_registry.async_get(hass)
+                device = device_registry.async_get(entity.device_id)
+                if device:
+                    tesla_sites.append({
+                        "id": site_id,
+                        "name": device.name or f"Site {site_id}",
+                    })
+
+    return tesla_sites
+
+
+class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Tesla Amber Sync."""
+
+    VERSION = 1
+
+    def __init__(self) -> None:
+        """Initialize the config flow."""
+        self._amber_data: dict[str, Any] = {}
+        self._amber_sites: list[dict[str, Any]] = []
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle the initial step - check for Tesla Fleet integration."""
+        # Check if Tesla Fleet integration is configured
+        if "tesla_fleet" not in self.hass.config.components:
+            return self.async_abort(reason="tesla_fleet_required")
+
+        # Check if already configured
+        await self.async_set_unique_id(DOMAIN)
+        self._abort_if_unique_id_configured()
+
+        return await self.async_step_amber()
+
+    async def async_step_amber(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle Amber API token entry."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            # Validate Amber API token
+            validation_result = await validate_amber_token(
+                self.hass, user_input[CONF_AMBER_API_TOKEN]
+            )
+
+            if validation_result["success"]:
+                self._amber_data = user_input
+                self._amber_sites = validation_result.get("sites", [])
+                return await self.async_step_site_selection()
+            else:
+                errors["base"] = validation_result.get("error", "unknown")
+
+        data_schema = vol.Schema(
+            {
+                vol.Required(CONF_AMBER_API_TOKEN): str,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="amber",
+            data_schema=data_schema,
+            errors=errors,
+            description_placeholders={
+                "amber_url": "https://app.amber.com.au/developers",
+            },
+        )
+
+    async def async_step_site_selection(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle site selection for both Amber and Tesla."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            # Combine all data
+            data = {
+                **self._amber_data,
+                CONF_AMBER_SITE_ID: user_input.get(CONF_AMBER_SITE_ID),
+                CONF_TESLA_SITE_ID: user_input[CONF_TESLA_SITE_ID],
+                CONF_AUTO_SYNC_ENABLED: user_input.get(CONF_AUTO_SYNC_ENABLED, True),
+            }
+
+            return self.async_create_entry(title="Tesla Amber Sync", data=data)
+
+        # Get Tesla sites
+        tesla_sites = await get_tesla_sites(self.hass)
+
+        if not tesla_sites:
+            return self.async_abort(reason="no_tesla_sites")
+
+        # Build selection options
+        amber_site_options = {
+            site["id"]: site.get("nmi", site["id"])
+            for site in self._amber_sites
+        }
+
+        tesla_site_options = {site["id"]: site["name"] for site in tesla_sites}
+
+        data_schema_dict: dict[vol.Marker, Any] = {
+            vol.Required(CONF_TESLA_SITE_ID): vol.In(tesla_site_options),
+        }
+
+        # Only add Amber site selection if multiple sites
+        if len(self._amber_sites) > 1:
+            data_schema_dict[vol.Required(CONF_AMBER_SITE_ID)] = vol.In(
+                amber_site_options
+            )
+
+        data_schema_dict[vol.Optional(CONF_AUTO_SYNC_ENABLED, default=True)] = bool
+
+        data_schema = vol.Schema(data_schema_dict)
+
+        return self.async_show_form(
+            step_id="site_selection",
+            data_schema=data_schema,
+            errors=errors,
+        )
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> TeslaAmberSyncOptionsFlow:
+        """Get the options flow for this handler."""
+        return TeslaAmberSyncOptionsFlow(config_entry)
+
+
+class TeslaAmberSyncOptionsFlow(config_entries.OptionsFlow):
+    """Handle options flow for Tesla Amber Sync."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_AUTO_SYNC_ENABLED,
+                        default=self.config_entry.options.get(
+                            CONF_AUTO_SYNC_ENABLED, True
+                        ),
+                    ): bool,
+                }
+            ),
+        )

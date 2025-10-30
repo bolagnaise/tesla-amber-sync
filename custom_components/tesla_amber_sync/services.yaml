@@ -1,0 +1,10 @@
+# Services for Tesla Amber Sync integration
+sync_tou_schedule:
+  name: Sync TOU Schedule
+  description: Manually trigger a sync of Time-of-Use schedule from Amber to Tesla
+  fields: {}
+
+sync_now:
+  name: Sync Now
+  description: Immediately refresh data from Amber and Tesla
+  fields: {}
