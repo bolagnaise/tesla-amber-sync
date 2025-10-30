@@ -61,72 +61,50 @@ async def validate_amber_token(hass: HomeAssistant, api_token: str) -> dict[str,
 async def get_tesla_sites(hass: HomeAssistant) -> list[dict[str, Any]]:
     """Get list of Tesla energy sites from the Tesla Fleet integration."""
     tesla_sites = []
-    seen_devices = set()  # Track by device_id to avoid duplicates
+    seen_site_ids = set()  # Track by site_id to avoid duplicates
 
-    # Look for Tesla Fleet entities ONLY (not Teslemetry)
-    entity_registry = er.async_get(hass)
+    # Look for Tesla Fleet devices
     device_registry = dr.async_get(hass)
+    entity_registry = er.async_get(hass)
 
-    _LOGGER.debug("Searching for Tesla Fleet entities...")
+    _LOGGER.info("Searching for Tesla Fleet energy sites...")
 
-    for entity in entity_registry.entities.values():
-        # ONLY look at tesla_fleet platform (exclude teslemetry and others)
-        if entity.platform != "tesla_fleet":
+    # Iterate through all devices
+    for device in device_registry.devices.values():
+        # Only look at tesla_fleet integration devices
+        if not any(integration_domain == "tesla_fleet" for integration_domain, _ in device.identifiers):
             continue
 
-        # Look for energy-related entities (battery, solar, etc.)
-        if any(keyword in entity.unique_id.lower() for keyword in [
-            "battery", "solar", "grid", "load", "energy_site",
-            "percentage_charged", "power"
-        ]):
-            _LOGGER.info(f"Found Tesla Fleet energy entity: {entity.entity_id} (unique_id: {entity.unique_id}, platform: {entity.platform})")
-            # Avoid duplicate entries from the same device
-            if entity.device_id in seen_devices:
-                continue
+        # Look for energy site identifier
+        energy_site_id = None
+        for integration_domain, identifier in device.identifiers:
+            if integration_domain == "tesla_fleet":
+                # The identifier is the site ID for energy sites
+                # Check if this device has any energy-related entities
+                has_energy_entities = False
+                for entity in entity_registry.entities.values():
+                    if entity.device_id == device.id and entity.platform == "tesla_fleet":
+                        # Check if it's an energy sensor
+                        if any(keyword in (entity.unique_id or "").lower() for keyword in [
+                            "solar", "battery", "grid", "load", "percentage_charged"
+                        ]):
+                            has_energy_entities = True
+                            energy_site_id = identifier
+                            break
 
-            # Get device info
-            device = device_registry.async_get(entity.device_id)
-            if not device:
-                continue
-
-            # Extract site ID from unique_id
-            # Tesla Fleet format: {site_id}_{entity_name}
-            # Site ID contains dashes like: 1707000-30-K--TG124342000VC7
-            # So we need to find the LAST underscore and take everything before it
-            unique_id = entity.unique_id
-
-            # Try to extract site ID more intelligently
-            # Look for patterns like battery_power, solar_power, etc.
-            # The site ID comes before these suffixes
-            known_suffixes = [
-                "_battery_power", "_solar_power", "_grid_power", "_load_power",
-                "_percentage_charged", "_battery", "_solar", "_grid", "_load"
-            ]
-
-            site_id = unique_id
-            for suffix in known_suffixes:
-                if unique_id.endswith(suffix):
-                    site_id = unique_id[:-len(suffix)]
+                if has_energy_entities:
                     break
-            else:
-                # Fallback: assume format is site_id_entity
-                # Take first part before underscore, but site ID may have dashes
-                # So we look for entity-type keywords and split there
-                for keyword in ["battery", "solar", "grid", "load", "percentage", "power"]:
-                    if f"_{keyword}" in unique_id:
-                        site_id = unique_id.split(f"_{keyword}")[0]
-                        break
 
+        if energy_site_id and energy_site_id not in seen_site_ids:
             device_name = device.name or "Tesla Energy Site"
 
-            _LOGGER.info(f"Extracted site_id: {site_id} from unique_id: {unique_id}")
+            _LOGGER.info(f"Found Tesla energy site: {device_name} (ID: {energy_site_id})")
 
             tesla_sites.append({
-                "id": site_id,
-                "name": f"{device_name} ({site_id[:12]}...)",  # Show truncated ID for clarity
+                "id": energy_site_id,
+                "name": f"{device_name} ({energy_site_id[:12]}...)" if len(energy_site_id) > 12 else f"{device_name} ({energy_site_id})",
             })
-            seen_devices.add(entity.device_id)
-            _LOGGER.info(f"Found Tesla energy site: {device_name} (ID: {site_id})")
+            seen_site_ids.add(energy_site_id)
 
     _LOGGER.info(f"Discovered {len(tesla_sites)} Tesla energy site(s) from Tesla Fleet")
     return tesla_sites
