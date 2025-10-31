@@ -339,6 +339,17 @@ docker-compose down
 docker-compose up -d --build
 ```
 
+**Local Development (Python venv):**
+```bash
+cd tesla-amber-sync
+git pull
+source venv/bin/activate
+flask db upgrade  # Apply any database migrations
+# Restart flask
+```
+
+> **Note:** Database migrations are automatically applied when using Docker. For local development, you must run `flask db upgrade` after pulling updates to ensure your database schema is current.
+
 ### Data Persistence
 
 ⚠️ **IMPORTANT**: Your database is stored in the `./data` directory. **Create this directory before first run** to prevent data loss during upgrades:
