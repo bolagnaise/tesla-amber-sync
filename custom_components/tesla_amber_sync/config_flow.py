@@ -201,11 +201,17 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
+            # If only one Amber site, use it automatically
+            amber_site_id = user_input.get(CONF_AMBER_SITE_ID)
+            if not amber_site_id and len(self._amber_sites) == 1:
+                amber_site_id = self._amber_sites[0]["id"]
+                _LOGGER.info(f"Auto-selected single Amber site: {amber_site_id}")
+
             # Combine all data
             data = {
                 **self._amber_data,
                 **self._teslemetry_data,
-                CONF_AMBER_SITE_ID: user_input.get(CONF_AMBER_SITE_ID),
+                CONF_AMBER_SITE_ID: amber_site_id,
                 CONF_TESLA_SITE_ID: user_input[CONF_TESLA_SITE_ID],
                 CONF_AUTO_SYNC_ENABLED: user_input.get(CONF_AUTO_SYNC_ENABLED, True),
             }

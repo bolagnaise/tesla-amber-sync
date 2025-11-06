@@ -48,18 +48,10 @@ class AmberPriceCoordinator(DataUpdateCoordinator):
         """Fetch data from Amber API."""
         headers = {"Authorization": f"Bearer {self.api_token}"}
 
-        # Build API URLs - single-site accounts don't include site_id in path
-        if self.site_id:
-            current_prices_url = f"{AMBER_API_BASE_URL}/sites/{self.site_id}/prices/current"
-            forecast_url = f"{AMBER_API_BASE_URL}/sites/{self.site_id}/prices"
-        else:
-            current_prices_url = f"{AMBER_API_BASE_URL}/prices/current"
-            forecast_url = f"{AMBER_API_BASE_URL}/prices"
-
         try:
             # Get current prices
             async with self.session.get(
-                current_prices_url,
+                f"{AMBER_API_BASE_URL}/sites/{self.site_id}/prices/current",
                 headers=headers,
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as response:
@@ -69,7 +61,7 @@ class AmberPriceCoordinator(DataUpdateCoordinator):
 
             # Get price forecast (next 48 hours)
             async with self.session.get(
-                forecast_url,
+                f"{AMBER_API_BASE_URL}/sites/{self.site_id}/prices",
                 headers=headers,
                 params={"next": 48},
                 timeout=aiohttp.ClientTimeout(total=30),
