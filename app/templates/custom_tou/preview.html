@@ -91,9 +91,14 @@
 
     <!-- Action Buttons -->
     <div class="d-flex justify-content-between mb-4">
-        <a href="{{ url_for('custom_tou.edit_schedule', schedule_id=schedule.id) }}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Edit
-        </a>
+        <div>
+            <a href="{{ url_for('custom_tou.index') }}" class="btn btn-secondary me-2">
+                <i class="bi bi-list"></i> Back to List
+            </a>
+            <a href="{{ url_for('custom_tou.edit_schedule', schedule_id=schedule.id) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-pencil"></i> Edit Schedule
+            </a>
+        </div>
         <form method="POST" action="{{ url_for('custom_tou.sync_to_tesla', schedule_id=schedule.id) }}" class="d-inline">
             <button type="submit" class="btn btn-success btn-lg">
                 <i class="bi bi-cloud-upload"></i> Sync to Tesla Now
