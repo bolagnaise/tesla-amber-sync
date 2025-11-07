@@ -453,7 +453,7 @@ def sync_to_tesla(schedule_id):
             return redirect(url_for('custom_tou.index'))
 
         # Send tariff to Tesla
-        success = tesla_client.set_tou_tariff(current_user.tesla_energy_site_id, tariff)
+        success = tesla_client.set_tariff_rate(current_user.tesla_energy_site_id, tariff)
 
         if success:
             schedule.last_synced = datetime.utcnow()
