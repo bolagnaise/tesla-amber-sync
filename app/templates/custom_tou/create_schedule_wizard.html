@@ -13,7 +13,7 @@
     <p class="text-muted">Follow the steps below to create your custom time-of-use rate plan. All on one page!</p>
 
     <form id="wizard-form" method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        {{ csrf_input() }}
         <input type="hidden" id="seasons-data" name="seasons_data" value="">
 
         <!-- STEP 1: Provider & Rate Plan -->
