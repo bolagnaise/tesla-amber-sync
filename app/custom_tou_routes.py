@@ -28,34 +28,101 @@ def index():
 @custom_tou_bp.route('/create', methods=['GET', 'POST'])
 @login_required
 def create_schedule():
-    """Create a new custom TOU schedule"""
-    form = CustomTOUScheduleForm()
+    """Create a new custom TOU schedule (wizard version)"""
+    if request.method == 'POST':
+        try:
+            # Get form data
+            utility = request.form.get('utility')
+            name = request.form.get('name')
+            code = request.form.get('code', '')
+            daily_charge = float(request.form.get('daily_charge', 0))
+            monthly_charge = float(request.form.get('monthly_charge', 0))
+            set_active = bool(request.form.get('set_active'))
+            seasons_json = request.form.get('seasons_data', '[]')
 
-    if form.validate_on_submit():
-        # Deactivate other schedules if this will be active
-        if request.form.get('set_active'):
-            CustomTOUSchedule.query.filter_by(
+            # Validate required fields
+            if not utility or not name:
+                flash('Utility Provider and Rate Plan Name are required', 'danger')
+                return render_template('custom_tou/create_schedule_wizard.html')
+
+            # Parse seasons data
+            import json
+            seasons_data = json.loads(seasons_json)
+
+            if not seasons_data or len(seasons_data) == 0:
+                flash('At least one season is required', 'danger')
+                return render_template('custom_tou/create_schedule_wizard.html')
+
+            # Check if any season has periods
+            total_periods = sum(len(s.get('periods', [])) for s in seasons_data)
+            if total_periods == 0:
+                flash('At least one time period is required', 'danger')
+                return render_template('custom_tou/create_schedule_wizard.html')
+
+            # Deactivate other schedules if this will be active
+            if set_active:
+                CustomTOUSchedule.query.filter_by(
+                    user_id=current_user.id,
+                    active=True
+                ).update({'active': False})
+
+            # Create schedule
+            schedule = CustomTOUSchedule(
                 user_id=current_user.id,
-                active=True
-            ).update({'active': False})
+                name=name,
+                utility=utility,
+                code=code,
+                daily_charge=daily_charge,
+                monthly_charge=monthly_charge,
+                active=set_active
+            )
+            db.session.add(schedule)
+            db.session.flush()  # Get schedule.id
 
-        schedule = CustomTOUSchedule(
-            user_id=current_user.id,
-            name=form.name.data,
-            utility=form.utility.data,
-            code=form.code.data,
-            daily_charge=form.daily_charge.data or 0,
-            monthly_charge=form.monthly_charge.data or 0,
-            active=bool(request.form.get('set_active'))
-        )
+            # Create seasons and periods
+            for season_data in seasons_data:
+                season = TOUSeason(
+                    schedule_id=schedule.id,
+                    name=season_data['name'],
+                    from_month=season_data['from_month'],
+                    from_day=season_data['from_day'],
+                    to_month=season_data['to_month'],
+                    to_day=season_data['to_day']
+                )
+                db.session.add(season)
+                db.session.flush()  # Get season.id
 
-        db.session.add(schedule)
-        db.session.commit()
+                # Create periods for this season
+                for i, period_data in enumerate(season_data.get('periods', [])):
+                    period = TOUPeriod(
+                        season_id=season.id,
+                        name=period_data['name'],
+                        from_hour=period_data['from_hour'],
+                        from_minute=period_data['from_minute'],
+                        to_hour=period_data['to_hour'],
+                        to_minute=period_data['to_minute'],
+                        from_day_of_week=period_data['from_day_of_week'],
+                        to_day_of_week=period_data['to_day_of_week'],
+                        energy_rate=period_data['energy_rate'],
+                        sell_rate=period_data['sell_rate'],
+                        demand_rate=period_data.get('demand_rate', 0),
+                        display_order=i
+                    )
+                    db.session.add(period)
 
-        flash(f'Created schedule "{schedule.name}". Now add seasons and time periods.', 'success')
-        return redirect(url_for('custom_tou.edit_schedule', schedule_id=schedule.id))
+            db.session.commit()
 
-    return render_template('custom_tou/create_schedule.html', form=form)
+            flash(f'✓ Created schedule "{schedule.name}" with {len(seasons_data)} season(s) and {total_periods} period(s)!', 'success')
+            return redirect(url_for('custom_tou.preview_schedule', schedule_id=schedule.id))
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error creating schedule: {e}", exc_info=True)
+            flash(f'Error creating schedule: {str(e)}', 'danger')
+            return render_template('custom_tou/create_schedule_wizard.html')
+
+    # GET request - show wizard
+    return render_template('custom_tou/create_schedule_wizard.html')
 
 
 @custom_tou_bp.route('/edit/<int:schedule_id>', methods=['GET', 'POST'])
