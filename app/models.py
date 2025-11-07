@@ -123,3 +123,79 @@ class EnergyRecord(db.Model):
 
     def __repr__(self):
         return f'<EnergyRecord {self.timestamp} - Solar:{self.solar_power}W Grid:{self.grid_power}W>'
+
+
+class CustomTOUSchedule(db.Model):
+    """Custom Time-of-Use electricity rate schedules for fixed-rate providers"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+    # Schedule metadata
+    name = db.Column(db.String(100), nullable=False)  # e.g., "Origin Energy Single Rate"
+    utility = db.Column(db.String(100), nullable=False)  # e.g., "Origin Energy"
+    code = db.Column(db.String(100))  # Tariff code e.g., "EA205"
+    currency = db.Column(db.String(3), default='AUD')
+
+    # Charges
+    daily_charge = db.Column(db.Float, default=0.0)  # Daily supply charge ($)
+    monthly_charge = db.Column(db.Float, default=0.0)  # Monthly fixed charge ($)
+
+    # Status
+    active = db.Column(db.Boolean, default=False)  # Only one schedule can be active
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_synced = db.Column(db.DateTime)  # Last time synced to Tesla
+
+    # Relationships
+    seasons = db.relationship('TOUSeason', backref='schedule', lazy='dynamic', cascade='all, delete-orphan')
+    user = db.relationship('User', backref='custom_tou_schedules')
+
+    def __repr__(self):
+        return f'<CustomTOUSchedule {self.name}>'
+
+
+class TOUSeason(db.Model):
+    """Seasonal periods within a TOU schedule"""
+    id = db.Column(db.Integer, primary_key=True)
+    schedule_id = db.Column(db.Integer, db.ForeignKey('custom_tou_schedule.id'), nullable=False)
+
+    # Season definition
+    name = db.Column(db.String(50), nullable=False)  # e.g., "Summer", "Winter", "All Year"
+    from_month = db.Column(db.Integer, nullable=False)  # 1-12
+    to_month = db.Column(db.Integer, nullable=False)  # 1-12
+    from_day = db.Column(db.Integer, nullable=False)  # 1-31
+    to_day = db.Column(db.Integer, nullable=False)  # 1-31
+
+    # Relationships
+    periods = db.relationship('TOUPeriod', backref='season', lazy='dynamic', cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<TOUSeason {self.name} {self.from_month}/{self.from_day}-{self.to_month}/{self.to_day}>'
+
+
+class TOUPeriod(db.Model):
+    """Individual time period with specific rates"""
+    id = db.Column(db.Integer, primary_key=True)
+    season_id = db.Column(db.Integer, db.ForeignKey('tou_season.id'), nullable=False)
+
+    # Period name and display order
+    name = db.Column(db.String(50), nullable=False)  # e.g., "Peak", "Shoulder", "Off-Peak 1"
+    display_order = db.Column(db.Integer, default=0)  # For UI sorting
+
+    # Time range
+    from_hour = db.Column(db.Integer, nullable=False)  # 0-23
+    from_minute = db.Column(db.Integer, nullable=False)  # 0 or 30
+    to_hour = db.Column(db.Integer, nullable=False)  # 0-23
+    to_minute = db.Column(db.Integer, nullable=False)  # 0 or 30
+
+    # Day of week (0=Monday, 6=Sunday)
+    from_day_of_week = db.Column(db.Integer, default=0)  # 0-6
+    to_day_of_week = db.Column(db.Integer, default=6)  # 0-6
+
+    # Rates (in $/kWh)
+    energy_rate = db.Column(db.Float, nullable=False)  # Buy rate (import from grid)
+    sell_rate = db.Column(db.Float, nullable=False)  # Sell rate (export to grid / feed-in)
+    demand_rate = db.Column(db.Float, default=0.0)  # Demand charge ($/kW)
+
+    def __repr__(self):
+        return f'<TOUPeriod {self.name} {self.from_hour}:{self.from_minute:02d}-{self.to_hour}:{self.to_minute:02d}>'

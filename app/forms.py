@@ -80,3 +80,86 @@ class DemandChargeForm(FlaskForm):
 
     submit = SubmitField('Save Demand Charges')
 
+
+class CustomTOUScheduleForm(FlaskForm):
+    """Form for creating/editing custom TOU schedules"""
+    # Tesla API: Utility Provider - shown in Tesla app as the electricity provider
+    utility = StringField(
+        'Utility Provider',
+        validators=[DataRequired()],
+        description='Your electricity company (e.g., "Origin Energy", "AGL", "Energy Australia")'
+    )
+
+    # Tesla API: Rate Plan Name - shown in Tesla app as the tariff name
+    name = StringField(
+        'Rate Plan Name',
+        validators=[DataRequired()],
+        description='Descriptive name for this rate plan (e.g., "Single Rate + TOU", "Residential Demand TOU")'
+    )
+
+    # Tesla API: Tariff Code - optional identifier for the specific tariff
+    code = StringField(
+        'Tariff Code (Optional)',
+        validators=[Optional()],
+        description='Official tariff code from your provider (e.g., "EA205", "DMO1", "TOU-GS")'
+    )
+
+    # Daily and monthly charges
+    daily_charge = DecimalField(
+        'Daily Supply Charge ($)',
+        validators=[Optional(), NumberRange(min=0)],
+        places=4,
+        default=0,
+        description='Fixed daily charge in AUD (e.g., 1.1770 for $1.18/day)'
+    )
+    monthly_charge = DecimalField(
+        'Monthly Fixed Charge ($)',
+        validators=[Optional(), NumberRange(min=0)],
+        places=2,
+        default=0,
+        description='Fixed monthly charge if applicable'
+    )
+
+    submit = SubmitField('Save Schedule')
+
+
+class TOUSeasonForm(FlaskForm):
+    """Form for adding/editing seasons in a TOU schedule"""
+    name = StringField('Season Name', validators=[DataRequired()])
+    from_month = IntegerField('From Month (1-12)', validators=[DataRequired(), NumberRange(min=1, max=12)])
+    from_day = IntegerField('From Day (1-31)', validators=[DataRequired(), NumberRange(min=1, max=31)])
+    to_month = IntegerField('To Month (1-12)', validators=[DataRequired(), NumberRange(min=1, max=12)])
+    to_day = IntegerField('To Day (1-31)', validators=[DataRequired(), NumberRange(min=1, max=31)])
+    submit = SubmitField('Save Season')
+
+
+class TOUPeriodForm(FlaskForm):
+    """Form for adding/editing time periods in a season"""
+    name = StringField('Period Name', validators=[DataRequired()])
+    from_hour = IntegerField('From Hour (0-23)', validators=[DataRequired(), NumberRange(min=0, max=23)])
+    from_minute = SelectField('From Minute', choices=[('0', '00'), ('30', '30')], validators=[DataRequired()])
+    to_hour = IntegerField('To Hour (0-23)', validators=[DataRequired(), NumberRange(min=0, max=23)])
+    to_minute = SelectField('To Minute', choices=[('0', '00'), ('30', '30')], validators=[DataRequired()])
+    from_day_of_week = SelectField('From Day', choices=[
+        ('0', 'Monday'),
+        ('1', 'Tuesday'),
+        ('2', 'Wednesday'),
+        ('3', 'Thursday'),
+        ('4', 'Friday'),
+        ('5', 'Saturday'),
+        ('6', 'Sunday')
+    ], default='0', validators=[DataRequired()])
+    to_day_of_week = SelectField('To Day', choices=[
+        ('0', 'Monday'),
+        ('1', 'Tuesday'),
+        ('2', 'Wednesday'),
+        ('3', 'Thursday'),
+        ('4', 'Friday'),
+        ('5', 'Saturday'),
+        ('6', 'Sunday')
+    ], default='6', validators=[DataRequired()])
+    energy_rate = DecimalField('Buy Rate ($/kWh)', validators=[DataRequired(), NumberRange(min=0)], places=4)
+    sell_rate = DecimalField('Sell Rate ($/kWh)', validators=[DataRequired(), NumberRange(min=0)], places=4)
+    demand_rate = DecimalField('Demand Rate ($/kW)', validators=[Optional(), NumberRange(min=0)], places=4, default=0)
+    submit = SubmitField('Save Period')
+

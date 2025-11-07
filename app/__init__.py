@@ -36,7 +36,11 @@ def create_app(config_class=Config):
 
     from app.routes import bp as main_bp
     app.register_blueprint(main_bp)
-    logger.info("Blueprint registered")
+    logger.info("Main blueprint registered")
+
+    from app.custom_tou_routes import custom_tou_bp
+    app.register_blueprint(custom_tou_bp)
+    logger.info("Custom TOU blueprint registered")
 
     # Add request logging
     @app.before_request
