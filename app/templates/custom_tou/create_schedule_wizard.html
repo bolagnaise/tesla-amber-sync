@@ -9,8 +9,8 @@
         </ol>
     </nav>
 
-    <h2>⚡ Create Custom TOU Schedule</h2>
-    <p class="text-muted">Follow the steps below to create your custom time-of-use rate plan. All on one page!</p>
+    <h2>⚡ {% if edit_mode %}Edit{% else %}Create{% endif %} Custom TOU Schedule</h2>
+    <p class="text-muted">{% if edit_mode %}Update your schedule below. All changes are saved together.{% else %}Follow the steps below to create your custom time-of-use rate plan. All on one page!{% endif %}</p>
 
     <form id="wizard-form" method="POST">
         {{ form.hidden_tag() }}
@@ -30,6 +30,7 @@
                         <label class="form-label fw-bold">Utility Provider *</label>
                         <input type="text" class="form-control" id="utility" name="utility"
                                placeholder="e.g., Origin Energy" required
+                               value="{% if schedule %}{{ schedule.utility }}{% endif %}"
                                list="utility-presets">
                         <datalist id="utility-presets">
                             <option value="Origin Energy">
@@ -46,7 +47,8 @@
                     <div class="col-md-6 mb-3">
                         <label class="form-label fw-bold">Rate Plan Name *</label>
                         <input type="text" class="form-control" id="name" name="name"
-                               placeholder="e.g., Single Rate + TOU" required>
+                               placeholder="e.g., Single Rate + TOU" required
+                               value="{% if schedule %}{{ schedule.name }}{% endif %}">
                         <small class="text-muted">Name of your plan</small>
                     </div>
                 </div>
@@ -54,17 +56,18 @@
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Tariff Code (Optional)</label>
                         <input type="text" class="form-control" id="code" name="code"
-                               placeholder="e.g., EA205">
+                               placeholder="e.g., EA205"
+                               value="{% if schedule %}{{ schedule.code or '' }}{% endif %}">
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Daily Supply Charge ($)</label>
                         <input type="number" class="form-control" id="daily_charge" name="daily_charge"
-                               step="0.0001" value="0" placeholder="1.1770">
+                               step="0.0001" value="{% if schedule %}{{ schedule.daily_charge }}{% else %}0{% endif %}" placeholder="1.1770">
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Monthly Charge ($)</label>
                         <input type="number" class="form-control" id="monthly_charge" name="monthly_charge"
-                               step="0.01" value="0" placeholder="0.00">
+                               step="0.01" value="{% if schedule %}{{ schedule.monthly_charge }}{% else %}0{% endif %}" placeholder="0.00">
                     </div>
                 </div>
             </div>
@@ -116,7 +119,8 @@
                 </div>
 
                 <div class="form-check mb-3">
-                    <input type="checkbox" name="set_active" class="form-check-input" id="setActive">
+                    <input type="checkbox" name="set_active" class="form-check-input" id="setActive"
+                           {% if schedule and schedule.active %}checked{% endif %}>
                     <label class="form-check-label" for="setActive">
                         <strong>Set as Active Schedule</strong> (will be synced to Tesla)
                     </label>
@@ -125,7 +129,7 @@
                 <div class="d-flex justify-content-between">
                     <a href="{{ url_for('custom_tou.index') }}" class="btn btn-secondary">Cancel</a>
                     <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
-                        💾 Save Schedule
+                        💾 {% if edit_mode %}Update{% else %}Save{% endif %} Schedule
                     </button>
                 </div>
             </div>
@@ -528,9 +532,44 @@ function updatePreview() {
     document.getElementById('submit-btn').disabled = !isValid;
 }
 
-// Initialize with one season
+// Initialize
 document.addEventListener('DOMContentLoaded', function() {
+    {% if schedule and schedule.seasons.count() > 0 %}
+    // Load existing schedule data (edit mode)
+    {% for season in schedule.seasons %}
+    const season_{{ loop.index0 }} = {
+        id: seasonCounter++,
+        name: '{{ season.name }}',
+        from_month: {{ season.from_month }},
+        from_day: {{ season.from_day }},
+        to_month: {{ season.to_month }},
+        to_day: {{ season.to_day }},
+        periods: [
+            {% for period in season.periods %}
+            {
+                id: Date.now() + {{ loop.index0 }},
+                name: '{{ period.name }}',
+                from_hour: {{ period.from_hour }},
+                from_minute: {{ period.from_minute }},
+                to_hour: {{ period.to_hour }},
+                to_minute: {{ period.to_minute }},
+                from_day_of_week: {{ period.from_day_of_week }},
+                to_day_of_week: {{ period.to_day_of_week }},
+                energy_rate: {{ period.energy_rate }},
+                sell_rate: {{ period.sell_rate }},
+                demand_rate: {{ period.demand_rate }}
+            }{{ ',' if not loop.last else '' }}
+            {% endfor %}
+        ]
+    };
+    seasons.push(season_{{ loop.index0 }});
+    {% endfor %}
+    renderSeasons();
+    updatePreview();
+    {% else %}
+    // New schedule - add one empty season
     addSeason();
+    {% endif %}
 
     // Update preview on form field changes
     ['utility', 'name', 'code', 'daily_charge', 'monthly_charge'].forEach(fieldId => {

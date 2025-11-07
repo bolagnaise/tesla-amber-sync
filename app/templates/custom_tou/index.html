@@ -64,38 +64,25 @@
                         </dl>
                     </div>
                     <div class="card-footer">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <a href="{{ url_for('custom_tou.edit_schedule', schedule_id=schedule.id) }}"
-                                   class="btn btn-sm btn-outline-primary me-2">
-                                    <i class="bi bi-pencil"></i> Edit
-                                </a>
-                                <a href="{{ url_for('custom_tou.preview_schedule', schedule_id=schedule.id) }}"
-                                   class="btn btn-sm btn-outline-info me-2">
-                                    <i class="bi bi-eye"></i> Preview
-                                </a>
-                            </div>
-                            <form method="POST" class="d-inline">
-                                {% if not schedule.active %}
-                                <button type="submit"
-                                        formaction="{{ url_for('custom_tou.activate_schedule', schedule_id=schedule.id) }}"
-                                        class="btn btn-sm btn-success me-2">
-                                    <i class="bi bi-check-circle"></i> Set Active
-                                </button>
-                                {% endif %}
-
+                        <div class="btn-group w-100" role="group">
+                            <a href="{{ url_for('custom_tou.edit_schedule', schedule_id=schedule.id) }}"
+                               class="btn btn-outline-primary">
+                                <i class="bi bi-pencil"></i> Edit
+                            </a>
+                            <form method="POST" class="d-inline flex-fill">
                                 <button type="submit"
                                         formaction="{{ url_for('custom_tou.sync_to_tesla', schedule_id=schedule.id) }}"
-                                        class="btn btn-sm btn-primary me-2"
+                                        class="btn btn-success w-100"
                                         {% if schedule.seasons.count() == 0 %}disabled title="Add seasons and periods first"{% endif %}>
                                     <i class="bi bi-cloud-upload"></i> Sync to Tesla
                                 </button>
-
+                            </form>
+                            <form method="POST" class="d-inline">
                                 <button type="submit"
                                         formaction="{{ url_for('custom_tou.delete_schedule', schedule_id=schedule.id) }}"
-                                        class="btn btn-sm btn-danger"
-                                        onclick="return confirm('Delete schedule \'{{ schedule.name }}\'? This cannot be undone.');">
-                                    <i class="bi bi-trash"></i> Delete
+                                        class="btn btn-outline-danger"
+                                        onclick="return confirm('Delete \'{{ schedule.name }}\'?');">
+                                    <i class="bi bi-trash"></i>
                                 </button>
                             </form>
                         </div>

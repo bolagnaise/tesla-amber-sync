@@ -136,6 +136,92 @@ class AmberAPIClient:
             logger.error(f"Error fetching price forecast: {e}")
             return None
 
+    def get_usage(self, site_id=None, start_date=None, end_date=None):
+        """
+        Get historical usage data for a site
+
+        Args:
+            site_id: Site ID (defaults to first site)
+            start_date: Start date (defaults to 7 days ago)
+            end_date: End date (defaults to now)
+        """
+        try:
+            # If no site_id provided, get the first site
+            if not site_id:
+                sites = self.get_sites()
+                if sites:
+                    site_id = sites[0]['id']
+                else:
+                    logger.error("No Amber sites found")
+                    return None
+
+            if not start_date:
+                start_date = datetime.utcnow() - timedelta(days=7)
+            if not end_date:
+                end_date = datetime.utcnow()
+
+            logger.info(f"Fetching usage data for site {site_id}")
+            params = {
+                "startDate": start_date.isoformat(),
+                "endDate": end_date.isoformat()
+            }
+
+            response = requests.get(
+                f"{self.base_url}/sites/{site_id}/usage",
+                headers=self.headers,
+                params=params,
+                timeout=10
+            )
+            response.raise_for_status()
+            data = response.json()
+            logger.info(f"Successfully fetched usage data: {len(data)} data points")
+            return data
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching usage data: {e}")
+            return None
+
+    def raw_api_call(self, endpoint, method='GET', params=None, json_data=None):
+        """
+        Make a raw API call to any Amber endpoint
+
+        Args:
+            endpoint: API endpoint path (e.g., '/sites' or '/sites/{site_id}/prices')
+            method: HTTP method (GET, POST, etc.)
+            params: Query parameters
+            json_data: JSON body for POST/PUT requests
+
+        Returns:
+            tuple: (success: bool, data: dict or None, status_code: int)
+        """
+        try:
+            url = f"{self.base_url}{endpoint}"
+            logger.info(f"Making {method} request to {url}")
+
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=self.headers,
+                params=params,
+                json=json_data,
+                timeout=10
+            )
+
+            # Return both success status and data
+            success = response.status_code < 400
+            data = None
+
+            try:
+                data = response.json()
+            except:
+                data = {"raw_text": response.text}
+
+            logger.info(f"API call completed with status {response.status_code}")
+            return success, data, response.status_code
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error making API call to {endpoint}: {e}")
+            return False, {"error": str(e)}, 0
+
 
 class TeslemetryAPIClient:
     """Client for Teslemetry API (Tesla API proxy service)"""
@@ -389,21 +475,34 @@ class TeslemetryAPIClient:
     def get_time_based_control_settings(self, site_id):
         """Get current time-based control settings"""
         try:
+            url = f"{self.base_url}/api/1/energy_sites/{site_id}/time_of_use_settings"
             logger.info(f"Getting time-based control settings for site {site_id}")
+            logger.info(f"Teslemetry API URL: {url}")
+            logger.debug(f"Request headers: {dict((k,v if k != 'Authorization' else '***') for k,v in self.headers.items())}")
+
             response = requests.get(
-                f"{self.base_url}/api/1/energy_sites/{site_id}/time_of_use_settings",
+                url,
                 headers=self.headers,
                 timeout=10
             )
+            logger.info(f"Response status code: {response.status_code}")
+            logger.debug(f"Response headers: {dict(response.headers)}")
+            logger.debug(f"Raw response text: {response.text}")
+
             response.raise_for_status()
             data = response.json()
             logger.info(f"Successfully fetched time-based control settings")
-            logger.debug(f"TBC settings: {data}")
-            return data.get('response', {})
+            logger.debug(f"Parsed JSON response: {data}")
+
+            # Extract response field
+            result = data.get('response', {})
+            logger.info(f"Returning {len(result) if result else 0} items from response field")
+            return result
         except requests.exceptions.RequestException as e:
             logger.error(f"Error getting time-based control settings: {e}")
             if hasattr(e, 'response') and e.response is not None:
-                logger.error(f"Error response: {e.response.text}")
+                logger.error(f"Error response status: {e.response.status_code}")
+                logger.error(f"Error response text: {e.response.text}")
             return None
 
     def set_time_based_control_settings(self, site_id, tou_settings):

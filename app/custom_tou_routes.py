@@ -134,7 +134,7 @@ def create_schedule():
 @custom_tou_bp.route('/edit/<int:schedule_id>', methods=['GET', 'POST'])
 @login_required
 def edit_schedule(schedule_id):
-    """Edit a custom TOU schedule"""
+    """Edit a custom TOU schedule (uses same wizard as create)"""
     schedule = CustomTOUSchedule.query.get_or_404(schedule_id)
 
     # Check ownership
@@ -142,29 +142,104 @@ def edit_schedule(schedule_id):
         flash('Access denied', 'danger')
         return redirect(url_for('custom_tou.index'))
 
-    form = CustomTOUScheduleForm(obj=schedule)
+    if request.method == 'POST':
+        try:
+            # Get form data
+            utility = request.form.get('utility')
+            name = request.form.get('name')
+            code = request.form.get('code', '')
+            daily_charge = float(request.form.get('daily_charge', 0))
+            monthly_charge = float(request.form.get('monthly_charge', 0))
+            set_active = bool(request.form.get('set_active'))
+            seasons_json = request.form.get('seasons_data', '[]')
 
-    if form.validate_on_submit():
-        schedule.name = form.name.data
-        schedule.utility = form.utility.data
-        schedule.code = form.code.data
-        schedule.daily_charge = form.daily_charge.data or 0
-        schedule.monthly_charge = form.monthly_charge.data or 0
-        schedule.updated_at = datetime.utcnow()
+            # Validate required fields
+            if not utility or not name:
+                flash('Utility Provider and Rate Plan Name are required', 'danger')
+                form = CustomTOUScheduleForm()
+                return render_template('custom_tou/create_schedule_wizard.html', form=form, schedule=schedule, edit_mode=True)
 
-        db.session.commit()
-        flash('Schedule updated', 'success')
-        return redirect(url_for('custom_tou.edit_schedule', schedule_id=schedule.id))
+            # Parse seasons data
+            import json
+            seasons_data = json.loads(seasons_json)
 
-    # Get all seasons and periods for display
-    seasons = schedule.seasons.all()
+            if not seasons_data or len(seasons_data) == 0:
+                flash('At least one season is required', 'danger')
+                form = CustomTOUScheduleForm()
+                return render_template('custom_tou/create_schedule_wizard.html', form=form, schedule=schedule, edit_mode=True)
 
-    return render_template(
-        'custom_tou/edit_schedule.html',
-        form=form,
-        schedule=schedule,
-        seasons=seasons
-    )
+            # Check if any season has periods
+            total_periods = sum(len(s.get('periods', [])) for s in seasons_data)
+            if total_periods == 0:
+                flash('At least one time period is required', 'danger')
+                form = CustomTOUScheduleForm()
+                return render_template('custom_tou/create_schedule_wizard.html', form=form, schedule=schedule, edit_mode=True)
+
+            # Deactivate other schedules if this will be active
+            if set_active and not schedule.active:
+                CustomTOUSchedule.query.filter_by(
+                    user_id=current_user.id,
+                    active=True
+                ).update({'active': False})
+
+            # Update schedule
+            schedule.name = name
+            schedule.utility = utility
+            schedule.code = code
+            schedule.daily_charge = daily_charge
+            schedule.monthly_charge = monthly_charge
+            schedule.active = set_active
+            schedule.updated_at = datetime.utcnow()
+
+            # Delete existing seasons and periods (cascade will handle periods)
+            TOUSeason.query.filter_by(schedule_id=schedule.id).delete()
+
+            # Create new seasons and periods
+            for season_data in seasons_data:
+                season = TOUSeason(
+                    schedule_id=schedule.id,
+                    name=season_data['name'],
+                    from_month=season_data['from_month'],
+                    from_day=season_data['from_day'],
+                    to_month=season_data['to_month'],
+                    to_day=season_data['to_day']
+                )
+                db.session.add(season)
+                db.session.flush()  # Get season.id
+
+                # Create periods for this season
+                for i, period_data in enumerate(season_data.get('periods', [])):
+                    period = TOUPeriod(
+                        season_id=season.id,
+                        name=period_data['name'],
+                        from_hour=period_data['from_hour'],
+                        from_minute=period_data['from_minute'],
+                        to_hour=period_data['to_hour'],
+                        to_minute=period_data['to_minute'],
+                        from_day_of_week=period_data['from_day_of_week'],
+                        to_day_of_week=period_data['to_day_of_week'],
+                        energy_rate=period_data['energy_rate'],
+                        sell_rate=period_data['sell_rate'],
+                        demand_rate=period_data.get('demand_rate', 0),
+                        display_order=i
+                    )
+                    db.session.add(period)
+
+            db.session.commit()
+
+            flash(f'✓ Updated schedule "{schedule.name}" with {len(seasons_data)} season(s) and {total_periods} period(s)!', 'success')
+            return redirect(url_for('custom_tou.index'))
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating schedule: {e}", exc_info=True)
+            flash(f'Error updating schedule: {str(e)}', 'danger')
+            form = CustomTOUScheduleForm()
+            return render_template('custom_tou/create_schedule_wizard.html', form=form, schedule=schedule, edit_mode=True)
+
+    # GET request - show wizard with existing data
+    form = CustomTOUScheduleForm()
+    return render_template('custom_tou/create_schedule_wizard.html', form=form, schedule=schedule, edit_mode=True)
 
 
 @custom_tou_bp.route('/<int:schedule_id>/delete', methods=['POST'])

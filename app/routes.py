@@ -824,6 +824,525 @@ def toggle_sync():
         return jsonify({'error': f'Error toggling sync: {str(e)}'}), 500
 
 
+# API Testing Routes
+
+@bp.route('/api-testing')
+@login_required
+def api_testing():
+    """API Testing interface page"""
+    logger.info(f"API Testing page accessed by user: {current_user.email}")
+    return render_template('api_testing.html', title='API Testing')
+
+
+@bp.route('/api/test/amber/sites')
+@login_required
+def test_amber_sites():
+    """Test GET /sites endpoint"""
+    try:
+        amber_client = get_amber_client(current_user)
+        if not amber_client:
+            return jsonify({'error': 'Amber API client not configured'}), 400
+
+        sites = amber_client.get_sites()
+        return jsonify({
+            'success': True,
+            'endpoint': 'GET /v1/sites',
+            'data': sites
+        })
+    except Exception as e:
+        logger.error(f"Error testing sites endpoint: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/test/amber/current-prices')
+@login_required
+def test_amber_current_prices():
+    """Test GET /sites/{site_id}/prices/current endpoint"""
+    try:
+        amber_client = get_amber_client(current_user)
+        if not amber_client:
+            return jsonify({'error': 'Amber API client not configured'}), 400
+
+        site_id = request.args.get('site_id')
+        prices = amber_client.get_current_prices(site_id)
+
+        return jsonify({
+            'success': True,
+            'endpoint': f'GET /v1/sites/{site_id or "auto"}/prices/current',
+            'data': prices
+        })
+    except Exception as e:
+        logger.error(f"Error testing current prices endpoint: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/test/amber/price-forecast')
+@login_required
+def test_amber_price_forecast():
+    """Test GET /sites/{site_id}/prices endpoint with various parameters"""
+    try:
+        amber_client = get_amber_client(current_user)
+        if not amber_client:
+            return jsonify({'error': 'Amber API client not configured'}), 400
+
+        site_id = request.args.get('site_id')
+        next_hours = int(request.args.get('next_hours', 24))
+        resolution = request.args.get('resolution')  # 5 or 30
+
+        if resolution:
+            resolution = int(resolution)
+
+        forecast = amber_client.get_price_forecast(
+            site_id=site_id,
+            next_hours=next_hours,
+            resolution=resolution
+        )
+
+        endpoint = f'GET /v1/sites/{site_id or "auto"}/prices?next_hours={next_hours}'
+        if resolution:
+            endpoint += f'&resolution={resolution}'
+
+        return jsonify({
+            'success': True,
+            'endpoint': endpoint,
+            'data': forecast,
+            'count': len(forecast) if forecast else 0
+        })
+    except Exception as e:
+        logger.error(f"Error testing price forecast endpoint: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/test/amber/usage')
+@login_required
+def test_amber_usage():
+    """Test GET /sites/{site_id}/usage endpoint"""
+    try:
+        amber_client = get_amber_client(current_user)
+        if not amber_client:
+            return jsonify({'error': 'Amber API client not configured'}), 400
+
+        site_id = request.args.get('site_id')
+        usage = amber_client.get_usage(site_id=site_id)
+
+        return jsonify({
+            'success': True,
+            'endpoint': f'GET /v1/sites/{site_id or "auto"}/usage',
+            'data': usage,
+            'count': len(usage) if usage else 0
+        })
+    except Exception as e:
+        logger.error(f"Error testing usage endpoint: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/test/amber/raw', methods=['GET', 'POST'])
+@login_required
+def test_amber_raw():
+    """Test raw API call to any Amber endpoint"""
+    try:
+        amber_client = get_amber_client(current_user)
+        if not amber_client:
+            return jsonify({'error': 'Amber API client not configured'}), 400
+
+        if request.method == 'POST':
+            data = request.get_json()
+            endpoint = data.get('endpoint', '/sites')
+            method = data.get('method', 'GET')
+            params = data.get('params', {})
+            json_data = data.get('json_data', None)
+        else:
+            endpoint = request.args.get('endpoint', '/sites')
+            method = request.args.get('method', 'GET')
+            params = {}
+            json_data = None
+
+        success, response_data, status_code = amber_client.raw_api_call(
+            endpoint=endpoint,
+            method=method,
+            params=params,
+            json_data=json_data
+        )
+
+        return jsonify({
+            'success': success,
+            'endpoint': f'{method} /v1{endpoint}',
+            'status_code': status_code,
+            'data': response_data
+        })
+    except Exception as e:
+        logger.error(f"Error testing raw endpoint: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/test/amber/advanced-price-schema')
+@login_required
+def test_amber_advanced_price_schema():
+    """Test advanced price schema with 30-minute resolution forecast"""
+    try:
+        amber_client = get_amber_client(current_user)
+        if not amber_client:
+            return jsonify({'error': 'Amber API client not configured'}), 400
+
+        # Get 48-hour forecast with 30-minute resolution to see advanced price structure
+        forecast = amber_client.get_price_forecast(
+            site_id=None,
+            next_hours=48,
+            resolution=30
+        )
+
+        if not forecast:
+            return jsonify({'error': 'Failed to fetch forecast data'}), 500
+
+        # Extract a sample record to highlight the structure
+        sample = None
+        if isinstance(forecast, list) and len(forecast) > 0:
+            sample_raw = forecast[0]
+            # Parse the sample to show key fields
+            sample = {
+                'period': sample_raw.get('period'),
+                'channelType': sample_raw.get('channelType'),
+                'spikeStatus': sample_raw.get('spikeStatus'),
+                'perKwh': sample_raw.get('perKwh'),
+                'spotPerKwh': sample_raw.get('spotPerKwh'),
+                'advancedPrice': sample_raw.get('advancedPrice', {})
+            }
+
+        return jsonify({
+            'success': True,
+            'endpoint': 'GET /v1/sites/{site_id}/prices?next_hours=48&resolution=30',
+            'data': forecast,
+            'count': len(forecast) if forecast else 0,
+            'sample': sample,
+            'description': 'This shows the advanced price structure including ML predictions used by SmartShift and Netzero'
+        })
+    except Exception as e:
+        logger.error(f"Error testing advanced price schema: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/test/tariff-comparison')
+@login_required
+def test_tariff_comparison():
+    """Compare different tariff implementations to debug price differences"""
+    try:
+        from app.tariff_converter import AmberTariffConverter
+
+        amber_client = get_amber_client(current_user)
+        if not amber_client:
+            return jsonify({'error': 'Amber API client not configured'}), 400
+
+        # Get 48-hour forecast
+        forecast = amber_client.get_price_forecast(
+            site_id=None,
+            next_hours=48,
+            resolution=30
+        )
+
+        if not forecast:
+            return jsonify({'error': 'Failed to fetch forecast data'}), 500
+
+        # Build actual tariff using current implementation
+        converter = AmberTariffConverter()
+        actual_tariff = converter.convert_amber_to_tesla_tariff(forecast, user=current_user)
+
+        # Extract first 5 periods from buy prices for comparison
+        actual_periods = {}
+        if actual_tariff and 'energy_charges' in actual_tariff:
+            summer_rates = actual_tariff['energy_charges'].get('Summer', {}).get('rates', {})
+            # Get first 5 periods for debugging
+            for i, (period, price) in enumerate(list(summer_rates.items())[:5]):
+                actual_periods[period] = price
+
+        # Build a "no-shift" version for comparison
+        no_shift_periods = {}
+        from datetime import datetime
+        now = datetime.now()
+
+        # Parse forecast to show what "no shift" would look like
+        general_lookup = {}
+        for point in forecast:
+            try:
+                nem_time = point.get('nemTime', '')
+                timestamp = datetime.fromisoformat(nem_time.replace('Z', '+00:00'))
+                channel_type = point.get('channelType', '')
+
+                if channel_type == 'general':
+                    # Get price (same logic as tariff converter)
+                    advanced_price = point.get('advancedPrice')
+                    if advanced_price and isinstance(advanced_price, dict):
+                        if 'predicted' in advanced_price:
+                            predicted = advanced_price['predicted']
+                            # Check if predicted is a number or object
+                            if isinstance(predicted, dict):
+                                per_kwh_cents = predicted.get('perKwh', 0)
+                            else:
+                                per_kwh_cents = predicted
+                        else:
+                            per_kwh_cents = point.get('perKwh', 0)
+                    else:
+                        per_kwh_cents = point.get('perKwh', 0)
+
+                    per_kwh_dollars = per_kwh_cents / 100
+
+                    # Round to 30-min bucket
+                    minute_bucket = 0 if timestamp.minute < 30 else 30
+                    hour = timestamp.hour
+
+                    period_key = f"PERIOD_{hour:02d}_{minute_bucket:02d}"
+
+                    # NO SHIFT - use current slot's price
+                    if period_key not in general_lookup:
+                        general_lookup[period_key] = []
+                    general_lookup[period_key].append(per_kwh_dollars)
+
+            except Exception as e:
+                logger.error(f"Error processing: {e}")
+                continue
+
+        # Average prices for no-shift version
+        for period, prices in list(general_lookup.items())[:5]:
+            no_shift_periods[period] = sum(prices) / len(prices)
+
+        # Get raw API data for first few periods
+        raw_samples = []
+        for i, point in enumerate(forecast[:10]):
+            if point.get('channelType') == 'general':
+                raw_samples.append({
+                    'nemTime': point.get('nemTime'),
+                    'type': point.get('type'),
+                    'perKwh': point.get('perKwh'),
+                    'advancedPrice': point.get('advancedPrice')
+                })
+
+        return jsonify({
+            'success': True,
+            'current_time': now.isoformat(),
+            'implementation_notes': {
+                'actual': 'Current implementation with 30-min shift',
+                'no_shift': 'Hypothetical - no shift applied',
+                'difference': 'Shows how 30-min advance notice affects prices'
+            },
+            'comparison': {
+                'actual_tariff_first_5_periods': actual_periods,
+                'no_shift_first_5_periods': no_shift_periods
+            },
+            'raw_forecast_samples': raw_samples,
+            'advancedPrice_structure': 'Check if predicted is a number or object with perKwh field'
+        })
+    except Exception as e:
+        logger.error(f"Error in tariff comparison: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/test/find-tesla-sites')
+@login_required
+def test_find_tesla_sites():
+    """Helper to find Tesla energy site IDs"""
+    try:
+        tesla_client = get_tesla_client(current_user)
+        if not tesla_client:
+            return jsonify({
+                'error': 'Tesla API client not configured',
+                'help': 'Please go to Settings and enter your Teslemetry API key first'
+            }), 400
+
+        # Get all energy sites
+        sites = tesla_client.get_energy_sites()
+
+        if not sites:
+            return jsonify({
+                'error': 'No energy sites found',
+                'help': 'Make sure your Teslemetry API key is correct and you have a Powerwall registered'
+            }), 404
+
+        # Format site information
+        site_info = []
+        for site in sites:
+            site_info.append({
+                'site_id': site.get('energy_site_id'),
+                'site_name': site.get('site_name', 'Unnamed Site'),
+                'resource_type': site.get('resource_type', 'unknown')
+            })
+
+        return jsonify({
+            'success': True,
+            'sites': site_info,
+            'instructions': 'Copy the site_id value and paste it into Settings > Tesla Site ID'
+        })
+
+    except Exception as e:
+        logger.error(f"Error finding Tesla sites: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
+
+
+@bp.route('/api/test/netzero-comparison')
+@login_required
+def test_netzero_comparison():
+    """Compare Netzero's TOU schedule (currently on Tesla) vs our implementation"""
+    try:
+        from app.tariff_converter import AmberTariffConverter
+        import traceback
+
+        # Get Tesla client
+        tesla_client = get_tesla_client(current_user)
+        logger.info(f"Tesla client type: {type(tesla_client).__name__ if tesla_client else 'None'}")
+
+        if not tesla_client:
+            return jsonify({
+                'error': 'Tesla API client not configured',
+                'help': 'Please go to Settings and configure your Teslemetry API key',
+                'next_step': 'Use the "Find Tesla Sites" button above to get your Site ID',
+                'debug': {
+                    'has_fleet_token': bool(current_user.tesla_access_token_encrypted),
+                    'has_teslemetry_key': bool(current_user.teslemetry_api_key_encrypted)
+                }
+            }), 400
+
+        # Get Amber client
+        amber_client = get_amber_client(current_user)
+        if not amber_client:
+            return jsonify({'error': 'Amber API client not configured'}), 400
+
+        # Get Tesla site ID
+        if not current_user.tesla_energy_site_id:
+            return jsonify({
+                'error': 'Tesla site ID not configured',
+                'help': 'Use the "Find Tesla Sites" button to discover your site ID'
+            }), 400
+
+        site_id = current_user.tesla_energy_site_id
+        logger.info(f"Using site ID: {site_id} (type: {type(site_id).__name__})")
+
+        # Fetch current TOU settings from Tesla (what Netzero has configured)
+        logger.info(f"Fetching current TOU settings from Tesla site {site_id} using {type(tesla_client).__name__}")
+        netzero_tou = tesla_client.get_time_based_control_settings(site_id)
+        logger.info(f"TOU settings response type: {type(netzero_tou).__name__ if netzero_tou else 'None'}")
+        logger.debug(f"Raw TOU response: {netzero_tou}")
+
+        if not netzero_tou:
+            return jsonify({'error': 'Failed to fetch current TOU settings from Tesla'}), 500
+
+        # Extract Netzero's tariff rates
+        netzero_buy_rates = {}
+        netzero_sell_rates = {}
+
+        if 'tou_settings' in netzero_tou and 'tariff_content_v2' in netzero_tou['tou_settings']:
+            tariff = netzero_tou['tou_settings']['tariff_content_v2']
+
+            # Get buy rates (energy_charges)
+            if 'energy_charges' in tariff and 'Summer' in tariff['energy_charges']:
+                netzero_buy_rates = tariff['energy_charges']['Summer'].get('rates', {})
+
+            # Get sell rates (sell_tariff)
+            if 'sell_tariff' in tariff and 'energy_charges' in tariff['sell_tariff']:
+                if 'Summer' in tariff['sell_tariff']['energy_charges']:
+                    netzero_sell_rates = tariff['sell_tariff']['energy_charges']['Summer'].get('rates', {})
+
+        # Get Amber forecast
+        logger.info("Fetching Amber price forecast")
+        forecast = amber_client.get_price_forecast(
+            site_id=None,
+            next_hours=48,
+            resolution=30
+        )
+
+        if not forecast:
+            return jsonify({'error': 'Failed to fetch Amber forecast data'}), 500
+
+        # Build our tariff using current implementation
+        logger.info("Building our tariff implementation")
+        converter = AmberTariffConverter()
+        our_tariff = converter.convert_amber_to_tesla_tariff(forecast, user=current_user)
+
+        # Extract our rates
+        our_buy_rates = {}
+        our_sell_rates = {}
+
+        if our_tariff and 'energy_charges' in our_tariff:
+            our_buy_rates = our_tariff['energy_charges'].get('Summer', {}).get('rates', {})
+
+        if our_tariff and 'sell_tariff' in our_tariff:
+            our_sell_rates = our_tariff['sell_tariff']['energy_charges'].get('Summer', {}).get('rates', {})
+
+        # Compare all 48 periods
+        comparison_data = []
+        all_periods = sorted(set(list(netzero_buy_rates.keys()) + list(our_buy_rates.keys())))
+
+        for period in all_periods:
+            netzero_buy = netzero_buy_rates.get(period, None)
+            our_buy = our_buy_rates.get(period, None)
+            netzero_sell = netzero_sell_rates.get(period, None)
+            our_sell = our_sell_rates.get(period, None)
+
+            # Calculate differences
+            buy_diff = None
+            sell_diff = None
+            buy_diff_pct = None
+            sell_diff_pct = None
+
+            if netzero_buy is not None and our_buy is not None:
+                buy_diff = our_buy - netzero_buy
+                if netzero_buy != 0:
+                    buy_diff_pct = (buy_diff / netzero_buy) * 100
+
+            if netzero_sell is not None and our_sell is not None:
+                sell_diff = our_sell - netzero_sell
+                if netzero_sell != 0:
+                    sell_diff_pct = (sell_diff / netzero_sell) * 100
+
+            comparison_data.append({
+                'period': period,
+                'netzero_buy': netzero_buy,
+                'our_buy': our_buy,
+                'buy_diff': buy_diff,
+                'buy_diff_pct': buy_diff_pct,
+                'netzero_sell': netzero_sell,
+                'our_sell': our_sell,
+                'sell_diff': sell_diff,
+                'sell_diff_pct': sell_diff_pct
+            })
+
+        # Calculate statistics
+        buy_diffs = [d['buy_diff'] for d in comparison_data if d['buy_diff'] is not None]
+        sell_diffs = [d['sell_diff'] for d in comparison_data if d['sell_diff'] is not None]
+
+        stats = {
+            'total_periods': len(all_periods),
+            'periods_compared': len([d for d in comparison_data if d['buy_diff'] is not None]),
+            'buy_price_stats': {
+                'min_diff': min(buy_diffs) if buy_diffs else None,
+                'max_diff': max(buy_diffs) if buy_diffs else None,
+                'avg_diff': sum(buy_diffs) / len(buy_diffs) if buy_diffs else None,
+                'avg_abs_diff': sum(abs(d) for d in buy_diffs) / len(buy_diffs) if buy_diffs else None
+            },
+            'sell_price_stats': {
+                'min_diff': min(sell_diffs) if sell_diffs else None,
+                'max_diff': max(sell_diffs) if sell_diffs else None,
+                'avg_diff': sum(sell_diffs) / len(sell_diffs) if sell_diffs else None,
+                'avg_abs_diff': sum(abs(d) for d in sell_diffs) / len(sell_diffs) if sell_diffs else None
+            }
+        }
+
+        return jsonify({
+            'success': True,
+            'comparison': comparison_data,
+            'statistics': stats,
+            'netzero_tariff_name': netzero_tou.get('tou_settings', {}).get('tariff_content_v2', {}).get('name', 'Unknown'),
+            'our_tariff_name': our_tariff.get('name', 'Unknown')
+        })
+
+    except Exception as e:
+        logger.error(f"Error in Netzero comparison: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
+
+
 # Tesla Fleet API Routes (Virtual Keys Method)
 
 @bp.route('/.well-known/appspecific/com.tesla.3p.public-key.pem')
