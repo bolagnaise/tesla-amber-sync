@@ -43,7 +43,8 @@ def create_schedule():
             # Validate required fields
             if not utility or not name:
                 flash('Utility Provider and Rate Plan Name are required', 'danger')
-                return render_template('custom_tou/create_schedule_wizard.html')
+                form = CustomTOUScheduleForm()
+                return render_template('custom_tou/create_schedule_wizard.html', form=form)
 
             # Parse seasons data
             import json
@@ -51,13 +52,15 @@ def create_schedule():
 
             if not seasons_data or len(seasons_data) == 0:
                 flash('At least one season is required', 'danger')
-                return render_template('custom_tou/create_schedule_wizard.html')
+                form = CustomTOUScheduleForm()
+                return render_template('custom_tou/create_schedule_wizard.html', form=form)
 
             # Check if any season has periods
             total_periods = sum(len(s.get('periods', [])) for s in seasons_data)
             if total_periods == 0:
                 flash('At least one time period is required', 'danger')
-                return render_template('custom_tou/create_schedule_wizard.html')
+                form = CustomTOUScheduleForm()
+                return render_template('custom_tou/create_schedule_wizard.html', form=form)
 
             # Deactivate other schedules if this will be active
             if set_active:
@@ -119,10 +122,13 @@ def create_schedule():
             db.session.rollback()
             logger.error(f"Error creating schedule: {e}", exc_info=True)
             flash(f'Error creating schedule: {str(e)}', 'danger')
-            return render_template('custom_tou/create_schedule_wizard.html')
+            form = CustomTOUScheduleForm()
+            return render_template('custom_tou/create_schedule_wizard.html', form=form)
 
     # GET request - show wizard
-    return render_template('custom_tou/create_schedule_wizard.html')
+    # Create a form just for CSRF token
+    form = CustomTOUScheduleForm()
+    return render_template('custom_tou/create_schedule_wizard.html', form=form)
 
 
 @custom_tou_bp.route('/edit/<int:schedule_id>', methods=['GET', 'POST'])
