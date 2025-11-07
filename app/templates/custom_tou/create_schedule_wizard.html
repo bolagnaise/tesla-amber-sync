@@ -174,9 +174,24 @@
 }
 .period-row .form-control,
 .period-row .form-select {
-    background-color: rgba(255,255,255,0.9);
-    color: #000;
+    background-color: white !important;
+    color: #000 !important;
     border: 1px solid rgba(255,255,255,0.5);
+    font-weight: 500;
+}
+.period-row .form-select option {
+    color: #000 !important;
+    background-color: white !important;
+}
+.period-row .form-select:focus {
+    background-color: white !important;
+    color: #000 !important;
+}
+/* Force dropdown text to be visible */
+select.time-select {
+    -webkit-appearance: menulist;
+    -moz-appearance: menulist;
+    appearance: menulist;
 }
 .period-row .btn-outline-danger {
     border-color: white;
@@ -412,26 +427,26 @@ function renderPeriodRow(seasonId, period) {
                 <div class="col-md-3">
                     <label class="form-label small">Time Range</label>
                     <div class="input-group input-group-sm mb-1">
-                        <select class="form-select" style="max-width:60px"
+                        <select class="form-select time-select" style="max-width:60px" data-hour="${period.from_hour}"
                                 onchange="seasons.find(s => s.id === ${seasonId}).periods.find(p => p.id === ${period.id}).from_hour = parseInt(this.value); updatePreview();">
-                            ${Array.from({length: 24}, (_, i) => `<option value="${i}" ${period.from_hour === i ? 'selected' : ''}>${String(i).padStart(2, '0')}</option>`).join('')}
+                            ${Array.from({length: 24}, (_, i) => `<option value="${i}" ${period.from_hour == i ? 'selected' : ''}>${String(i).padStart(2, '0')}</option>`).join('')}
                         </select>
                         <span class="input-group-text">:</span>
-                        <select class="form-select" style="max-width:60px"
+                        <select class="form-select time-select" style="max-width:60px" data-minute="${period.from_minute}"
                                 onchange="seasons.find(s => s.id === ${seasonId}).periods.find(p => p.id === ${period.id}).from_minute = parseInt(this.value); updatePreview();">
-                            <option value="0" ${period.from_minute === 0 ? 'selected' : ''}>00</option>
-                            <option value="30" ${period.from_minute === 30 ? 'selected' : ''}>30</option>
+                            <option value="0" ${period.from_minute == 0 ? 'selected' : ''}>00</option>
+                            <option value="30" ${period.from_minute == 30 ? 'selected' : ''}>30</option>
                         </select>
                         <span class="input-group-text">to</span>
-                        <select class="form-select" style="max-width:60px"
+                        <select class="form-select time-select" style="max-width:60px" data-hour="${period.to_hour}"
                                 onchange="seasons.find(s => s.id === ${seasonId}).periods.find(p => p.id === ${period.id}).to_hour = parseInt(this.value); updatePreview();">
-                            ${Array.from({length: 24}, (_, i) => `<option value="${i}" ${period.to_hour === i ? 'selected' : ''}>${String(i).padStart(2, '0')}</option>`).join('')}
+                            ${Array.from({length: 24}, (_, i) => `<option value="${i}" ${period.to_hour == i ? 'selected' : ''}>${String(i).padStart(2, '0')}</option>`).join('')}
                         </select>
                         <span class="input-group-text">:</span>
-                        <select class="form-select" style="max-width:60px"
+                        <select class="form-select time-select" style="max-width:60px" data-minute="${period.to_minute}"
                                 onchange="seasons.find(s => s.id === ${seasonId}).periods.find(p => p.id === ${period.id}).to_minute = parseInt(this.value); updatePreview();">
-                            <option value="0" ${period.to_minute === 0 ? 'selected' : ''}>00</option>
-                            <option value="30" ${period.to_minute === 30 ? 'selected' : ''}>30</option>
+                            <option value="0" ${period.to_minute == 0 ? 'selected' : ''}>00</option>
+                            <option value="30" ${period.to_minute == 30 ? 'selected' : ''}>30</option>
                         </select>
                     </div>
                     <div class="btn-group btn-group-sm" role="group">
