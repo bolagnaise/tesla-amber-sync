@@ -92,7 +92,7 @@ class CustomTOUBuilder:
         # Build complete tariff structure
         tariff = {
             "version": 1,
-            "code": schedule.code or f"CUSTOM:{schedule.id}",
+            "code": schedule.code or schedule.utility,
             "name": schedule.name,
             "utility": schedule.utility,
             "currency": schedule.currency,
