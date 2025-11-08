@@ -461,8 +461,8 @@ def create_spike_tariff(current_aemo_price_mwh):
         dict: Tesla tariff JSON with very high sell rates
     """
     # Convert $/MWh to $/kWh (divide by 1000)
-    # Make sell rate VERY attractive (higher than actual spike price)
-    sell_rate_spike = (current_aemo_price_mwh / 1000.0) * 1.5  # 50% markup on spike
+    # Make sell rate EXTREMELY attractive (way higher than actual spike price)
+    sell_rate_spike = (current_aemo_price_mwh / 1000.0) * 3.0  # 3x markup - very high!
 
     # Normal buy rate for non-spike periods (typical grid price)
     # Powerwall needs to know it can recharge cheaply later
@@ -483,9 +483,9 @@ def create_spike_tariff(current_aemo_price_mwh):
     now = datetime.now()
     current_period_index = (now.hour * 2) + (1 if now.minute >= 30 else 0)
 
-    # Spike window: current period + next 4 hours (8 x 30-min periods)
-    # This gives Powerwall a 4-hour window to export during the spike
-    spike_window_periods = 8
+    # Spike window: current period + next 2 hours (4 x 30-min periods)
+    # Short window creates urgency for Powerwall to export NOW
+    spike_window_periods = 4
     spike_start = current_period_index
     spike_end = (current_period_index + spike_window_periods) % 48
 
