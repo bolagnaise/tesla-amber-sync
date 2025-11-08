@@ -92,6 +92,47 @@ def dashboard():
     return render_template('dashboard.html', title='Dashboard')
 
 
+@bp.route('/api/aemo-price')
+@login_required
+def api_aemo_price():
+    """Get current AEMO wholesale price and spike status"""
+    from app.api_clients import AEMOAPIClient
+
+    # Check if AEMO spike detection is enabled
+    if not current_user.aemo_spike_detection_enabled:
+        return jsonify({'enabled': False, 'message': 'AEMO spike detection not enabled'})
+
+    if not current_user.aemo_region:
+        return jsonify({'enabled': True, 'error': 'AEMO region not configured'})
+
+    # Fetch current AEMO price
+    aemo_client = AEMOAPIClient()
+    price_data = aemo_client.get_region_price(current_user.aemo_region)
+
+    if not price_data:
+        return jsonify({'enabled': True, 'error': 'Failed to fetch AEMO price'})
+
+    # Build response
+    current_price = price_data['price']
+    threshold = current_user.aemo_spike_threshold or 300.0
+    is_spike = current_price >= threshold
+
+    response = {
+        'enabled': True,
+        'region': current_user.aemo_region,
+        'current_price': current_price,
+        'threshold': threshold,
+        'is_spike': is_spike,
+        'in_spike_mode': current_user.aemo_in_spike_mode,
+        'last_check': current_user.aemo_last_check.isoformat() if current_user.aemo_last_check else None,
+        'spike_start_time': current_user.aemo_spike_start_time.isoformat() if current_user.aemo_spike_start_time else None,
+        'timestamp': price_data.get('timestamp')
+    }
+
+    logger.info(f"AEMO price API: {current_user.aemo_region} = ${current_price}/MWh (threshold: ${threshold})")
+    return jsonify(response)
+
+
 @bp.route('/settings', methods=['GET', 'POST'])
 @login_required
 def settings():

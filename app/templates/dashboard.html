@@ -25,6 +25,34 @@
         </article>
     </div>
 
+    <!-- AEMO Wholesale Price Monitor -->
+    <article id="aemo-price-monitor" style="display: none; background: linear-gradient(135deg, #065f46 0%, #047857 100%); color: white; padding: 1.5em; margin-top: 1em;">
+        <header style="text-align: center; margin-bottom: 1em;">
+            <strong style="font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px;">⚡ AEMO Wholesale Price</strong>
+            <div id="aemo-region" style="font-size: 0.9em; font-weight: normal; margin-top: 0.3em; opacity: 0.9;">--</div>
+        </header>
+        <div style="display: flex; justify-content: center; gap: 2em; margin-bottom: 1em;">
+            <div style="text-align: center;">
+                <div id="aemo-price-display" style="background: rgba(255, 255, 255, 0.15); border-radius: 12px; padding: 1.5em; min-width: 200px;">
+                    <div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 0.5em;">Current Price</div>
+                    <div id="aemo-current-price" style="font-size: 3em; font-weight: bold; line-height: 1;">--</div>
+                    <div style="font-size: 0.9em; opacity: 0.8; margin-top: 0.3em;">$/MWh</div>
+                </div>
+            </div>
+            <div style="text-align: center;">
+                <div style="background: rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1.5em; min-width: 150px;">
+                    <div style="font-size: 0.8em; opacity: 0.9; margin-bottom: 0.5em;">Threshold</div>
+                    <div id="aemo-threshold" style="font-size: 2.5em; font-weight: bold; line-height: 1;">--</div>
+                    <div style="font-size: 0.9em; opacity: 0.8; margin-top: 0.3em;">$/MWh</div>
+                </div>
+            </div>
+        </div>
+        <div id="aemo-status-indicator" style="text-align: center; padding: 1em; border-radius: 8px; background: rgba(255, 255, 255, 0.1);">
+            <div id="aemo-status-text" style="font-size: 1.1em; font-weight: bold;">Normal Pricing</div>
+            <div id="aemo-status-detail" style="font-size: 0.85em; margin-top: 0.3em; opacity: 0.9;"></div>
+        </div>
+    </article>
+
     <!-- 5-Minute Detailed Billing Window -->
     <article id="five-min-pricing" style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: white; padding: 1.5em;">
         <header style="text-align: center; margin-bottom: 1em;">
@@ -293,8 +321,86 @@
                 if (status.tesla.connected) {
                     await fetchTeslaStatus();
                 }
+
+                // Always try to fetch AEMO price (independent of Amber/Tesla)
+                await fetchAEMOPrice();
             } catch (error) {
                 console.error('Error checking API status:', error);
+            }
+        }
+
+        // Fetch and display AEMO wholesale price
+        async function fetchAEMOPrice() {
+            try {
+                const response = await fetch('/api/aemo-price');
+                const data = await response.json();
+
+                const monitor = document.getElementById('aemo-price-monitor');
+
+                if (!data.enabled) {
+                    // AEMO not enabled - hide the monitor
+                    monitor.style.display = 'none';
+                    return;
+                }
+
+                if (data.error) {
+                    // Error fetching - show but indicate error
+                    monitor.style.display = 'block';
+                    document.getElementById('aemo-current-price').textContent = 'Error';
+                    document.getElementById('aemo-status-text').textContent = data.error;
+                    return;
+                }
+
+                // Show the monitor
+                monitor.style.display = 'block';
+
+                // Update region
+                document.getElementById('aemo-region').textContent = data.region + ' Region';
+
+                // Update current price
+                const priceElement = document.getElementById('aemo-current-price');
+                priceElement.textContent = '$' + data.current_price.toFixed(0);
+
+                // Update threshold
+                document.getElementById('aemo-threshold').textContent = '$' + data.threshold.toFixed(0);
+
+                // Update status indicator and color
+                const statusIndicator = document.getElementById('aemo-status-indicator');
+                const statusText = document.getElementById('aemo-status-text');
+                const statusDetail = document.getElementById('aemo-status-detail');
+                const priceDisplay = document.getElementById('aemo-price-display');
+                const monitorArticle = document.getElementById('aemo-price-monitor');
+
+                if (data.in_spike_mode) {
+                    // SPIKE MODE - Red alert
+                    statusText.textContent = '🚨 SPIKE MODE ACTIVE';
+                    statusDetail.textContent = 'Powerwall exporting to grid at high rates';
+                    statusIndicator.style.background = 'rgba(220, 38, 38, 0.3)';
+                    statusIndicator.style.border = '2px solid rgba(220, 38, 38, 0.6)';
+                    priceDisplay.style.background = 'rgba(220, 38, 38, 0.25)';
+                    monitorArticle.style.background = 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)';
+                } else if (data.is_spike) {
+                    // Above threshold but not yet in spike mode
+                    statusText.textContent = '⚠️ PRICE SPIKE DETECTED';
+                    statusDetail.textContent = 'Entering spike mode...';
+                    statusIndicator.style.background = 'rgba(245, 158, 11, 0.3)';
+                    statusIndicator.style.border = '2px solid rgba(245, 158, 11, 0.6)';
+                    priceDisplay.style.background = 'rgba(245, 158, 11, 0.25)';
+                    monitorArticle.style.background = 'linear-gradient(135deg, #92400e 0%, #b45309 100%)';
+                } else {
+                    // Normal pricing
+                    statusText.textContent = '✓ Normal Pricing';
+                    statusDetail.textContent = 'Price below threshold - standard operation';
+                    statusIndicator.style.background = 'rgba(255, 255, 255, 0.1)';
+                    statusIndicator.style.border = 'none';
+                    priceDisplay.style.background = 'rgba(255, 255, 255, 0.15)';
+                    monitorArticle.style.background = 'linear-gradient(135deg, #065f46 0%, #047857 100%)';
+                }
+
+            } catch (error) {
+                console.error('Error fetching AEMO price:', error);
+                // Hide on error
+                document.getElementById('aemo-price-monitor').style.display = 'none';
             }
         }
 
