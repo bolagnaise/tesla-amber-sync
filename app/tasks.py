@@ -464,8 +464,9 @@ def create_spike_tariff(current_aemo_price_mwh):
     # Add 20% margin to encourage export
     sell_rate = (current_aemo_price_mwh / 1000.0) * 1.2
 
-    # Very low buy rate to discourage import
-    buy_rate = 0.01
+    # Very HIGH buy rate to discourage import during spike
+    # Set it even higher than sell rate so Powerwall never imports
+    buy_rate = sell_rate * 2.0  # Double the sell rate to strongly discourage import
 
     logger.info(f"Creating spike tariff: Buy=${buy_rate}/kWh, Sell=${sell_rate}/kWh (based on ${current_aemo_price_mwh}/MWh)")
 
