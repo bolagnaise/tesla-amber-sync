@@ -201,7 +201,7 @@
         <p style="font-size: 0.85em;">Test the spike detection system without waiting for a real price spike.</p>
 
         <form method="POST" action="{{ url_for('main.test_aemo_spike') }}" style="display: inline; margin-right: 0.5em;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="csrf_token" value="{{ form.csrf_token._value() }}">
             <button type="submit" class="outline"
                     onclick="return confirm('This will trigger spike mode using a simulated $500/MWh price. Your current tariff will be backed up and a spike tariff will be uploaded to Tesla. Continue?');">
                 🚨 Simulate Spike
@@ -210,7 +210,7 @@
 
         {% if current_user.aemo_in_spike_mode %}
         <form method="POST" action="{{ url_for('main.test_aemo_restore') }}" style="display: inline;">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="csrf_token" value="{{ form.csrf_token._value() }}">
             <button type="submit" class="outline"
                     onclick="return confirm('This will exit spike mode and restore your backed-up tariff. Continue?');">
                 ✓ Restore Normal
