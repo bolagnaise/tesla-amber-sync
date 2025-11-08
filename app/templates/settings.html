@@ -156,7 +156,7 @@
                             </li>
                             {% endif %}
                             {% if current_user.aemo_last_check %}
-                            <li>Last Check: {{ current_user.aemo_last_check.strftime('%Y-%m-%d %H:%M:%S') }}</li>
+                            <li>Last Check: {{ (current_user.aemo_last_check | user_timezone).strftime('%Y-%m-%d %H:%M:%S') }}</li>
                             {% endif %}
                         </ul>
                     </article>

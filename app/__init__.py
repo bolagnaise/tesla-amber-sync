@@ -42,6 +42,27 @@ def create_app(config_class=Config):
     app.register_blueprint(custom_tou_bp)
     logger.info("Custom TOU blueprint registered")
 
+    # Add Jinja2 template filter for timezone conversion
+    @app.template_filter('user_timezone')
+    def user_timezone_filter(dt):
+        """Convert UTC datetime to user's local timezone"""
+        if dt is None:
+            return None
+
+        from flask_login import current_user
+        from datetime import datetime
+        import pytz
+
+        # Get user's timezone (default to UTC if not set)
+        user_tz = pytz.timezone(current_user.timezone if hasattr(current_user, 'timezone') and current_user.timezone else 'UTC')
+
+        # If datetime is naive (no timezone), assume it's UTC
+        if dt.tzinfo is None:
+            dt = pytz.utc.localize(dt)
+
+        # Convert to user's timezone
+        return dt.astimezone(user_tz)
+
     # Add request logging
     @app.before_request
     def log_request():
