@@ -483,14 +483,22 @@ def create_spike_tariff(current_aemo_price_mwh):
         buy_rates[period_name] = buy_rate
         sell_rates[period_name] = sell_rate
 
+        # Calculate end time (30 minutes later)
+        if minute == 0:
+            to_hour = hour
+            to_minute = 30
+        else:  # minute == 30
+            to_hour = (hour + 1) % 24  # Wrap around at midnight
+            to_minute = 0
+
         # TOU period definition for seasons
         tou_periods[period_name] = {
             "fromDayOfWeek": 0,
             "toDayOfWeek": 6,
             "fromHour": hour,
             "fromMinute": minute,
-            "toHour": hour if minute == 30 else hour,
-            "toMinute": 0 if minute == 30 else 30
+            "toHour": to_hour,
+            "toMinute": to_minute
         }
 
     # Create Tesla tariff structure with separate buy and sell tariffs
