@@ -469,39 +469,94 @@ def create_spike_tariff(current_aemo_price_mwh):
 
     logger.info(f"Creating spike tariff: Buy=${buy_rate}/kWh, Sell=${sell_rate}/kWh (based on ${current_aemo_price_mwh}/MWh)")
 
-    # Create simple all-day tariff structure
+    # Build rates dictionaries for all 48 x 30-minute periods (24 hours)
+    buy_rates = {}
+    sell_rates = {}
+    tou_periods = {}
+
+    for i in range(48):
+        hour = i // 2
+        minute = 30 if i % 2 else 0
+        period_name = f"{hour:02d}:{minute:02d}"
+
+        # Rates are simple floats, not objects
+        buy_rates[period_name] = buy_rate
+        sell_rates[period_name] = sell_rate
+
+        # TOU period definition for seasons
+        tou_periods[period_name] = {
+            "fromDayOfWeek": 0,
+            "toDayOfWeek": 6,
+            "fromHour": hour,
+            "fromMinute": minute,
+            "toHour": hour if minute == 30 else hour,
+            "toMinute": 0 if minute == 30 else 30
+        }
+
+    # Create Tesla tariff structure with separate buy and sell tariffs
     tariff = {
         "name": f"AEMO Spike - ${current_aemo_price_mwh}/MWh",
         "utility": "AEMO",
         "code": f"SPIKE_{int(current_aemo_price_mwh)}",
         "currency": "AUD",
-        "daily_charges": [{"name": "Supply Charge", "amount": 0}],
-        "demand_charges": {},
+        "daily_charges": [{"name": "Supply Charge"}],
+        "demand_charges": {
+            "ALL": {"rates": {"ALL": 0}},
+            "Summer": {},
+            "Winter": {}
+        },
         "energy_charges": {
+            "ALL": {"rates": {"ALL": 0}},
+            "Summer": {"rates": buy_rates},
+            "Winter": {}
+        },
+        "seasons": {
             "Summer": {
-                "months": [12, 1, 2],
-                "rates": {}
+                "fromMonth": 1,
+                "toMonth": 12,
+                "fromDay": 1,
+                "toDay": 31,
+                "tou_periods": tou_periods
             },
             "Winter": {
-                "months": [6, 7, 8],
-                "rates": {}
+                "fromDay": 0,
+                "toDay": 0,
+                "fromMonth": 0,
+                "toMonth": 0,
+                "tou_periods": {}
             }
         },
-        "seasons": ["Summer", "Winter"],
-        "sell": True
-    }
-
-    # Create 48 x 30-minute periods (24 hours)
-    # All periods have same high sell rate to maximize export
-    for i in range(48):
-        hour = i // 2
-        minute = 30 if i % 2 else 0
-        period_name = f"ALL_{hour:02d}:{minute:02d}"
-
-        for season in ["Summer", "Winter"]:
-            tariff["energy_charges"][season]["rates"][period_name] = {
-                "buy": buy_rate,
-                "sell": sell_rate
+        "sell_tariff": {
+            "name": f"AEMO Spike Feed-in - ${current_aemo_price_mwh}/MWh",
+            "utility": "AEMO",
+            "daily_charges": [{"name": "Charge"}],
+            "demand_charges": {
+                "ALL": {"rates": {"ALL": 0}},
+                "Summer": {},
+                "Winter": {}
+            },
+            "energy_charges": {
+                "ALL": {"rates": {"ALL": 0}},
+                "Summer": {"rates": sell_rates},
+                "Winter": {}
+            },
+            "seasons": {
+                "Summer": {
+                    "fromMonth": 1,
+                    "toMonth": 12,
+                    "fromDay": 1,
+                    "toDay": 31,
+                    "tou_periods": tou_periods
+                },
+                "Winter": {
+                    "fromDay": 0,
+                    "toDay": 0,
+                    "fromMonth": 0,
+                    "toMonth": 0,
+                    "tou_periods": {}
+                }
             }
+        }
+    }
 
     return tariff
