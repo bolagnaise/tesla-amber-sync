@@ -116,6 +116,15 @@ def settings():
             logger.info(f"Saving timezone: {form.timezone.data}")
             current_user.timezone = form.timezone.data
 
+        # AEMO Spike Detection settings
+        current_user.aemo_spike_detection_enabled = form.aemo_spike_detection_enabled.data
+        if form.aemo_region.data:
+            logger.info(f"Saving AEMO region: {form.aemo_region.data}")
+            current_user.aemo_region = form.aemo_region.data
+        if form.aemo_spike_threshold.data:
+            logger.info(f"Saving AEMO spike threshold: ${form.aemo_spike_threshold.data}/MWh")
+            current_user.aemo_spike_threshold = float(form.aemo_spike_threshold.data)
+
         try:
             db.session.commit()
             logger.info("Settings saved successfully to database")
@@ -149,6 +158,12 @@ def settings():
     # Set timezone to user's preference (default to Australia/Brisbane if not set)
     form.timezone.data = current_user.timezone or 'Australia/Brisbane'
     logger.debug(f"Timezone: {form.timezone.data}")
+
+    # Pre-populate AEMO settings
+    form.aemo_spike_detection_enabled.data = current_user.aemo_spike_detection_enabled
+    form.aemo_region.data = current_user.aemo_region or ''
+    form.aemo_spike_threshold.data = current_user.aemo_spike_threshold or 300.0
+    logger.debug(f"AEMO enabled: {form.aemo_spike_detection_enabled.data}, Region: {form.aemo_region.data}, Threshold: ${form.aemo_spike_threshold.data}")
 
     logger.info(f"Rendering settings page - Has Amber token: {bool(current_user.amber_api_token_encrypted)}, Has Teslemetry key: {bool(current_user.teslemetry_api_key_encrypted)}, Tesla Site ID: {current_user.tesla_energy_site_id}")
     return render_template('settings.html', title='Settings', form=form)

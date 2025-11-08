@@ -45,6 +45,16 @@ class User(UserMixin, db.Model):
     shoulder_end_hour = db.Column(db.Integer, default=14)
     shoulder_end_minute = db.Column(db.Integer, default=0)
 
+    # AEMO Spike Detection Configuration
+    aemo_region = db.Column(db.String(10))  # NEM region: NSW1, QLD1, VIC1, SA1, TAS1
+    aemo_spike_threshold = db.Column(db.Float, default=300.0)  # Spike threshold in $/MWh
+    aemo_spike_detection_enabled = db.Column(db.Boolean, default=False)  # Enable spike monitoring
+    aemo_in_spike_mode = db.Column(db.Boolean, default=False)  # Currently in spike mode
+    aemo_last_check = db.Column(db.DateTime)  # Last time AEMO was checked
+    aemo_last_price = db.Column(db.Float)  # Last observed price in $/MWh
+    aemo_spike_start_time = db.Column(db.DateTime)  # When current spike started
+    aemo_saved_tariff_id = db.Column(db.Integer, db.ForeignKey('saved_tou_profile.id'))  # Tariff to restore after spike
+
     # Relationships
     price_records = db.relationship('PriceRecord', backref='user', lazy='dynamic')
     energy_records = db.relationship('EnergyRecord', backref='user', lazy='dynamic')

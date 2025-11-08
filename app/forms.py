@@ -34,6 +34,25 @@ class SettingsForm(FlaskForm):
         ('Australia/Perth', 'Perth (AWST)'),
         ('Australia/Darwin', 'Darwin (ACST)'),
     ])
+
+    # AEMO Spike Detection
+    aemo_spike_detection_enabled = BooleanField('Enable AEMO Spike Detection')
+    aemo_region = SelectField('AEMO Region', choices=[
+        ('', 'Select Region...'),
+        ('NSW1', 'NSW - New South Wales'),
+        ('QLD1', 'QLD - Queensland'),
+        ('VIC1', 'VIC - Victoria'),
+        ('SA1', 'SA - South Australia'),
+        ('TAS1', 'TAS - Tasmania')
+    ])
+    aemo_spike_threshold = DecimalField(
+        'Spike Threshold ($/MWh)',
+        validators=[Optional(), NumberRange(min=0)],
+        places=2,
+        default=300.0,
+        description='Price threshold in $/MWh to trigger spike mode (e.g., 300 for $300/MWh)'
+    )
+
     submit = SubmitField('Save Settings')
 
 

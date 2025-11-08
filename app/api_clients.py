@@ -649,6 +649,114 @@ def get_amber_client(user):
         return None
 
 
+class AEMOAPIClient:
+    """Client for AEMO (Australian Energy Market Operator) NEM Data API
+
+    Fetches real-time electricity pricing data from the National Electricity Market (NEM).
+    No authentication required - uses public API endpoints.
+    """
+
+    BASE_URL = "https://visualisations.aemo.com.au/aemo/apps/api/report/ELEC_NEM_SUMMARY"
+
+    # NEM Regions
+    REGIONS = {
+        'NSW1': 'New South Wales',
+        'QLD1': 'Queensland',
+        'VIC1': 'Victoria',
+        'SA1': 'South Australia',
+        'TAS1': 'Tasmania'
+    }
+
+    def __init__(self):
+        """Initialize AEMO API client (no auth required)"""
+        logger.info("AEMOAPIClient initialized")
+
+    def get_current_prices(self):
+        """Get current 5-minute dispatch prices for all NEM regions
+
+        Returns:
+            dict: Price data for all regions or None on error
+            Example: {
+                'NSW1': {'price': 72.06, 'timestamp': '2025-11-08T21:00:00', 'status': 'FIRM'},
+                'QLD1': {'price': 69.89, 'timestamp': '2025-11-08T21:00:00', 'status': 'FIRM'},
+                ...
+            }
+        """
+        try:
+            logger.info("Fetching current AEMO NEM prices")
+            response = requests.get(self.BASE_URL, timeout=15)
+            response.raise_for_status()
+            data = response.json()
+
+            # Extract regional prices from the ELEC_NEM_SUMMARY data
+            prices = {}
+
+            if 'ELEC_NEM_SUMMARY' in data:
+                for item in data['ELEC_NEM_SUMMARY']:
+                    region = item.get('REGIONID')
+                    if region in self.REGIONS:
+                        prices[region] = {
+                            'price': float(item.get('RRP', 0)),  # Regional Reference Price in $/MWh
+                            'timestamp': item.get('SETTLEMENTDATE'),
+                            'status': item.get('PRICE_STATUS', 'UNKNOWN'),
+                            'demand': float(item.get('TOTALDEMAND', 0)),
+                            'region_name': self.REGIONS[region]
+                        }
+
+            logger.info(f"Successfully fetched AEMO prices for {len(prices)} regions")
+            logger.debug(f"AEMO price data: {prices}")
+            return prices
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching AEMO prices: {e}")
+            return None
+        except (KeyError, ValueError) as e:
+            logger.error(f"Error parsing AEMO data: {e}")
+            return None
+
+    def get_region_price(self, region):
+        """Get current price for a specific region
+
+        Args:
+            region: Region code (NSW1, QLD1, VIC1, SA1, TAS1)
+
+        Returns:
+            dict: Price data for the region or None
+        """
+        if region not in self.REGIONS:
+            logger.error(f"Invalid region: {region}. Must be one of {list(self.REGIONS.keys())}")
+            return None
+
+        prices = self.get_current_prices()
+        if prices:
+            return prices.get(region)
+        return None
+
+    def check_price_spike(self, region, threshold_dollars_per_mwh):
+        """Check if current price exceeds threshold (price spike detection)
+
+        Args:
+            region: Region code (NSW1, QLD1, VIC1, SA1, TAS1)
+            threshold_dollars_per_mwh: Spike threshold in $/MWh (e.g., 300)
+
+        Returns:
+            tuple: (is_spike: bool, current_price: float, price_data: dict)
+        """
+        price_data = self.get_region_price(region)
+        if not price_data:
+            return False, None, None
+
+        current_price = price_data['price']
+        is_spike = current_price >= threshold_dollars_per_mwh
+
+        if is_spike:
+            logger.warning(f"PRICE SPIKE DETECTED in {region}: ${current_price}/MWh (threshold: ${threshold_dollars_per_mwh}/MWh)")
+        else:
+            logger.info(f"Normal price in {region}: ${current_price}/MWh (threshold: ${threshold_dollars_per_mwh}/MWh)")
+
+        return is_spike, current_price, price_data
+
+
 def get_tesla_client(user):
     """Get a Tesla API client for the user (Teslemetry only)"""
 
