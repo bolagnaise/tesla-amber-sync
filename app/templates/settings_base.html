@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 250px 1fr; gap: 2rem;">
+    <!-- Sidebar Navigation -->
+    <aside>
+        <nav>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+                <li style="margin-bottom: 0.5rem;">
+                    <a href="{{ url_for('main.settings') }}"
+                       style="display: block; padding: 0.75rem 1rem; border-radius: 0.5rem; text-decoration: none;
+                              {% if request.endpoint == 'main.settings' %}background-color: var(--primary); color: white;{% else %}background-color: var(--card-background-color);{% endif %}">
+                        Settings
+                    </a>
+                </li>
+                <li style="margin-bottom: 0.5rem;">
+                    <a href="{{ url_for('main.demand_charges') }}"
+                       style="display: block; padding: 0.75rem 1rem; border-radius: 0.5rem; text-decoration: none;
+                              {% if request.endpoint == 'main.demand_charges' %}background-color: var(--primary); color: white;{% else %}background-color: var(--card-background-color);{% endif %}">
+                        Demand Charges
+                    </a>
+                </li>
+                <li style="margin-bottom: 0.5rem;">
+                    <a href="{{ url_for('custom_tou.index') }}"
+                       style="display: block; padding: 0.75rem 1rem; border-radius: 0.5rem; text-decoration: none;
+                              {% if request.endpoint == 'custom_tou.index' or request.endpoint.startswith('custom_tou.') %}background-color: var(--primary); color: white;{% else %}background-color: var(--card-background-color);{% endif %}">
+                        Custom TOU
+                    </a>
+                </li>
+                <li style="margin-bottom: 0.5rem;">
+                    <a href="{{ url_for('main.current_tou_rate') }}"
+                       style="display: block; padding: 0.75rem 1rem; border-radius: 0.5rem; text-decoration: none;
+                              {% if request.endpoint == 'main.current_tou_rate' %}background-color: var(--primary); color: white;{% else %}background-color: var(--card-background-color);{% endif %}">
+                        Current TOU Rate
+                    </a>
+                </li>
+                <li style="margin-bottom: 0.5rem;">
+                    <a href="{{ url_for('main.api_status') }}"
+                       style="display: block; padding: 0.75rem 1rem; border-radius: 0.5rem; text-decoration: none;
+                              {% if request.endpoint == 'main.api_status' %}background-color: var(--primary); color: white;{% else %}background-color: var(--card-background-color);{% endif %}">
+                        API Testing
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main style="min-width: 0;">
+        {% block settings_content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}
