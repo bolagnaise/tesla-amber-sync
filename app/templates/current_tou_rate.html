@@ -46,11 +46,16 @@
                         </div>
                         <div class="col-md-6">
                             <dl class="row mb-0">
-                                {% if current_tariff.get('daily_charges') %}
+                                {% if current_tariff.get('daily_charges') and current_tariff.daily_charges %}
                                 <dt class="col-sm-4">Daily Charge:</dt>
                                 <dd class="col-sm-8">
                                     {% for charge in current_tariff.daily_charges %}
-                                        ${{ '%.2f'|format(charge.amount) }}
+                                        {% if charge.get('amount') %}
+                                            ${{ '%.2f'|format(charge.amount) }}
+                                        {% else %}
+                                            {{ charge.get('name', 'N/A') }}
+                                        {% endif %}
+                                        {% if not loop.last %}, {% endif %}
                                     {% endfor %}
                                 </dd>
                                 {% endif %}
