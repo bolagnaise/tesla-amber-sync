@@ -704,7 +704,7 @@ class AEMOAPIClient:
                     region = item.get('REGIONID')
                     if region in self.REGIONS:
                         prices[region] = {
-                            'price': float(item.get('RRP', 0)),  # Regional Reference Price in $/MWh
+                            'price': float(item.get('PRICE', 0)),  # Wholesale price in $/MWh
                             'timestamp': item.get('SETTLEMENTDATE'),
                             'status': item.get('PRICE_STATUS', 'UNKNOWN'),
                             'demand': float(item.get('TOTALDEMAND', 0)),
