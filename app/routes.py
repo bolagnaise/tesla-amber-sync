@@ -2,7 +2,7 @@
 from flask import render_template, flash, redirect, url_for, request, Blueprint, jsonify
 from flask_login import login_user, logout_user, current_user, login_required
 from app import db
-from app.models import User, PriceRecord
+from app.models import User, PriceRecord, SavedTOUProfile
 from app.forms import LoginForm, RegistrationForm, SettingsForm, EnvironmentForm, DemandChargeForm
 from app.utils import encrypt_token, decrypt_token
 from app.api_clients import get_amber_client, get_tesla_client
@@ -1741,3 +1741,221 @@ def environment_settings():
         logger.error(f"Error decrypting Tesla OAuth settings: {e}")
 
     return render_template('environment_settings.html', title='Tesla OAuth Settings', form=form)
+
+
+# ============================================
+# CURRENT TOU RATE MANAGEMENT
+# ============================================
+
+@bp.route('/current_tou_rate')
+@login_required
+def current_tou_rate():
+    """View current TOU rate from Tesla and manage saved profiles"""
+    logger.info(f"User {current_user.email} accessing Current TOU Rate page")
+
+    # Get Tesla client
+    tesla_client = get_tesla_client(current_user)
+    if not tesla_client:
+        flash('Please configure your Tesla API credentials first.')
+        return redirect(url_for('main.dashboard'))
+
+    site_id = current_user.tesla_energy_site_id
+    if not site_id:
+        flash('Please configure your Tesla energy site ID first.')
+        return redirect(url_for('main.dashboard'))
+
+    # Fetch current tariff from Tesla
+    current_tariff = None
+    try:
+        current_tariff = tesla_client.get_current_tariff(site_id)
+        if current_tariff:
+            logger.info(f"Successfully fetched current tariff: {current_tariff.get('name', 'Unknown')}")
+        else:
+            logger.warning("No tariff data returned from Tesla")
+    except Exception as e:
+        logger.error(f"Error fetching current tariff: {e}")
+        flash(f'Error fetching current tariff from Tesla: {str(e)}')
+
+    # Get all saved profiles for this user
+    saved_profiles = SavedTOUProfile.query.filter_by(user_id=current_user.id).order_by(SavedTOUProfile.created_at.desc()).all()
+
+    return render_template(
+        'current_tou_rate.html',
+        title='Current TOU Rate',
+        current_tariff=current_tariff,
+        saved_profiles=saved_profiles
+    )
+
+
+@bp.route('/current_tou_rate/save', methods=['POST'])
+@login_required
+def save_current_tou_rate():
+    """Save the current TOU rate from Tesla to database"""
+    import json
+
+    logger.info(f"User {current_user.email} saving current TOU rate")
+
+    # Get form data
+    profile_name = request.form.get('profile_name', '').strip()
+    description = request.form.get('description', '').strip()
+
+    if not profile_name:
+        flash('Please provide a name for this profile.')
+        return redirect(url_for('main.current_tou_rate'))
+
+    # Get Tesla client
+    tesla_client = get_tesla_client(current_user)
+    if not tesla_client:
+        flash('Please configure your Tesla API credentials first.')
+        return redirect(url_for('main.current_tou_rate'))
+
+    site_id = current_user.tesla_energy_site_id
+    if not site_id:
+        flash('Please configure your Tesla energy site ID first.')
+        return redirect(url_for('main.current_tou_rate'))
+
+    # Fetch current tariff from Tesla
+    try:
+        current_tariff = tesla_client.get_current_tariff(site_id)
+        if not current_tariff:
+            flash('Could not fetch current tariff from Tesla. Please try again.')
+            return redirect(url_for('main.current_tou_rate'))
+
+        # Mark all existing profiles as not current
+        SavedTOUProfile.query.filter_by(user_id=current_user.id, is_current=True).update({'is_current': False})
+
+        # Create new saved profile
+        new_profile = SavedTOUProfile(
+            user_id=current_user.id,
+            name=profile_name,
+            description=description,
+            source_type='tesla',
+            tariff_name=current_tariff.get('name', 'Unknown'),
+            utility=current_tariff.get('utility', ''),
+            tariff_json=json.dumps(current_tariff),
+            fetched_from_tesla_at=datetime.utcnow(),
+            is_current=True
+        )
+
+        db.session.add(new_profile)
+        db.session.commit()
+
+        logger.info(f"Saved TOU profile: {profile_name}")
+        flash(f'✓ Successfully saved TOU rate profile: {profile_name}')
+
+    except Exception as e:
+        logger.error(f"Error saving TOU rate: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        flash(f'Error saving TOU rate: {str(e)}')
+        db.session.rollback()
+
+    return redirect(url_for('main.current_tou_rate'))
+
+
+@bp.route('/current_tou_rate/restore/<int:profile_id>', methods=['POST'])
+@login_required
+def restore_tou_rate(profile_id):
+    """Restore a saved TOU rate profile to Tesla"""
+    import json
+
+    logger.info(f"User {current_user.email} restoring TOU profile {profile_id}")
+
+    # Get the profile
+    profile = SavedTOUProfile.query.filter_by(id=profile_id, user_id=current_user.id).first()
+    if not profile:
+        flash('Profile not found.')
+        return redirect(url_for('main.current_tou_rate'))
+
+    # Get Tesla client
+    tesla_client = get_tesla_client(current_user)
+    if not tesla_client:
+        flash('Please configure your Tesla API credentials first.')
+        return redirect(url_for('main.current_tou_rate'))
+
+    site_id = current_user.tesla_energy_site_id
+    if not site_id:
+        flash('Please configure your Tesla energy site ID first.')
+        return redirect(url_for('main.current_tou_rate'))
+
+    try:
+        # Parse the saved tariff JSON
+        tariff_data = json.loads(profile.tariff_json)
+
+        # Restore to Tesla
+        result = tesla_client.set_tariff_rate(site_id, tariff_data)
+
+        if result:
+            # Update the profile's last_restored_at timestamp
+            profile.last_restored_at = datetime.utcnow()
+
+            # Mark this profile as current
+            SavedTOUProfile.query.filter_by(user_id=current_user.id, is_current=True).update({'is_current': False})
+            profile.is_current = True
+
+            db.session.commit()
+
+            logger.info(f"Successfully restored TOU profile: {profile.name}")
+            flash(f'✓ Successfully restored TOU rate: {profile.name}')
+        else:
+            flash('Failed to restore TOU rate to Tesla. Check logs for details.')
+
+    except Exception as e:
+        logger.error(f"Error restoring TOU rate: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        flash(f'Error restoring TOU rate: {str(e)}')
+
+    return redirect(url_for('main.current_tou_rate'))
+
+
+@bp.route('/current_tou_rate/delete/<int:profile_id>', methods=['POST'])
+@login_required
+def delete_tou_profile(profile_id):
+    """Delete a saved TOU rate profile"""
+    logger.info(f"User {current_user.email} deleting TOU profile {profile_id}")
+
+    # Get the profile
+    profile = SavedTOUProfile.query.filter_by(id=profile_id, user_id=current_user.id).first()
+    if not profile:
+        flash('Profile not found.')
+        return redirect(url_for('main.current_tou_rate'))
+
+    try:
+        profile_name = profile.name
+        db.session.delete(profile)
+        db.session.commit()
+
+        logger.info(f"Deleted TOU profile: {profile_name}")
+        flash(f'✓ Deleted TOU rate profile: {profile_name}')
+
+    except Exception as e:
+        logger.error(f"Error deleting TOU profile: {e}")
+        flash(f'Error deleting TOU profile: {str(e)}')
+        db.session.rollback()
+
+    return redirect(url_for('main.current_tou_rate'))
+
+
+@bp.route('/api/current_tou_rate/raw')
+@login_required
+def api_current_tou_rate_raw():
+    """API endpoint to get the raw current TOU tariff JSON"""
+    # Get Tesla client
+    tesla_client = get_tesla_client(current_user)
+    if not tesla_client:
+        return jsonify({'error': 'Tesla API not configured'}), 400
+
+    site_id = current_user.tesla_energy_site_id
+    if not site_id:
+        return jsonify({'error': 'Tesla site ID not configured'}), 400
+
+    try:
+        current_tariff = tesla_client.get_current_tariff(site_id)
+        if current_tariff:
+            return jsonify(current_tariff)
+        else:
+            return jsonify({'error': 'No tariff data available'}), 404
+    except Exception as e:
+        logger.error(f"Error fetching current tariff: {e}")
+        return jsonify({'error': str(e)}), 500

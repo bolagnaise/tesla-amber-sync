@@ -1,0 +1,356 @@
+# Home Assistant Configuration for Demand Charge Management
+# Add this to your configuration.yaml or split into separate files
+
+# ============================================
+# INPUT HELPERS - Configure Your Demand Charges
+# ============================================
+
+input_datetime:
+  demand_charge_start_time:
+    name: Demand Charge Start Time
+    has_date: false
+    has_time: true
+    initial: "16:00:00"
+    icon: mdi:clock-start
+
+  demand_charge_end_time:
+    name: Demand Charge End Time
+    has_date: false
+    has_time: true
+    initial: "23:00:00"
+    icon: mdi:clock-end
+
+input_number:
+  demand_charge_rate:
+    name: Demand Charge Rate ($/kW)
+    min: 0
+    max: 50
+    step: 0.01
+    initial: 0.2162
+    unit_of_measurement: "$/kW"
+    icon: mdi:currency-usd
+    mode: box
+
+  demand_charge_billing_day:
+    name: Billing Cycle Day
+    min: 1
+    max: 28
+    step: 1
+    initial: 1
+    icon: mdi:calendar
+    mode: slider
+
+input_select:
+  demand_charge_days:
+    name: Demand Charge Days
+    options:
+      - "All Days"
+      - "Weekdays Only"
+      - "Weekends Only"
+    initial: "All Days"
+    icon: mdi:calendar-week
+
+# ============================================
+# TEMPLATE SENSORS - Track Peak Demand
+# ============================================
+
+template:
+  - sensor:
+      # Current grid import power (positive values only)
+      - name: "Grid Import Power"
+        unique_id: grid_import_power
+        unit_of_measurement: "kW"
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set grid = states('sensor.powerwall_3_grid_power') | float(0) %}
+          {{ max(0, grid) }}
+        icon: mdi:transmission-tower-import
+
+      # Check if currently in demand charge period
+      - name: "In Demand Charge Period"
+        unique_id: in_demand_charge_period
+        state: >
+          {% set now_time = now().time() %}
+          {% set start = states('input_datetime.demand_charge_start_time') %}
+          {% set end = states('input_datetime.demand_charge_end_time') %}
+          {% set start_time = today_at(start).time() %}
+          {% set end_time = today_at(end).time() %}
+          {% set day_setting = states('input_select.demand_charge_days') %}
+          {% set is_weekday = now().weekday() < 5 %}
+
+          {# Check day criteria #}
+          {% if day_setting == 'Weekdays Only' and not is_weekday %}
+            {% set day_match = false %}
+          {% elif day_setting == 'Weekends Only' and is_weekday %}
+            {% set day_match = false %}
+          {% else %}
+            {% set day_match = true %}
+          {% endif %}
+
+          {# Check time criteria #}
+          {% if start_time < end_time %}
+            {% set time_match = start_time <= now_time < end_time %}
+          {% else %}
+            {# Handles periods crossing midnight #}
+            {% set time_match = now_time >= start_time or now_time < end_time %}
+          {% endif %}
+
+          {{ day_match and time_match }}
+        icon: >
+          {% if is_state('sensor.in_demand_charge_period', 'True') %}
+            mdi:clock-alert
+          {% else %}
+            mdi:clock-outline
+          {% endif %}
+
+      # Peak demand this billing cycle
+      - name: "Peak Demand This Cycle"
+        unique_id: peak_demand_this_cycle
+        unit_of_measurement: "kW"
+        device_class: power
+        state_class: measurement
+        state: >
+          {{ states('input_number.current_peak_demand') | float(0) }}
+        icon: mdi:chart-line
+        attributes:
+          timestamp: "{{ states('input_datetime.peak_demand_timestamp') }}"
+
+      # Estimated demand charge cost this month
+      - name: "Demand Charge Cost This Month"
+        unique_id: demand_charge_cost_this_month
+        unit_of_measurement: "$"
+        device_class: monetary
+        state: >
+          {% set peak = states('sensor.peak_demand_this_cycle') | float(0) %}
+          {% set rate = states('input_number.demand_charge_rate') | float(0) %}
+          {{ (peak * rate) | round(2) }}
+        icon: mdi:cash
+        attributes:
+          peak_kw: "{{ states('sensor.peak_demand_this_cycle') | float(0) }}"
+          rate: "{{ states('input_number.demand_charge_rate') | float(0) }}"
+
+      # Potential savings if peak reduced by 1 kW
+      - name: "Demand Charge Savings Per kW"
+        unique_id: demand_charge_savings_per_kw
+        unit_of_measurement: "$"
+        device_class: monetary
+        state: >
+          {{ states('input_number.demand_charge_rate') | float(0) | round(2) }}
+        icon: mdi:piggy-bank
+
+      # Days until billing cycle reset
+      - name: "Days Until Demand Reset"
+        unique_id: days_until_demand_reset
+        unit_of_measurement: "days"
+        state: >
+          {% set billing_day = states('input_number.demand_charge_billing_day') | int %}
+          {% set today = now().day %}
+          {% if today < billing_day %}
+            {{ billing_day - today }}
+          {% else %}
+            {% set next_month = (now() + timedelta(days=31)).replace(day=billing_day) %}
+            {{ (next_month.date() - now().date()).days }}
+          {% endif %}
+        icon: mdi:calendar-clock
+
+# Additional input_number for tracking (create via UI or here)
+input_number:
+  current_peak_demand:
+    name: Current Peak Demand
+    min: 0
+    max: 50
+    step: 0.01
+    initial: 0
+    unit_of_measurement: "kW"
+    icon: mdi:flash
+    mode: box
+
+input_datetime:
+  peak_demand_timestamp:
+    name: Peak Demand Timestamp
+    has_date: true
+    has_time: true
+    icon: mdi:clock-check
+
+# ============================================
+# AUTOMATIONS - Track and Minimize Peak Demand
+# ============================================
+
+automation:
+  # Track peak demand during demand charge periods
+  - id: track_peak_demand
+    alias: "Track Peak Demand During Charge Period"
+    description: "Update peak demand if current import exceeds previous peak"
+    trigger:
+      - platform: state
+        entity_id: sensor.grid_import_power
+    condition:
+      - condition: state
+        entity_id: sensor.in_demand_charge_period
+        state: "True"
+    action:
+      - variables:
+          current_import: "{{ states('sensor.grid_import_power') | float(0) }}"
+          current_peak: "{{ states('input_number.current_peak_demand') | float(0) }}"
+      - condition: template
+        value_template: "{{ current_import > current_peak }}"
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.current_peak_demand
+        data:
+          value: "{{ current_import }}"
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.peak_demand_timestamp
+        data:
+          timestamp: "{{ now().timestamp() }}"
+      - service: logbook.log
+        data:
+          name: "Demand Charge"
+          message: "New peak demand: {{ current_import | round(2) }} kW"
+          entity_id: sensor.peak_demand_this_cycle
+    mode: queued
+    max: 10
+
+  # Reset peak demand at start of billing cycle
+  - id: reset_peak_demand_monthly
+    alias: "Reset Peak Demand Monthly"
+    description: "Reset peak demand tracking at start of billing cycle"
+    trigger:
+      - platform: time
+        at: "00:01:00"
+    condition:
+      - condition: template
+        value_template: >
+          {{ now().day == states('input_number.demand_charge_billing_day') | int }}
+    action:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.current_peak_demand
+        data:
+          value: 0
+      - service: persistent_notification.create
+        data:
+          title: "Demand Charge Reset"
+          message: >
+            Peak demand reset for new billing cycle.
+            Previous peak: {{ states('sensor.peak_demand_this_cycle') }} kW
+            Previous cost: ${{ states('sensor.demand_charge_cost_this_month') }}
+          notification_id: demand_charge_reset
+
+  # Alert when approaching peak (within 0.5 kW)
+  - id: alert_approaching_peak_demand
+    alias: "Alert When Approaching Peak Demand"
+    description: "Notify when grid import is within 0.5 kW of current peak"
+    trigger:
+      - platform: state
+        entity_id: sensor.grid_import_power
+    condition:
+      - condition: state
+        entity_id: sensor.in_demand_charge_period
+        state: "True"
+      - condition: template
+        value_template: >
+          {% set current = states('sensor.grid_import_power') | float(0) %}
+          {% set peak = states('input_number.current_peak_demand') | float(0) %}
+          {{ current > (peak - 0.5) and current <= peak }}
+    action:
+      - service: persistent_notification.create
+        data:
+          title: "⚠️ Approaching Peak Demand"
+          message: >
+            Current import: {{ states('sensor.grid_import_power') | round(2) }} kW
+            Current peak: {{ states('input_number.current_peak_demand') | round(2) }} kW
+            Consider discharging battery to avoid new peak!
+          notification_id: demand_warning
+    mode: single
+
+  # Adaptive battery discharge to shave peaks
+  - id: battery_peak_shaving
+    alias: "Battery Peak Shaving"
+    description: "Discharge battery when grid import approaches peak during demand periods"
+    trigger:
+      - platform: state
+        entity_id: sensor.grid_import_power
+    condition:
+      - condition: state
+        entity_id: sensor.in_demand_charge_period
+        state: "True"
+      - condition: template
+        value_template: >
+          {% set current = states('sensor.grid_import_power') | float(0) %}
+          {% set peak = states('input_number.current_peak_demand') | float(0) %}
+          {{ current > (peak - 1.0) }}
+      - condition: numeric_state
+        entity_id: sensor.powerwall_3_battery_power
+        above: -4.0  # Not already discharging heavily
+      - condition: numeric_state
+        entity_id: sensor.powerwall_3_charge_percentage
+        above: 20  # Ensure battery has capacity
+    action:
+      - service: notify.notify  # Change to your notification service
+        data:
+          title: "Peak Shaving Active"
+          message: >
+            Grid import ({{ states('sensor.grid_import_power') | round(1) }} kW)
+            approaching peak ({{ states('input_number.current_peak_demand') | round(1) }} kW).
+            Battery should increase discharge to prevent new peak.
+      # Note: Actual battery control would require Tesla API commands
+      # This is notification only - Tesla should handle optimization via tariff
+    mode: single
+
+# ============================================
+# UTILITY METER - Track Monthly Demand Charges
+# ============================================
+
+utility_meter:
+  monthly_demand_charge:
+    source: sensor.demand_charge_cost_this_month
+    cycle: monthly
+    offset:
+      days: "{{ states('input_number.demand_charge_billing_day') | int - 1 }}"
+
+# ============================================
+# RECORDER - Keep History
+# ============================================
+
+recorder:
+  include:
+    entities:
+      - sensor.peak_demand_this_cycle
+      - sensor.demand_charge_cost_this_month
+      - sensor.grid_import_power
+      - sensor.in_demand_charge_period
+
+# ============================================
+# LOVELACE DASHBOARD CARD
+# ============================================
+
+# Add this to your Lovelace dashboard:
+#
+# type: entities
+# title: Demand Charge Management
+# show_header_toggle: false
+# entities:
+#   - entity: sensor.in_demand_charge_period
+#     name: Currently in Demand Period
+#   - entity: sensor.grid_import_power
+#     name: Current Grid Import
+#   - entity: sensor.peak_demand_this_cycle
+#     name: Peak This Cycle
+#   - entity: sensor.demand_charge_cost_this_month
+#     name: Estimated Cost
+#   - entity: sensor.days_until_demand_reset
+#     name: Days Until Reset
+#   - type: divider
+#   - entity: input_number.demand_charge_rate
+#     name: Rate ($/kW)
+#   - entity: input_datetime.demand_charge_start_time
+#     name: Period Start
+#   - entity: input_datetime.demand_charge_end_time
+#     name: Period End
+#   - entity: input_select.demand_charge_days
+#     name: Active Days
+#   - entity: input_number.demand_charge_billing_day
+#     name: Billing Day

@@ -62,6 +62,7 @@ class User(UserMixin, db.Model):
     # Relationships
     price_records = db.relationship('PriceRecord', backref='user', lazy='dynamic')
     energy_records = db.relationship('EnergyRecord', backref='user', lazy='dynamic')
+    saved_tou_profiles = db.relationship('SavedTOUProfile', backref='user', lazy='dynamic', cascade='all, delete-orphan')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -199,3 +200,32 @@ class TOUPeriod(db.Model):
 
     def __repr__(self):
         return f'<TOUPeriod {self.name} {self.from_hour}:{self.from_minute:02d}-{self.to_hour}:{self.to_minute:02d}>'
+
+
+class SavedTOUProfile(db.Model):
+    """Saved TOU tariff profiles from Tesla - allows backup and restore"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+    # Profile metadata
+    name = db.Column(db.String(200), nullable=False)  # User-provided name for this saved profile
+    description = db.Column(db.Text)  # Optional description
+
+    # Source information
+    source_type = db.Column(db.String(50), default='tesla')  # 'tesla', 'custom', 'amber'
+    tariff_name = db.Column(db.String(200))  # Name from the tariff (e.g., "PGE-EV2-A")
+    utility = db.Column(db.String(100))  # Utility name from tariff
+
+    # Complete Tesla tariff JSON (stored as Text - will be JSON serialized)
+    tariff_json = db.Column(db.Text, nullable=False)  # Complete Tesla tariff structure
+
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    fetched_from_tesla_at = db.Column(db.DateTime)  # When it was retrieved from Tesla
+    last_restored_at = db.Column(db.DateTime)  # When it was last restored to Tesla
+
+    # Metadata
+    is_current = db.Column(db.Boolean, default=False)  # Is this the current tariff on Tesla?
+
+    def __repr__(self):
+        return f'<SavedTOUProfile {self.name} - {self.tariff_name}>'

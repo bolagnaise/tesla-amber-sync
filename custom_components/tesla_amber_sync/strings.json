@@ -27,6 +27,18 @@
           "amber_site_id": "Amber Site (if you have multiple)",
           "auto_sync_enabled": "Enable automatic TOU schedule syncing"
         }
+      },
+      "demand_charges": {
+        "title": "Demand Charge Configuration (Optional)",
+        "description": "Configure demand charge tracking for electricity plans with capacity-based fees. Leave 'Enable Demand Charge Tracking' unchecked to skip this step.",
+        "data": {
+          "demand_charge_enabled": "Enable Demand Charge Tracking",
+          "demand_charge_rate": "Demand Charge Rate ($/kW)",
+          "demand_charge_start_time": "Demand Period Start Time (HH:MM:SS)",
+          "demand_charge_end_time": "Demand Period End Time (HH:MM:SS)",
+          "demand_charge_days": "Active Days",
+          "demand_charge_billing_day": "Billing Cycle Day (1-28)"
+        }
       }
     },
     "error": {
@@ -70,6 +82,21 @@
       },
       "battery_level": {
         "name": "Battery Level"
+      },
+      "grid_import_power": {
+        "name": "Grid Import Power"
+      },
+      "in_demand_charge_period": {
+        "name": "In Demand Charge Period"
+      },
+      "peak_demand_this_cycle": {
+        "name": "Peak Demand This Cycle"
+      },
+      "demand_charge_cost": {
+        "name": "Demand Charge Cost This Month"
+      },
+      "days_until_demand_reset": {
+        "name": "Days Until Demand Reset"
       }
     },
     "switch": {

@@ -348,6 +348,42 @@ class TeslemetryAPIClient:
             logger.error(f"Error fetching site info via Teslemetry: {e}")
             return None
 
+    def get_current_tariff(self, site_id):
+        """
+        Get the current TOU tariff from Tesla Powerwall
+
+        Returns the complete tariff structure that's currently programmed into the Powerwall.
+        This can be saved and later restored.
+
+        Returns:
+            dict: Complete tariff structure or None if error
+        """
+        try:
+            logger.info(f"Fetching current tariff for site {site_id} via Teslemetry")
+
+            # Get site_info which includes TOU settings
+            site_info = self.get_site_info(site_id)
+            if not site_info:
+                logger.error("Failed to fetch site info")
+                return None
+
+            # Extract the tariff from site_info
+            # The structure is: response -> utility_tariff_content_v2
+            tariff = site_info.get('utility_tariff_content_v2')
+
+            if tariff:
+                logger.info(f"Successfully extracted current tariff: {tariff.get('name', 'Unknown')}")
+                logger.debug(f"Tariff keys: {list(tariff.keys())}")
+                return tariff
+            else:
+                logger.warning("No tariff found in site_info")
+                logger.debug(f"Site info keys: {list(site_info.keys())}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error getting current tariff: {e}")
+            return None
+
     def get_battery_level(self, site_id):
         """Get current battery level"""
         try:
@@ -703,6 +739,42 @@ class TeslaFleetAPIClient:
             return data.get('response', {})
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching site info via Fleet API: {e}")
+            return None
+
+    def get_current_tariff(self, site_id):
+        """
+        Get the current TOU tariff from Tesla Powerwall
+
+        Returns the complete tariff structure that's currently programmed into the Powerwall.
+        This can be saved and later restored.
+
+        Returns:
+            dict: Complete tariff structure or None if error
+        """
+        try:
+            logger.info(f"Fetching current tariff for site {site_id} via Fleet API")
+
+            # Get site_info which includes TOU settings
+            site_info = self.get_site_info(site_id)
+            if not site_info:
+                logger.error("Failed to fetch site info")
+                return None
+
+            # Extract the tariff from site_info
+            # The structure is: response -> utility_tariff_content_v2
+            tariff = site_info.get('utility_tariff_content_v2')
+
+            if tariff:
+                logger.info(f"Successfully extracted current tariff: {tariff.get('name', 'Unknown')}")
+                logger.debug(f"Tariff keys: {list(tariff.keys())}")
+                return tariff
+            else:
+                logger.warning("No tariff found in site_info")
+                logger.debug(f"Site info keys: {list(site_info.keys())}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error getting current tariff: {e}")
             return None
 
     def get_battery_level(self, site_id):

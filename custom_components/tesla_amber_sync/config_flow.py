@@ -19,6 +19,12 @@ from .const import (
     CONF_TESLEMETRY_API_TOKEN,
     CONF_TESLA_SITE_ID,
     CONF_AUTO_SYNC_ENABLED,
+    CONF_DEMAND_CHARGE_ENABLED,
+    CONF_DEMAND_CHARGE_RATE,
+    CONF_DEMAND_CHARGE_START_TIME,
+    CONF_DEMAND_CHARGE_END_TIME,
+    CONF_DEMAND_CHARGE_DAYS,
+    CONF_DEMAND_CHARGE_BILLING_DAY,
     AMBER_API_BASE_URL,
     TESLEMETRY_API_BASE_URL,
 )
@@ -115,6 +121,7 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._amber_sites: list[dict[str, Any]] = []
         self._teslemetry_data: dict[str, Any] = {}
         self._tesla_sites: list[dict[str, Any]] = []
+        self._site_data: dict[str, Any] = {}
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -207,16 +214,15 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 amber_site_id = self._amber_sites[0]["id"]
                 _LOGGER.info(f"Auto-selected single Amber site: {amber_site_id}")
 
-            # Combine all data
-            data = {
-                **self._amber_data,
-                **self._teslemetry_data,
+            # Store site selection data
+            self._site_data = {
                 CONF_AMBER_SITE_ID: amber_site_id,
                 CONF_TESLA_SITE_ID: user_input[CONF_TESLA_SITE_ID],
                 CONF_AUTO_SYNC_ENABLED: user_input.get(CONF_AUTO_SYNC_ENABLED, True),
             }
 
-            return self.async_create_entry(title="Tesla Amber Sync", data=data)
+            # Go to optional demand charge configuration
+            return await self.async_step_demand_charges()
 
         # Build selection options
         amber_site_options = {
@@ -254,6 +260,60 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="site_selection",
             data_schema=data_schema,
             errors=errors,
+        )
+
+    async def async_step_demand_charges(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle optional demand charge configuration."""
+        if user_input is not None:
+            # Combine all data
+            data = {
+                **self._amber_data,
+                **self._teslemetry_data,
+                **self._site_data,
+            }
+
+            # Add demand charge configuration if enabled
+            if user_input.get(CONF_DEMAND_CHARGE_ENABLED, False):
+                data.update({
+                    CONF_DEMAND_CHARGE_ENABLED: True,
+                    CONF_DEMAND_CHARGE_RATE: user_input[CONF_DEMAND_CHARGE_RATE],
+                    CONF_DEMAND_CHARGE_START_TIME: user_input[CONF_DEMAND_CHARGE_START_TIME],
+                    CONF_DEMAND_CHARGE_END_TIME: user_input[CONF_DEMAND_CHARGE_END_TIME],
+                    CONF_DEMAND_CHARGE_DAYS: user_input[CONF_DEMAND_CHARGE_DAYS],
+                    CONF_DEMAND_CHARGE_BILLING_DAY: user_input[CONF_DEMAND_CHARGE_BILLING_DAY],
+                })
+            else:
+                data[CONF_DEMAND_CHARGE_ENABLED] = False
+
+            return self.async_create_entry(title="Tesla Amber Sync", data=data)
+
+        # Build the form schema
+        data_schema = vol.Schema(
+            {
+                vol.Optional(CONF_DEMAND_CHARGE_ENABLED, default=False): bool,
+                vol.Optional(CONF_DEMAND_CHARGE_RATE, default=0.2162): vol.All(
+                    vol.Coerce(float), vol.Range(min=0.0, max=50.0)
+                ),
+                vol.Optional(CONF_DEMAND_CHARGE_START_TIME, default="16:00:00"): str,
+                vol.Optional(CONF_DEMAND_CHARGE_END_TIME, default="23:00:00"): str,
+                vol.Optional(CONF_DEMAND_CHARGE_DAYS, default="All Days"): vol.In(
+                    ["All Days", "Weekdays Only", "Weekends Only"]
+                ),
+                vol.Optional(CONF_DEMAND_CHARGE_BILLING_DAY, default=1): vol.All(
+                    vol.Coerce(int), vol.Range(min=1, max=28)
+                ),
+            }
+        )
+
+        return self.async_show_form(
+            step_id="demand_charges",
+            data_schema=data_schema,
+            description_placeholders={
+                "example_rate": "0.2162",
+                "example_time": "16:00:00",
+            },
         )
 
     @staticmethod

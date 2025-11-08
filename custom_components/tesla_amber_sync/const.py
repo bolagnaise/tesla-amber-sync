@@ -12,6 +12,14 @@ CONF_TESLA_SITE_ID = "tesla_site_id"
 CONF_AUTO_SYNC_ENABLED = "auto_sync_enabled"
 CONF_TIMEZONE = "timezone"
 
+# Demand charge configuration
+CONF_DEMAND_CHARGE_ENABLED = "demand_charge_enabled"
+CONF_DEMAND_CHARGE_RATE = "demand_charge_rate"
+CONF_DEMAND_CHARGE_START_TIME = "demand_charge_start_time"
+CONF_DEMAND_CHARGE_END_TIME = "demand_charge_end_time"
+CONF_DEMAND_CHARGE_DAYS = "demand_charge_days"
+CONF_DEMAND_CHARGE_BILLING_DAY = "demand_charge_billing_day"
+
 # Data coordinator update intervals
 UPDATE_INTERVAL_PRICES = timedelta(minutes=5)  # Amber updates every 5 minutes
 UPDATE_INTERVAL_ENERGY = timedelta(minutes=1)  # Tesla energy data every minute
@@ -39,6 +47,13 @@ SENSOR_TYPE_DAILY_GRID_IMPORT = "daily_grid_import"
 SENSOR_TYPE_DAILY_GRID_EXPORT = "daily_grid_export"
 SENSOR_TYPE_DAILY_BATTERY_CHARGE = "daily_battery_charge"
 SENSOR_TYPE_DAILY_BATTERY_DISCHARGE = "daily_battery_discharge"
+
+# Demand charge sensors
+SENSOR_TYPE_GRID_IMPORT_POWER = "grid_import_power"
+SENSOR_TYPE_IN_DEMAND_CHARGE_PERIOD = "in_demand_charge_period"
+SENSOR_TYPE_PEAK_DEMAND_THIS_CYCLE = "peak_demand_this_cycle"
+SENSOR_TYPE_DEMAND_CHARGE_COST = "demand_charge_cost"
+SENSOR_TYPE_DAYS_UNTIL_DEMAND_RESET = "days_until_demand_reset"
 
 # Switch types
 SWITCH_TYPE_AUTO_SYNC = "auto_sync"
