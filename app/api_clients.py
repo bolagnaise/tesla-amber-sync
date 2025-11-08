@@ -600,6 +600,14 @@ class TeslemetryAPIClient:
                 energy_charges_keys = list(tariff_content['energy_charges'].keys())
                 logger.debug(f"Tariff energy_charges seasons: {energy_charges_keys}")
 
+            # Debug: Check if tou_periods are being sent
+            if 'seasons' in tariff_content and 'Summer' in tariff_content['seasons']:
+                if 'tou_periods' in tariff_content['seasons']['Summer']:
+                    sample_period = list(tariff_content['seasons']['Summer']['tou_periods'].items())[0]
+                    logger.info(f"DEBUG: Sending tou_periods - First period: {sample_period[0]} = {sample_period[1]}")
+                else:
+                    logger.warning(f"DEBUG: No tou_periods in tariff being sent!")
+
             response = requests.post(
                 f"{self.base_url}/api/1/energy_sites/{site_id}/time_of_use_settings",
                 headers=self.headers,
