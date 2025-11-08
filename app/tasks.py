@@ -2,9 +2,10 @@
 """Background tasks for automatic syncing"""
 import logging
 from datetime import datetime
-from app.models import User, PriceRecord, EnergyRecord
-from app.api_clients import get_amber_client, get_tesla_client
+from app.models import User, PriceRecord, EnergyRecord, SavedTOUProfile
+from app.api_clients import get_amber_client, get_tesla_client, AEMOAPIClient
 from app.tariff_converter import AmberTariffConverter
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -284,3 +285,223 @@ def save_energy_usage():
 
     logger.debug(f"=== Energy usage collection completed: {success_count} users successful, {error_count} errors ===")
     return success_count, error_count
+
+
+def monitor_aemo_prices():
+    """
+    Monitor AEMO NEM wholesale electricity prices and trigger spike mode when threshold exceeded
+
+    Flow:
+    1. Check AEMO price for user's region
+    2. If price >= threshold AND not in spike mode:
+       - Save current Tesla tariff as backup
+       - Upload spike tariff (very high sell rates to encourage export)
+       - Mark user as in_spike_mode
+    3. If price < threshold AND in spike mode:
+       - Restore saved tariff from backup
+       - Mark user as not in_spike_mode
+    """
+    from app import db
+
+    logger.info("=== Starting AEMO price monitoring ===")
+
+    users = User.query.filter_by(aemo_spike_detection_enabled=True).all()
+
+    if not users:
+        logger.debug("No users with AEMO spike detection enabled")
+        return
+
+    # Initialize AEMO client (no auth required)
+    aemo_client = AEMOAPIClient()
+
+    success_count = 0
+    error_count = 0
+
+    for user in users:
+        try:
+            # Validate user configuration
+            if not user.aemo_region:
+                logger.warning(f"User {user.email} has AEMO enabled but no region configured")
+                continue
+
+            if not user.tesla_energy_site_id or not user.teslemetry_api_key_encrypted:
+                logger.warning(f"User {user.email} has AEMO enabled but missing Tesla configuration")
+                continue
+
+            logger.info(f"Checking AEMO prices for user: {user.email} (Region: {user.aemo_region})")
+
+            # Check current price vs threshold
+            is_spike, current_price, price_data = aemo_client.check_price_spike(
+                user.aemo_region,
+                user.aemo_spike_threshold or 300.0
+            )
+
+            if current_price is None:
+                logger.error(f"Failed to fetch AEMO price for {user.email}")
+                error_count += 1
+                continue
+
+            # Update user's last check data
+            user.aemo_last_check = datetime.utcnow()
+            user.aemo_last_price = current_price
+
+            # Get Tesla client
+            tesla_client = get_tesla_client(user)
+            if not tesla_client:
+                logger.error(f"Failed to get Tesla client for {user.email}")
+                error_count += 1
+                continue
+
+            # SPIKE DETECTED - Enter spike mode
+            if is_spike and not user.aemo_in_spike_mode:
+                logger.warning(f"🚨 SPIKE DETECTED for {user.email}: ${current_price}/MWh >= ${user.aemo_spike_threshold}/MWh")
+
+                # Step 1: Save current Tesla tariff as backup
+                logger.info(f"Saving current Tesla tariff as backup for {user.email}")
+                current_tariff = tesla_client.get_current_tariff(user.tesla_energy_site_id)
+
+                if current_tariff:
+                    # Save to database
+                    backup_profile = SavedTOUProfile(
+                        user_id=user.id,
+                        name=f"Pre-Spike Backup - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+                        description=f"Automatic backup before AEMO spike at ${current_price}/MWh",
+                        source_type='aemo_backup',
+                        tariff_name=current_tariff.get('name', 'Unknown'),
+                        utility=current_tariff.get('utility', 'Unknown'),
+                        tariff_json=json.dumps(current_tariff),
+                        created_at=datetime.utcnow(),
+                        fetched_from_tesla_at=datetime.utcnow()
+                    )
+                    db.session.add(backup_profile)
+                    db.session.flush()  # Get the ID
+
+                    user.aemo_saved_tariff_id = backup_profile.id
+                    logger.info(f"✅ Saved backup tariff ID {backup_profile.id} for {user.email}")
+                else:
+                    logger.error(f"Failed to fetch current tariff for backup - {user.email}")
+
+                # Step 2: Create and upload spike tariff
+                logger.info(f"Creating spike tariff for {user.email}")
+                spike_tariff = create_spike_tariff(current_price)
+
+                result = tesla_client.set_tariff_rate(user.tesla_energy_site_id, spike_tariff)
+
+                if result:
+                    user.aemo_in_spike_mode = True
+                    user.aemo_spike_start_time = datetime.utcnow()
+                    logger.info(f"✅ Entered spike mode for {user.email} - uploaded spike tariff")
+                    success_count += 1
+                else:
+                    logger.error(f"Failed to upload spike tariff for {user.email}")
+                    error_count += 1
+
+            # NO SPIKE - Exit spike mode if currently in it
+            elif not is_spike and user.aemo_in_spike_mode:
+                logger.info(f"✅ Price normalized for {user.email}: ${current_price}/MWh < ${user.aemo_spike_threshold}/MWh")
+
+                # Restore saved tariff
+                if user.aemo_saved_tariff_id:
+                    logger.info(f"Restoring backup tariff ID {user.aemo_saved_tariff_id} for {user.email}")
+                    backup_profile = SavedTOUProfile.query.get(user.aemo_saved_tariff_id)
+
+                    if backup_profile:
+                        tariff = json.loads(backup_profile.tariff_json)
+                        result = tesla_client.set_tariff_rate(user.tesla_energy_site_id, tariff)
+
+                        if result:
+                            user.aemo_in_spike_mode = False
+                            user.aemo_spike_start_time = None
+                            backup_profile.last_restored_at = datetime.utcnow()
+                            logger.info(f"✅ Exited spike mode for {user.email} - restored backup tariff")
+                            success_count += 1
+                        else:
+                            logger.error(f"Failed to restore backup tariff for {user.email}")
+                            error_count += 1
+                    else:
+                        logger.error(f"Backup tariff ID {user.aemo_saved_tariff_id} not found for {user.email}")
+                        user.aemo_in_spike_mode = False  # Exit spike mode anyway
+                        error_count += 1
+                else:
+                    logger.warning(f"No backup tariff saved for {user.email}, exiting spike mode anyway")
+                    user.aemo_in_spike_mode = False
+                    success_count += 1
+
+            # ONGOING SPIKE or ONGOING NORMAL - No action needed
+            else:
+                if is_spike:
+                    logger.debug(f"Price still spiking for {user.email}: ${current_price}/MWh (in spike mode)")
+                else:
+                    logger.debug(f"Price normal for {user.email}: ${current_price}/MWh (not in spike mode)")
+                success_count += 1
+
+            # Commit user updates
+            db.session.commit()
+
+        except Exception as e:
+            logger.error(f"Error monitoring AEMO price for user {user.email}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            db.session.rollback()
+            error_count += 1
+            continue
+
+    logger.info(f"=== AEMO monitoring completed: {success_count} users successful, {error_count} errors ===")
+    return success_count, error_count
+
+
+def create_spike_tariff(current_aemo_price_mwh):
+    """
+    Create a Tesla tariff optimized for exporting during price spikes
+
+    Args:
+        current_aemo_price_mwh: Current AEMO price in $/MWh (e.g., 500)
+
+    Returns:
+        dict: Tesla tariff JSON with very high sell rates
+    """
+    # Convert $/MWh to $/kWh (divide by 1000)
+    # Add 20% margin to encourage export
+    sell_rate = (current_aemo_price_mwh / 1000.0) * 1.2
+
+    # Very low buy rate to discourage import
+    buy_rate = 0.01
+
+    logger.info(f"Creating spike tariff: Buy=${buy_rate}/kWh, Sell=${sell_rate}/kWh (based on ${current_aemo_price_mwh}/MWh)")
+
+    # Create simple all-day tariff structure
+    tariff = {
+        "name": f"AEMO Spike - ${current_aemo_price_mwh}/MWh",
+        "utility": "AEMO",
+        "code": f"SPIKE_{int(current_aemo_price_mwh)}",
+        "currency": "AUD",
+        "daily_charges": [{"name": "Supply Charge", "amount": 0}],
+        "demand_charges": {},
+        "energy_charges": {
+            "Summer": {
+                "months": [12, 1, 2],
+                "rates": {}
+            },
+            "Winter": {
+                "months": [6, 7, 8],
+                "rates": {}
+            }
+        },
+        "seasons": ["Summer", "Winter"],
+        "sell": True
+    }
+
+    # Create 48 x 30-minute periods (24 hours)
+    # All periods have same high sell rate to maximize export
+    for i in range(48):
+        hour = i // 2
+        minute = 30 if i % 2 else 0
+        period_name = f"ALL_{hour:02d}:{minute:02d}"
+
+        for season in ["Summer", "Winter"]:
+            tariff["energy_charges"][season]["rates"][period_name] = {
+                "buy": buy_rate,
+                "sell": sell_rate
+            }
+
+    return tariff

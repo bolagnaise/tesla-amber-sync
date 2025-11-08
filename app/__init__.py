@@ -67,7 +67,7 @@ def create_app(config_class=Config):
         scheduler = BackgroundScheduler()
 
         # Add job to sync all users' TOU schedules every 5 minutes (aligned with Amber's update cycle)
-        from app.tasks import sync_all_users, save_price_history, save_energy_usage
+        from app.tasks import sync_all_users, save_price_history, save_energy_usage, monitor_aemo_prices
 
         # Wrapper functions to run tasks within app context
         def run_sync_all_users():
@@ -81,6 +81,10 @@ def create_app(config_class=Config):
         def run_save_energy_usage():
             with app.app_context():
                 save_energy_usage()
+
+        def run_monitor_aemo_prices():
+            with app.app_context():
+                monitor_aemo_prices()
 
         scheduler.add_job(
             func=run_sync_all_users,
@@ -108,12 +112,22 @@ def create_app(config_class=Config):
             replace_existing=True
         )
 
+        # Add job to monitor AEMO prices every 5 minutes for spike detection
+        scheduler.add_job(
+            func=run_monitor_aemo_prices,
+            trigger=CronTrigger(minute='*/5'),
+            id='monitor_aemo_prices',
+            name='Monitor AEMO NEM prices for spike detection',
+            replace_existing=True
+        )
+
         # Start the scheduler
         scheduler.start()
         logger.info("✅ Background scheduler started:")
         logger.info("  - TOU sync will run every 5 minutes (Amber updates forecasts every 5 min)")
         logger.info("  - Price history collection will run every 5 minutes")
         logger.info("  - Energy usage logging will run every minute (Teslemetry allows 1/min)")
+        logger.info("  - AEMO price monitoring will run every 5 minutes for spike detection")
 
         # Shut down the scheduler and release lock when exiting the app
         def cleanup():

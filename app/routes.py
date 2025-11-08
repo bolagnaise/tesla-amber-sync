@@ -1328,6 +1328,157 @@ def teslemetry_disconnect():
 
 
 # ============================================
+# AEMO SPIKE DETECTION TESTING
+# ============================================
+
+@bp.route('/test-aemo-spike', methods=['POST'])
+@login_required
+def test_aemo_spike():
+    """Test/simulate AEMO price spike mode"""
+    from app.tasks import create_spike_tariff
+    from app.models import SavedTOUProfile
+    import json
+
+    try:
+        logger.info(f"AEMO spike simulation requested by user: {current_user.email}")
+
+        # Validate configuration
+        if not current_user.aemo_spike_detection_enabled:
+            flash('AEMO spike detection is not enabled. Please enable it in settings first.')
+            return redirect(url_for('main.settings'))
+
+        if not current_user.aemo_region:
+            flash('AEMO region not configured. Please set it in settings first.')
+            return redirect(url_for('main.settings'))
+
+        # Get Tesla client
+        tesla_client = get_tesla_client(current_user)
+        if not tesla_client:
+            flash('Tesla API not configured. Please configure Teslemetry in settings first.')
+            return redirect(url_for('main.settings'))
+
+        # Simulate spike with $500/MWh price
+        simulated_price = 500.0
+        logger.info(f"Simulating spike with price: ${simulated_price}/MWh for user {current_user.email}")
+
+        # Save current Tesla tariff as backup (if not already in spike mode)
+        if not current_user.aemo_in_spike_mode:
+            logger.info(f"Saving current Tesla tariff as backup for {current_user.email}")
+            current_tariff = tesla_client.get_current_tariff(current_user.tesla_energy_site_id)
+
+            if current_tariff:
+                backup_profile = SavedTOUProfile(
+                    user_id=current_user.id,
+                    name=f"Test Spike Backup - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+                    description=f"Manual test backup before simulated spike at ${simulated_price}/MWh",
+                    source_type='aemo_test_backup',
+                    tariff_name=current_tariff.get('name', 'Unknown'),
+                    utility=current_tariff.get('utility', 'Unknown'),
+                    tariff_json=json.dumps(current_tariff),
+                    created_at=datetime.utcnow(),
+                    fetched_from_tesla_at=datetime.utcnow()
+                )
+                db.session.add(backup_profile)
+                db.session.flush()
+                current_user.aemo_saved_tariff_id = backup_profile.id
+                logger.info(f"✅ Saved test backup tariff ID {backup_profile.id}")
+            else:
+                flash('Failed to fetch current tariff for backup. Cannot enter spike mode.')
+                return redirect(url_for('main.settings'))
+
+        # Create and upload spike tariff
+        logger.info(f"Creating test spike tariff with price ${simulated_price}/MWh")
+        spike_tariff = create_spike_tariff(simulated_price)
+
+        result = tesla_client.set_tariff_rate(current_user.tesla_energy_site_id, spike_tariff)
+
+        if result:
+            current_user.aemo_in_spike_mode = True
+            current_user.aemo_spike_start_time = datetime.utcnow()
+            current_user.aemo_last_price = simulated_price
+            current_user.aemo_last_check = datetime.utcnow()
+            db.session.commit()
+
+            logger.info(f"✅ Successfully entered test spike mode for {current_user.email}")
+            flash(f'🚨 Spike mode activated! Simulated ${simulated_price}/MWh spike. High sell-rate tariff uploaded to Tesla.')
+        else:
+            logger.error(f"Failed to upload spike tariff for {current_user.email}")
+            flash('Error uploading spike tariff to Tesla. Please check logs.')
+
+        return redirect(url_for('main.settings'))
+
+    except Exception as e:
+        logger.error(f"Error in AEMO spike simulation: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        flash('Error simulating spike. Please check logs.')
+        db.session.rollback()
+        return redirect(url_for('main.settings'))
+
+
+@bp.route('/test-aemo-restore', methods=['POST'])
+@login_required
+def test_aemo_restore():
+    """Test/simulate restoring from AEMO spike mode"""
+    from app.models import SavedTOUProfile
+    import json
+
+    try:
+        logger.info(f"AEMO restore simulation requested by user: {current_user.email}")
+
+        if not current_user.aemo_in_spike_mode:
+            flash('Not currently in spike mode. Nothing to restore.')
+            return redirect(url_for('main.settings'))
+
+        # Get Tesla client
+        tesla_client = get_tesla_client(current_user)
+        if not tesla_client:
+            flash('Tesla API not configured.')
+            return redirect(url_for('main.settings'))
+
+        # Restore saved tariff
+        if current_user.aemo_saved_tariff_id:
+            logger.info(f"Restoring backup tariff ID {current_user.aemo_saved_tariff_id} for {current_user.email}")
+            backup_profile = SavedTOUProfile.query.get(current_user.aemo_saved_tariff_id)
+
+            if backup_profile:
+                tariff = json.loads(backup_profile.tariff_json)
+                result = tesla_client.set_tariff_rate(current_user.tesla_energy_site_id, tariff)
+
+                if result:
+                    current_user.aemo_in_spike_mode = False
+                    current_user.aemo_spike_start_time = None
+                    backup_profile.last_restored_at = datetime.utcnow()
+                    db.session.commit()
+
+                    logger.info(f"✅ Successfully exited test spike mode for {current_user.email}")
+                    flash('✓ Spike mode deactivated. Original tariff restored to Tesla.')
+                else:
+                    logger.error(f"Failed to restore backup tariff for {current_user.email}")
+                    flash('Error restoring tariff to Tesla. Please check logs.')
+            else:
+                logger.error(f"Backup tariff ID {current_user.aemo_saved_tariff_id} not found")
+                flash('Backup tariff not found. Exiting spike mode anyway.')
+                current_user.aemo_in_spike_mode = False
+                db.session.commit()
+        else:
+            logger.warning(f"No backup tariff saved for {current_user.email}")
+            flash('No backup tariff found. Exiting spike mode anyway.')
+            current_user.aemo_in_spike_mode = False
+            db.session.commit()
+
+        return redirect(url_for('main.settings'))
+
+    except Exception as e:
+        logger.error(f"Error in AEMO restore simulation: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        flash('Error restoring from spike mode. Please check logs.')
+        db.session.rollback()
+        return redirect(url_for('main.settings'))
+
+
+# ============================================
 # CURRENT TOU RATE MANAGEMENT
 # ============================================
 
