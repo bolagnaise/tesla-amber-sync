@@ -16,21 +16,7 @@ class User(UserMixin, db.Model):
     # Encrypted Credentials
     amber_api_token_encrypted = db.Column(db.LargeBinary)
     tesla_energy_site_id = db.Column(db.String(50))
-    tesla_access_token_encrypted = db.Column(db.LargeBinary)
-    tesla_refresh_token_encrypted = db.Column(db.LargeBinary)
-    tesla_token_expiry = db.Column(db.Integer)
     teslemetry_api_key_encrypted = db.Column(db.LargeBinary)
-
-    # Tesla Fleet API Virtual Keys (for direct vehicle commands)
-    tesla_fleet_private_key_encrypted = db.Column(db.LargeBinary)  # EC private key (encrypted)
-    tesla_fleet_public_key = db.Column(db.Text)  # EC public key (PEM format, not encrypted - needs to be publicly accessible)
-
-    # Tesla OAuth Configuration (stored in database instead of environment variables)
-    tesla_client_id_encrypted = db.Column(db.LargeBinary)  # Tesla OAuth Client ID
-    tesla_client_secret_encrypted = db.Column(db.LargeBinary)  # Tesla OAuth Client Secret
-    tesla_redirect_uri = db.Column(db.String(255))  # OAuth redirect URI
-    app_domain = db.Column(db.String(255))  # App domain for OAuth callbacks
-    tesla_region = db.Column(db.String(10))  # Tesla Fleet API region ('na', 'eu', 'cn')
 
     # Status Tracking
     last_update_status = db.Column(db.String(255))

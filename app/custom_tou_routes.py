@@ -6,7 +6,7 @@ from app import db
 from app.models import CustomTOUSchedule, TOUSeason, TOUPeriod
 from app.forms import CustomTOUScheduleForm, TOUSeasonForm, TOUPeriodForm
 from app.custom_tou_builder import CustomTOUBuilder
-from app.api_clients import TeslaFleetAPIClient, TeslemetryAPIClient
+from app.api_clients import TeslemetryAPIClient
 from app.utils import decrypt_token
 from datetime import datetime
 import logging
@@ -513,15 +513,6 @@ def sync_to_tesla(schedule_id):
                 logger.info("Using Teslemetry client for custom TOU sync")
             except Exception as e:
                 logger.error(f"Failed to initialize Teslemetry client: {e}")
-
-        # Try Tesla Fleet API as fallback
-        if not tesla_client and current_user.tesla_access_token_encrypted:
-            try:
-                access_token = decrypt_token(current_user.tesla_access_token_encrypted)
-                tesla_client = TeslaFleetAPIClient(access_token)
-                logger.info("Using Tesla Fleet API client for custom TOU sync")
-            except Exception as e:
-                logger.error(f"Failed to initialize Tesla client: {e}")
 
         if not tesla_client:
             flash('Tesla API not configured. Please connect Tesla in Settings.', 'danger')

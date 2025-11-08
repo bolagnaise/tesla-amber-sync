@@ -37,20 +37,6 @@ class SettingsForm(FlaskForm):
     submit = SubmitField('Save Settings')
 
 
-class EnvironmentForm(FlaskForm):
-    """Form for updating environment variables (Tesla Developer credentials)"""
-    tesla_client_id = StringField('Tesla Client ID')
-    tesla_client_secret = StringField('Tesla Client Secret')
-    tesla_redirect_uri = StringField('Tesla Redirect URI')
-    app_domain = StringField('App Domain')
-    tesla_region = SelectField('Tesla Fleet API Region', choices=[
-        ('na', 'North America'),
-        ('eu', 'Europe / Asia-Pacific (Australia)'),
-        ('cn', 'China')
-    ], default='na')
-    submit = SubmitField('Save Environment Settings')
-
-
 class DemandChargeForm(FlaskForm):
     """Form for configuring demand charge periods"""
     # Enable/disable demand charges

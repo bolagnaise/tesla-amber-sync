@@ -16,7 +16,7 @@
 - 📊 **Real-time Pricing Dashboard** - Monitor current and historical electricity prices with live updates
 - ⚡ **Near Real-Time Energy Monitoring** - Energy usage charts update every 30 seconds
 - 🌏 **Timezone Support** - Configure your local timezone for accurate time display
-- 🔐 **Dual Tesla Authentication** - Support for both Tesla Fleet API and Teslemetry (recommended)
+- 🔐 **Teslemetry Integration** - Secure Tesla API access via Teslemetry proxy service
 - 🔒 **Secure Credential Storage** - All API tokens encrypted at rest
 - ⏱️ **Background Scheduler** - Automatic syncing runs every 5 minutes (aligned with Amber's forecast updates)
 - 🐳 **Docker Ready** - Pre-built multi-architecture images for easy deployment
@@ -229,17 +229,10 @@ SECRET_KEY=your-random-secret-key-here
 
 # Optional - Auto-generated if not provided
 # FERNET_ENCRYPTION_KEY=your-custom-key-here
-
-# Tesla Developer Credentials (Optional - can be configured via web UI)
-# TESLA_CLIENT_ID=your-tesla-client-id
-# TESLA_CLIENT_SECRET=ta-secret.your-secret
-# TESLA_REDIRECT_URI=http://localhost:5001/tesla-fleet/callback
-# APP_DOMAIN=http://localhost:5001
 ```
 
 **Note on Configuration:**
 - **Encryption Key:** Automatically generated and saved to `./data/.fernet_key` on first run. Only set `FERNET_ENCRYPTION_KEY` if you want to use a specific key (e.g., migrating from another instance).
-- **Tesla OAuth Credentials:** Can be configured via the web UI (Environment Settings page) or set as environment variables. Web UI configuration is recommended for easier setup.
 - **Important:** Back up `./data/.fernet_key` - without it, you cannot decrypt stored credentials
 
 **Docker Hub Image Details:**
@@ -381,39 +374,17 @@ docker restart tesla-amber-sync
 
 ## Tesla API Authentication
 
-You can choose **one or both** methods:
+This application uses **Teslemetry** for Tesla API access.
 
-### Option 1: Tesla Fleet API (Recommended)
+### Teslemetry Setup
 
-Direct connection to Tesla with OAuth2 and virtual keys.
-
-**Pros:**
-- ✅ Direct connection (no third-party)
-- ✅ Enhanced security with cryptographic keys
-- ✅ No additional service fees
-
-**Cons:**
-- ❌ Requires HTTPS domain for production
-- ❌ More complex setup
-
-**Setup:**
-1. Create Tesla Developer account at https://developer.tesla.com/
-2. Register your application
-3. Get Client ID and Client Secret
-4. See **[TESLA_FLEET_SETUP.md](TESLA_FLEET_SETUP.md)** for detailed instructions
-
-### Option 2: Teslemetry (Easier)
-
-Third-party proxy service for Tesla API.
+Teslemetry is a third-party proxy service for Tesla API.
 
 **Pros:**
 - ✅ Simple setup
 - ✅ Works with localhost
 - ✅ Free for personal use
-
-**Cons:**
-- ❌ Requires third-party service
-- ❌ Less direct control
+- ✅ Reliable and well-maintained
 
 **Setup:**
 1. Sign up at https://teslemetry.com
@@ -429,13 +400,13 @@ Third-party proxy service for Tesla API.
    - Get from: Amber developer settings
    - Used for: Fetching real-time electricity prices
 
-2. **Tesla Authentication** (choose one or both)
-   - Fleet API: OAuth credentials from Tesla Developer Portal
-   - Teslemetry: API key from teslemetry.com
+2. **Teslemetry API Key**
+   - Get from: https://teslemetry.com
+   - Used for: Tesla Powerwall communication
 
 3. **Tesla Energy Site ID**
    - Your Powerwall/Solar site ID
-   - Find in Teslemetry dashboard or Tesla Fleet API
+   - Find in Teslemetry dashboard
 
 ### Dashboard Setup
 
@@ -445,18 +416,12 @@ After logging in:
    - Enter your Amber API token
    - Save settings
 
-2. **Configure Tesla OAuth Credentials** (for Fleet API users)
-   - Navigate to Environment Settings page
-   - Enter Tesla Client ID, Client Secret, Redirect URI, and App Domain
-   - Or skip this step if using Teslemetry or if credentials are in environment variables
+2. **Connect Teslemetry**
+   - Enter your Teslemetry API key in settings form
    - Save settings
 
-3. **Connect Tesla** (choose method)
-   - **Fleet API**: Click "Generate Keys" → "Connect to Tesla"
-   - **Teslemetry**: Enter API key in settings form
-
-4. **Set Energy Site ID**
-   - Enter your Tesla energy site ID
+3. **Set Energy Site ID**
+   - Enter your Tesla energy site ID from Teslemetry dashboard
    - Save settings
 
 5. **Configure Timezone** (Optional)
@@ -645,21 +610,15 @@ gunicorn -w 4 -b 0.0.0.0:5001 run:app
 
 ### Common Issues
 
-**"Invalid Client ID"**
-- Verify credentials in Tesla Developer Portal
-- Check for extra spaces/quotes in `.env`
+**"Teslemetry API connection failed"**
+- Verify API key is correct
+- Check that your Tesla account is connected to Teslemetry
+- Ensure API key has proper permissions
 
-**"Redirect URI mismatch"**
-- Must exactly match Tesla Developer Portal settings
-- Check http vs https, port numbers, trailing slashes
-
-**"Public key not found"**
-- Click "Generate Keys" first
-- Verify endpoint: `http://localhost:5001/.well-known/appspecific/com.tesla.3p.public-key.pem`
-
-**Virtual key pairing fails:**
-- Requires HTTPS and public domain
-- Won't work with localhost
+**"No energy sites found"**
+- Verify your Tesla Powerwall/Solar is connected to your Tesla account
+- Check Teslemetry dashboard to confirm site is visible
+- Ensure site is properly commissioned in Tesla app
 - Check public key is accessible externally
 
 ### Logs
@@ -692,10 +651,10 @@ MIT
 ## Support
 
 For issues or questions:
-1. Check [TESLA_FLEET_SETUP.md](TESLA_FLEET_SETUP.md) for setup help
-2. Review Flask logs for error details
-3. Verify API credentials are correct
-4. Test with both authentication methods
+1. Review Flask logs for error details
+2. Verify Teslemetry API key is correct
+3. Check Teslemetry dashboard for connection status
+4. Ensure Tesla Energy Site ID is correct
 
 ## Contributing
 

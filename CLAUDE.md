@@ -117,35 +117,10 @@ Required in `.env`:
 3. Encrypted bytes are stored in database (`LargeBinary` columns)
 4. `decrypt_token()` retrieves plaintext when needed for API calls
 
-### Tesla Authentication Methods
+### Tesla Authentication
 
-The app supports **two authentication methods** for Tesla API access:
+The app uses **Teslemetry** as the only Tesla API authentication method:
 
-#### 1. Tesla Fleet API (Direct OAuth with Virtual Keys)
-**Setup Flow:**
-1. User clicks "Generate Keys" → creates EC key pair (prime256v1)
-2. Private key encrypted and stored, public key stored in plaintext
-3. Public key served at `/.well-known/appspecific/com.tesla.3p.public-key.pem`
-4. User clicks "Connect to Tesla" → redirected to `/tesla-fleet/connect`
-5. OAuth flow with scopes: `vehicle_device_data`, `vehicle_cmds`, `energy_device_data`, `energy_cmds`
-6. Tesla redirects to `/tesla-fleet/callback` with authorization code
-7. App exchanges code for tokens and registers public key with Tesla Partner Account API
-8. User pairs vehicle via Tesla mobile app using deep link: `https://tesla.com/_ak/{domain}`
-
-**Routes:**
-- `POST /tesla-fleet/setup` - Generate EC key pair
-- `GET /tesla-fleet/connect` - Initiate OAuth
-- `GET /tesla-fleet/callback` - Handle OAuth callback
-- `POST /tesla-fleet/disconnect` - Clear tokens (keep keys)
-- `POST /tesla-fleet/reset-keys` - Remove all Fleet API data
-- `GET /.well-known/appspecific/com.tesla.3p.public-key.pem` - Serve public key
-
-**Requirements:**
-- Tesla Developer account with registered application
-- HTTPS domain (for production/vehicle pairing)
-- See `TESLA_FLEET_SETUP.md` for detailed setup instructions
-
-#### 2. Teslemetry (Third-Party Proxy)
 **Setup Flow:**
 1. User signs up at teslemetry.com
 2. User enters Teslemetry API key via settings form
@@ -154,20 +129,12 @@ The app supports **two authentication methods** for Tesla API access:
 **Routes:**
 - `POST /teslemetry/disconnect` - Clear Teslemetry API key
 
-**Client Priority:**
-The `get_tesla_client()` function tries Fleet API first, then falls back to Teslemetry:
+**Client:**
+The `get_tesla_client()` function returns a TeslemetryAPIClient if configured:
 ```python
-# 1. Try Tesla Fleet API (if OAuth tokens exist)
-# 2. Fallback to Teslemetry (if API key exists)
-# 3. Return None if neither configured
+# Returns TeslemetryAPIClient if API key exists
+# Returns None if not configured
 ```
-
-### Virtual Keys (Tesla Fleet API)
-- Uses elliptic curve cryptography (prime256v1/secp256r1)
-- `generate_tesla_key_pair()` in `app/utils.py` creates key pair
-- Public key must be publicly accessible for Tesla to validate
-- Private key used to sign vehicle commands (future feature)
-- Keys can be reset/regenerated via `/tesla-fleet/reset-keys`
 
 ### Login Flow
 - `login.login_view` is set to `'main.login'` in `app/__init__.py`
