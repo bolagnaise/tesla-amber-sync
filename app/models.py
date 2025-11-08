@@ -58,7 +58,8 @@ class User(UserMixin, db.Model):
     # Relationships
     price_records = db.relationship('PriceRecord', backref='user', lazy='dynamic')
     energy_records = db.relationship('EnergyRecord', backref='user', lazy='dynamic')
-    saved_tou_profiles = db.relationship('SavedTOUProfile', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+    saved_tou_profiles = db.relationship('SavedTOUProfile', backref='user', lazy='dynamic', cascade='all, delete-orphan', foreign_keys='SavedTOUProfile.user_id')
+    aemo_saved_tariff = db.relationship('SavedTOUProfile', foreign_keys=[aemo_saved_tariff_id], post_update=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
