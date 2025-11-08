@@ -391,6 +391,11 @@ def monitor_aemo_prices():
                     user.aemo_in_spike_mode = True
                     user.aemo_spike_start_time = datetime.utcnow()
                     logger.info(f"✅ Entered spike mode for {user.email} - uploaded spike tariff")
+
+                    # Force Powerwall to immediately apply the new spike tariff
+                    logger.info(f"Forcing Powerwall to apply spike tariff for {user.email}")
+                    force_tariff_refresh(tesla_client, user.tesla_energy_site_id)
+
                     success_count += 1
                 else:
                     logger.error(f"Failed to upload spike tariff for {user.email}")
@@ -414,6 +419,11 @@ def monitor_aemo_prices():
                             user.aemo_spike_start_time = None
                             backup_profile.last_restored_at = datetime.utcnow()
                             logger.info(f"✅ Exited spike mode for {user.email} - restored backup tariff")
+
+                            # Force Powerwall to immediately apply the restored tariff
+                            logger.info(f"Forcing Powerwall to apply restored tariff for {user.email}")
+                            force_tariff_refresh(tesla_client, user.tesla_energy_site_id)
+
                             success_count += 1
                         else:
                             logger.error(f"Failed to restore backup tariff for {user.email}")
@@ -448,6 +458,53 @@ def monitor_aemo_prices():
 
     logger.info(f"=== AEMO monitoring completed: {success_count} users successful, {error_count} errors ===")
     return success_count, error_count
+
+
+def force_tariff_refresh(tesla_client, site_id):
+    """
+    Force Powerwall to immediately apply new tariff by toggling operation mode
+
+    The Powerwall can take several minutes to recognize tariff changes.
+    Switching to self_consumption then back to autonomous forces immediate recalculation.
+
+    Args:
+        tesla_client: TeslemetryAPIClient instance
+        site_id: Energy site ID
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        import time
+
+        logger.info(f"Forcing tariff refresh for site {site_id} by toggling operation mode")
+
+        # Step 1: Switch to self_consumption mode
+        logger.info("Switching to self_consumption mode...")
+        result1 = tesla_client.set_operation_mode(site_id, 'self_consumption')
+
+        if not result1:
+            logger.warning("Failed to switch to self_consumption mode")
+            return False
+
+        # Step 2: Wait 2 seconds for mode to apply
+        logger.info("Waiting 2 seconds...")
+        time.sleep(2)
+
+        # Step 3: Switch back to autonomous mode (TOU optimization)
+        logger.info("Switching back to autonomous mode...")
+        result2 = tesla_client.set_operation_mode(site_id, 'autonomous')
+
+        if not result2:
+            logger.warning("Failed to switch back to autonomous mode")
+            return False
+
+        logger.info("✅ Successfully toggled operation mode - tariff should apply immediately")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error forcing tariff refresh: {e}")
+        return False
 
 
 def create_spike_tariff(current_aemo_price_mwh):

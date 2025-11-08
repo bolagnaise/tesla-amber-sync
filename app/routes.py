@@ -1441,6 +1441,12 @@ def test_aemo_spike():
             db.session.commit()
 
             logger.info(f"✅ Successfully entered test spike mode for {current_user.email}")
+
+            # Force Powerwall to immediately apply the spike tariff
+            from app.tasks import force_tariff_refresh
+            logger.info(f"Forcing Powerwall to apply spike tariff for {current_user.email}")
+            force_tariff_refresh(tesla_client, current_user.tesla_energy_site_id)
+
             flash(f'🚨 Spike mode activated! Simulated ${simulated_price}/MWh spike. High sell-rate tariff uploaded to Tesla.')
         else:
             logger.error(f"Failed to upload spike tariff for {current_user.email}")
@@ -1493,6 +1499,12 @@ def test_aemo_restore():
                     db.session.commit()
 
                     logger.info(f"✅ Successfully exited test spike mode for {current_user.email}")
+
+                    # Force Powerwall to immediately apply the restored tariff
+                    from app.tasks import force_tariff_refresh
+                    logger.info(f"Forcing Powerwall to apply restored tariff for {current_user.email}")
+                    force_tariff_refresh(tesla_client, current_user.tesla_energy_site_id)
+
                     flash('✓ Spike mode deactivated. Original tariff restored to Tesla.')
                 else:
                     logger.error(f"Failed to restore backup tariff for {current_user.email}")
