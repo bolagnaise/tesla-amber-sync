@@ -492,13 +492,16 @@ def create_spike_tariff(current_aemo_price_mwh):
             to_minute = 0
 
         # TOU period definition for seasons
+        # Each period needs a "periods" array wrapper
         tou_periods[period_name] = {
-            "fromDayOfWeek": 0,
-            "toDayOfWeek": 6,
-            "fromHour": hour,
-            "fromMinute": minute,
-            "toHour": to_hour,
-            "toMinute": to_minute
+            "periods": [{
+                "fromDayOfWeek": 0,
+                "toDayOfWeek": 6,
+                "fromHour": hour,
+                "fromMinute": minute,
+                "toHour": to_hour,
+                "toMinute": to_minute
+            }]
         }
 
     # Create Tesla tariff structure with separate buy and sell tariffs
