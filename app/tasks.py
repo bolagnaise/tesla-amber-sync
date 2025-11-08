@@ -461,28 +461,57 @@ def create_spike_tariff(current_aemo_price_mwh):
         dict: Tesla tariff JSON with very high sell rates
     """
     # Convert $/MWh to $/kWh (divide by 1000)
-    # Add 20% margin to encourage export
-    sell_rate = (current_aemo_price_mwh / 1000.0) * 1.2
+    # Make sell rate VERY attractive (higher than actual spike price)
+    sell_rate_spike = (current_aemo_price_mwh / 1000.0) * 1.5  # 50% markup on spike
 
-    # Very HIGH buy rate to discourage import during spike
-    # Set it even higher than sell rate so Powerwall never imports
-    buy_rate = sell_rate * 2.0  # Double the sell rate to strongly discourage import
+    # Normal buy rate for non-spike periods (typical grid price)
+    # Powerwall needs to know it can recharge cheaply later
+    buy_rate_normal = 0.30  # 30c/kWh - typical Australian grid price
 
-    logger.info(f"Creating spike tariff: Buy=${buy_rate}/kWh, Sell=${sell_rate}/kWh (based on ${current_aemo_price_mwh}/MWh)")
+    # Sell rate for non-spike periods (typical feed-in)
+    sell_rate_normal = 0.08  # 8c/kWh - typical feed-in tariff
+
+    logger.info(f"Creating spike tariff: Spike sell=${sell_rate_spike}/kWh, Normal buy=${buy_rate_normal}/kWh, Normal sell=${sell_rate_normal}/kWh (based on ${current_aemo_price_mwh}/MWh)")
 
     # Build rates dictionaries for all 48 x 30-minute periods (24 hours)
     buy_rates = {}
     sell_rates = {}
     tou_periods = {}
 
+    # Get current time to determine spike window
+    from datetime import datetime
+    now = datetime.now()
+    current_period_index = (now.hour * 2) + (1 if now.minute >= 30 else 0)
+
+    # Spike window: current period + next 4 hours (8 x 30-min periods)
+    # This gives Powerwall a 4-hour window to export during the spike
+    spike_window_periods = 8
+    spike_start = current_period_index
+    spike_end = (current_period_index + spike_window_periods) % 48
+
+    logger.info(f"Spike window: periods {spike_start} to {spike_end} (current time: {now.hour:02d}:{now.minute:02d})")
+
     for i in range(48):
         hour = i // 2
         minute = 30 if i % 2 else 0
         period_name = f"{hour:02d}:{minute:02d}"
 
-        # Rates are simple floats, not objects
-        buy_rates[period_name] = buy_rate
-        sell_rates[period_name] = sell_rate
+        # Check if this period is in the spike window
+        is_spike_period = False
+        if spike_start < spike_end:
+            is_spike_period = spike_start <= i < spike_end
+        else:  # Wrap around midnight
+            is_spike_period = i >= spike_start or i < spike_end
+
+        # Set rates based on whether we're in spike window
+        if is_spike_period:
+            # During spike: normal buy price, VERY HIGH sell price
+            buy_rates[period_name] = buy_rate_normal
+            sell_rates[period_name] = sell_rate_spike
+        else:
+            # After spike: normal buy and sell prices
+            buy_rates[period_name] = buy_rate_normal
+            sell_rates[period_name] = sell_rate_normal
 
         # Calculate end time (30 minutes later)
         if minute == 0:
