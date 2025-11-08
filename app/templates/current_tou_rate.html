@@ -193,16 +193,16 @@
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm" role="group">
-                                            <form method="POST" action="{{ url_for('main.restore_tou_rate', profile_id=profile.id) }}" class="d-inline">
-                                                <button type="submit" class="btn btn-primary"
+                                            <form method="POST" action="{{ url_for('main.restore_tou_rate', profile_id=profile.id) }}" class="d-inline" style="margin-right: 0.5em;">
+                                                <button type="submit" class="contrast"
                                                         onclick="return confirm('Restore \'{{ profile.name }}\' to Tesla Powerwall?');">
-                                                    <i class="bi bi-upload"></i> Restore
+                                                    Restore
                                                 </button>
                                             </form>
                                             <form method="POST" action="{{ url_for('main.delete_tou_profile', profile_id=profile.id) }}" class="d-inline">
-                                                <button type="submit" class="btn btn-outline-danger"
+                                                <button type="submit" class="secondary outline"
                                                         onclick="return confirm('Delete \'{{ profile.name }}\'?');">
-                                                    <i class="bi bi-trash"></i>
+                                                    Delete
                                                 </button>
                                             </form>
                                         </div>
