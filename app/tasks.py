@@ -487,9 +487,10 @@ def force_tariff_refresh(tesla_client, site_id):
             logger.warning("Failed to switch to self_consumption mode")
             return False
 
-        # Step 2: Wait 2 seconds for mode to apply
-        logger.info("Waiting 2 seconds...")
-        time.sleep(2)
+        # Step 2: Wait 30 seconds for Tesla to detect the mode change
+        # Tesla needs time to recognize and process the mode change
+        logger.info("Waiting 30 seconds for Tesla to detect mode change...")
+        time.sleep(30)
 
         # Step 3: Switch back to autonomous mode (TOU optimization)
         logger.info("Switching back to autonomous mode...")
