@@ -1528,3 +1528,33 @@ def api_current_tou_rate_raw():
     except Exception as e:
         logger.error(f"Error fetching current tariff: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/debug/site_info')
+@login_required
+def api_debug_site_info():
+    """Debug endpoint to see full site_info response from Tesla"""
+    # Get Tesla client
+    tesla_client = get_tesla_client(current_user)
+    if not tesla_client:
+        return jsonify({'error': 'Tesla API not configured'}), 400
+
+    site_id = current_user.tesla_energy_site_id
+    if not site_id:
+        return jsonify({'error': 'Tesla site ID not configured'}), 400
+
+    try:
+        site_info = tesla_client.get_site_info(site_id)
+        if site_info:
+            # Return the full site_info with a note about tariff field
+            has_tariff = 'utility_tariff_content_v2' in site_info
+            return jsonify({
+                'has_tariff_field': has_tariff,
+                'tariff_field_name': 'utility_tariff_content_v2',
+                'full_site_info': site_info
+            })
+        else:
+            return jsonify({'error': 'No site info returned from Tesla'}), 404
+    except Exception as e:
+        logger.error(f"Error fetching site info: {e}")
+        return jsonify({'error': str(e)}), 500
