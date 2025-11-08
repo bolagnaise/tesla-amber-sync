@@ -368,8 +368,8 @@ class TeslemetryAPIClient:
                 return None
 
             # Extract the tariff from site_info
-            # The structure is: response -> utility_tariff_content_v2
-            tariff = site_info.get('utility_tariff_content_v2')
+            # Teslemetry returns it as 'tariff_content_v2' (not 'utility_tariff_content_v2')
+            tariff = site_info.get('tariff_content_v2')
 
             if tariff:
                 logger.info(f"Successfully extracted current tariff: {tariff.get('name', 'Unknown')}")

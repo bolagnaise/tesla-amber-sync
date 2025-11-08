@@ -1547,10 +1547,11 @@ def api_debug_site_info():
         site_info = tesla_client.get_site_info(site_id)
         if site_info:
             # Return the full site_info with a note about tariff field
-            has_tariff = 'utility_tariff_content_v2' in site_info
+            # Teslemetry uses 'tariff_content_v2', not 'utility_tariff_content_v2'
+            has_tariff = 'tariff_content_v2' in site_info
             return jsonify({
                 'has_tariff_field': has_tariff,
-                'tariff_field_name': 'utility_tariff_content_v2',
+                'tariff_field_name': 'tariff_content_v2',
                 'full_site_info': site_info
             })
         else:
