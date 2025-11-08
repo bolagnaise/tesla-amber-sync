@@ -159,30 +159,6 @@
                             <li>Last Check: {{ current_user.aemo_last_check.strftime('%Y-%m-%d %H:%M:%S') }}</li>
                             {% endif %}
                         </ul>
-
-                        <!-- Test/Simulate Spike Button -->
-                        <div style="margin-top: 1em; padding-top: 1em; border-top: 1px solid rgba(0,0,0,0.1);">
-                            <p style="margin: 0 0 0.5em 0; font-size: 0.85em;"><strong>Testing:</strong></p>
-                            <form method="POST" action="{{ url_for('main.test_aemo_spike') }}" style="display: inline; margin-right: 0.5em;">
-                                {{ form.hidden_tag() }}
-                                <button type="submit" class="outline" style="font-size: 0.85em;"
-                                        onclick="return confirm('This will trigger spike mode using a simulated $500/MWh price. Your current tariff will be backed up and a spike tariff will be uploaded to Tesla. Continue?');">
-                                    🚨 Simulate Spike
-                                </button>
-                            </form>
-                            {% if current_user.aemo_in_spike_mode %}
-                            <form method="POST" action="{{ url_for('main.test_aemo_restore') }}" style="display: inline;">
-                                {{ form.hidden_tag() }}
-                                <button type="submit" class="outline" style="font-size: 0.85em;"
-                                        onclick="return confirm('This will exit spike mode and restore your backed-up tariff. Continue?');">
-                                    ✓ Restore Normal
-                                </button>
-                            </form>
-                            {% endif %}
-                            <p style="margin: 0.5em 0 0 0; font-size: 0.75em; color: var(--muted-color);">
-                                Use these buttons to test spike detection without waiting for a real price spike.
-                            </p>
-                        </div>
                     </article>
                     {% endif %}
 
@@ -217,6 +193,37 @@
             {{ form.submit(class_="primary", style="margin-top: 1em;") }}
         </form>
     </article>
+
+    <!-- AEMO Spike Testing (separate from main form) -->
+    {% if current_user.aemo_spike_detection_enabled %}
+    <article>
+        <header><strong>AEMO Spike Detection Testing</strong></header>
+        <p style="font-size: 0.85em;">Test the spike detection system without waiting for a real price spike.</p>
+
+        <form method="POST" action="{{ url_for('main.test_aemo_spike') }}" style="display: inline; margin-right: 0.5em;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="outline"
+                    onclick="return confirm('This will trigger spike mode using a simulated $500/MWh price. Your current tariff will be backed up and a spike tariff will be uploaded to Tesla. Continue?');">
+                🚨 Simulate Spike
+            </button>
+        </form>
+
+        {% if current_user.aemo_in_spike_mode %}
+        <form method="POST" action="{{ url_for('main.test_aemo_restore') }}" style="display: inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="outline"
+                    onclick="return confirm('This will exit spike mode and restore your backed-up tariff. Continue?');">
+                ✓ Restore Normal
+            </button>
+        </form>
+        {% endif %}
+
+        <p style="margin: 0.5em 0 0 0; font-size: 0.75em; color: var(--muted-color);">
+            Click "Simulate Spike" to test the system. The app will save your current tariff and upload a spike tariff to Tesla.
+            {% if current_user.aemo_in_spike_mode %}Click "Restore Normal" to exit spike mode and restore your original tariff.{% endif %}
+        </p>
+    </article>
+    {% endif %}
 
     <script>
         function toggleAemoFields(enabled) {
