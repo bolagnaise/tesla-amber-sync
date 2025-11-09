@@ -13,7 +13,10 @@
   <body>
     <nav class="container-fluid">
       <ul>
-        <li><strong>Tesla Sync</strong></li>
+        <li style="display: flex; align-items: center; gap: 0.75em;">
+          <img src="{{ url_for('static', filename='icon-512.png') }}" alt="Tesla Sync Logo" style="width: 40px; height: 40px; border-radius: 8px;">
+          <strong>Tesla Sync</strong>
+        </li>
       </ul>
       <ul>
         {% if current_user.is_anonymous %}
