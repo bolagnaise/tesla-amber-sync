@@ -1402,6 +1402,31 @@ def test_aemo_spike():
         simulated_price = 500.0
         logger.info(f"Simulating spike with price: ${simulated_price}/MWh for user {current_user.email}")
 
+        # Check if battery is already exporting - if so, don't interfere
+        logger.info(f"Checking battery status to avoid disrupting existing export for {current_user.email}")
+        site_status = tesla_client.get_site_status(current_user.tesla_energy_site_id)
+
+        if site_status:
+            battery_power = site_status.get('battery_power', 0.0)
+            logger.info(f"Current battery power: {battery_power}W (positive = exporting/discharging)")
+
+            # If battery is already exporting (battery_power > 0), skip spike tariff upload
+            # Threshold of 100W to avoid false positives from minor fluctuations
+            # Positive values = battery discharging/exporting to grid
+            if battery_power > 100:
+                logger.info(f"⚡ Battery already exporting {battery_power}W - skipping spike tariff upload to avoid disruption")
+                flash(f'⚡ Battery already exporting ({abs(battery_power)/1000:.2f} kW). Skipping spike tariff upload to avoid disrupting optimal operation.')
+
+                # Still mark as in spike mode for tracking
+                if not current_user.aemo_in_spike_mode:
+                    current_user.aemo_in_spike_mode = True
+                    current_user.aemo_spike_start_time = datetime.utcnow()
+                    current_user.aemo_last_price = simulated_price
+                    current_user.aemo_last_check = datetime.utcnow()
+                    db.session.commit()
+
+                return redirect(url_for('main.settings'))
+
         # Save current Tesla tariff as backup (if not already in spike mode)
         if not current_user.aemo_in_spike_mode:
             logger.info(f"Saving current Tesla tariff as backup for {current_user.email}")
