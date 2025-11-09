@@ -53,10 +53,11 @@
         </div>
     </article>
 
-    <!-- 5-Minute Detailed Billing Window -->
+    <!-- 5-Minute Detailed Billing Window (Amber Only) -->
+    {% if has_amber_token %}
     <article id="five-min-pricing" style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: white; padding: 1.5em;">
         <header style="text-align: center; margin-bottom: 1em;">
-            <strong style="font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px;">☀️ Live 5 Min Price</strong>
+            <strong style="font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px;">☀️ Amber Live 5 Min Price</strong>
             <div id="current-interval-time" style="font-size: 1.1em; font-weight: bold; margin-top: 0.3em;">--:-- - --:--</div>
         </header>
         <div style="display: flex; justify-content: center; gap: 2em; margin-bottom: 1.5em;">
@@ -84,6 +85,7 @@
             </div>
         </div>
     </article>
+    {% endif %}
 
     <!-- Tesla Battery Status -->
     {% if current_user.tesla_energy_site_id %}

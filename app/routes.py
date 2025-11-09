@@ -89,7 +89,8 @@ def register():
 @login_required
 def dashboard():
     logger.info(f"Dashboard accessed by user: {current_user.email}")
-    return render_template('dashboard.html', title='Dashboard')
+    has_amber_token = current_user.amber_api_token_encrypted is not None
+    return render_template('dashboard.html', title='Dashboard', has_amber_token=has_amber_token)
 
 
 @bp.route('/api/aemo-price')
