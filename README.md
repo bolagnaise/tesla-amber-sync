@@ -19,6 +19,11 @@
 
 *Configure Amber Electric and Teslemetry API credentials with secure encrypted storage*
 
+### AEMO Wholesale Price Dashboard
+<img src="https://i.imgur.com/dTksjzx.png" alt="AEMO Wholesale Price Dashboard" width="80%"/>
+
+*Real-time AEMO wholesale electricity price monitoring with current price and threshold display*
+
 ### AEMO Price Spike Settings
 <img src="https://i.imgur.com/bpobhtd.png" alt="AEMO Price Spike Detection Settings" width="80%"/>
 
