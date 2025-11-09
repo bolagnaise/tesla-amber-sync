@@ -1407,15 +1407,16 @@ def test_aemo_spike():
         site_status = tesla_client.get_site_status(current_user.tesla_energy_site_id)
 
         if site_status:
+            grid_power = site_status.get('grid_power', 0.0)
             battery_power = site_status.get('battery_power', 0.0)
-            logger.info(f"Current battery power: {battery_power}W (positive = exporting/discharging)")
+            logger.info(f"Current power flow: Battery={battery_power}W, Grid={grid_power}W (negative grid = exporting to grid)")
 
-            # If battery is already exporting (battery_power > 0), skip spike tariff upload
-            # Threshold of 100W to avoid false positives from minor fluctuations
-            # Positive values = battery discharging/exporting to grid
-            if battery_power > 100:
-                logger.info(f"⚡ Battery already exporting {battery_power}W - skipping spike tariff upload to avoid disruption")
-                flash(f'⚡ Battery already exporting ({abs(battery_power)/1000:.2f} kW). Skipping spike tariff upload to avoid disrupting optimal operation.')
+            # If already exporting to grid (grid_power < 0), skip spike tariff upload
+            # Threshold of -100W to avoid false positives from minor fluctuations
+            # Negative grid_power = exporting power to grid
+            if grid_power < -100:
+                logger.info(f"⚡ Already exporting {abs(grid_power)}W to grid - skipping spike tariff upload to avoid disruption")
+                flash(f'⚡ Already exporting {abs(grid_power)/1000:.2f} kW to grid. Skipping spike tariff upload to avoid disrupting optimal operation.')
 
                 # Still mark as in spike mode for tracking
                 if not current_user.aemo_in_spike_mode:
