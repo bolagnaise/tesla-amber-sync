@@ -1407,16 +1407,25 @@ def test_aemo_spike():
         site_status = tesla_client.get_site_status(current_user.tesla_energy_site_id)
 
         if site_status:
-            grid_power = site_status.get('grid_power', 0.0)
+            solar_power = site_status.get('solar_power', 0.0)
             battery_power = site_status.get('battery_power', 0.0)
-            logger.info(f"Current power flow: Battery={battery_power}W, Grid={grid_power}W (negative grid = exporting to grid)")
+            load_power = site_status.get('load_power', 0.0)
+            grid_power = site_status.get('grid_power', 0.0)
 
-            # If already exporting to grid (grid_power < 0), skip spike tariff upload
-            # Threshold of -100W to avoid false positives from minor fluctuations
-            # Negative grid_power = exporting power to grid
-            if grid_power < -100:
-                logger.info(f"⚡ Already exporting {abs(grid_power)}W to grid - skipping spike tariff upload to avoid disruption")
-                flash(f'⚡ Already exporting {abs(grid_power)/1000:.2f} kW to grid. Skipping spike tariff upload to avoid disrupting optimal operation.')
+            logger.info(f"Current power flow: Solar={solar_power}W, Battery={battery_power}W, Load={load_power}W, Grid={grid_power}W")
+
+            # Check if BATTERY is exporting to grid (not just solar)
+            # Battery exports when: battery_power > (load - solar)
+            # This accounts for solar already covering some/all of the load
+            net_load_after_solar = max(0, load_power - solar_power)
+            battery_export = battery_power - net_load_after_solar
+
+            logger.info(f"Net load after solar: {net_load_after_solar}W, Battery export: {battery_export}W")
+
+            # If battery is already exporting >100W to grid, skip spike tariff upload
+            if battery_export > 100:
+                logger.info(f"⚡ Battery already exporting {battery_export}W to grid - skipping spike tariff upload to avoid disruption")
+                flash(f'⚡ Battery already exporting {battery_export/1000:.2f} kW to grid. Skipping spike tariff upload to avoid disrupting optimal operation.')
 
                 # Still mark as in spike mode for tracking
                 if not current_user.aemo_in_spike_mode:
