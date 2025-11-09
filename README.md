@@ -13,13 +13,16 @@
 ## Screenshots
 
 <div align="center">
-  <a href="https://imgur.com/a/TdzIgYT">
-    <img src="https://i.imgur.com/TdzIgYT.png" alt="Tesla Sync Dashboard Screenshots" width="100%"/>
-  </a>
 
-  **[View Full Screenshot Gallery →](https://imgur.com/a/TdzIgYT)**
+### AEMO Price Spike Settings
+<img src="https://i.imgur.com/bpobhtd.png" alt="AEMO Price Spike Detection Settings" width="80%"/>
 
-  *Dashboard showcasing real-time energy monitoring, AEMO wholesale pricing, Amber Electric integration, and custom TOU schedule management*
+*Configure AEMO wholesale price monitoring with customizable thresholds and regional settings*
+
+---
+
+**[View Full Screenshot Gallery →](https://imgur.com/a/TdzIgYT)**
+
 </div>
 
 ## Features
