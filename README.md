@@ -14,6 +14,11 @@
 
 <div align="center">
 
+### API Configuration
+<img src="https://i.imgur.com/Lrk87Ti.png" alt="API Configuration - Amber and Teslemetry" width="80%"/>
+
+*Configure Amber Electric and Teslemetry API credentials with secure encrypted storage*
+
 ### AEMO Price Spike Settings
 <img src="https://i.imgur.com/bpobhtd.png" alt="AEMO Price Spike Detection Settings" width="80%"/>
 
