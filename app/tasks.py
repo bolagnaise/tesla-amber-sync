@@ -362,11 +362,12 @@ def monitor_aemo_prices():
 
                 if site_status:
                     battery_power = site_status.get('battery_power', 0.0)
-                    logger.info(f"Current battery power: {battery_power}W (positive = exporting)")
+                    logger.info(f"Current battery power: {battery_power}W (negative = exporting/discharging)")
 
-                    # If battery is already exporting (battery_power > 0), skip spike tariff upload
-                    # Threshold of 100W to avoid false positives from minor fluctuations
-                    if battery_power > 100:
+                    # If battery is already exporting (battery_power < 0), skip spike tariff upload
+                    # Threshold of -100W to avoid false positives from minor fluctuations
+                    # Negative values = battery discharging/exporting to grid
+                    if battery_power < -100:
                         logger.info(f"⚡ Battery already exporting {battery_power}W - skipping spike tariff upload to avoid disruption")
                         logger.info(f"Powerwall is already optimizing correctly during spike event")
                         # Still mark as in spike mode so we don't keep checking

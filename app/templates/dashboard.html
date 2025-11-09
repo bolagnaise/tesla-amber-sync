@@ -1187,15 +1187,15 @@
                             }
                         }
 
-                        // Battery (+ discharging, - charging)
+                        // Battery (- discharging/exporting, + charging)
                         const batteryElem = document.getElementById('battery-current-value');
                         if (batteryElem && latest.battery_power != null) {
-                            if (latest.battery_power > 50) {
-                                batteryElem.innerHTML = `↑ ${formatPower(latest.battery_power)} <span style="color: #e67e22;">(discharging)</span>`;
-                            } else if (latest.battery_power < -50) {
-                                batteryElem.innerHTML = `↓ ${formatPower(Math.abs(latest.battery_power))} <span style="color: #3498db;">(charging)</span>`;
+                            if (latest.battery_power < -50) {
+                                batteryElem.innerHTML = `↑ ${formatPower(Math.abs(latest.battery_power))} <span style="color: #e67e22;">(discharging)</span>`;
+                            } else if (latest.battery_power > 50) {
+                                batteryElem.innerHTML = `↓ ${formatPower(latest.battery_power)} <span style="color: #3498db;">(charging)</span>`;
                             } else {
-                                batteryElem.textContent = formatPower(latest.battery_power);
+                                batteryElem.textContent = formatPower(Math.abs(latest.battery_power));
                             }
                         }
 
