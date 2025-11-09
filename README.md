@@ -24,6 +24,11 @@
 
 *Real-time AEMO wholesale electricity price monitoring with current price and threshold display*
 
+### Amber Live 5 Min Price
+<img src="https://i.imgur.com/TurU9f1.jpeg" alt="Amber Live 5 Min Price" width="80%"/>
+
+*Live Amber Electric pricing with 5-minute rolling window showing current and upcoming rates*
+
 ### AEMO Price Spike Settings
 <img src="https://i.imgur.com/bpobhtd.png" alt="AEMO Price Spike Detection Settings" width="80%"/>
 
