@@ -186,7 +186,7 @@ The easiest way to deploy is using the official pre-built image from Docker Hub.
 
 ```bash
 # Download the docker-compose file
-curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/docker-compose.hub.yml
+curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/docker/docker-compose.hub.yml
 curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/.env.example
 mv .env.example .env
 
@@ -196,7 +196,7 @@ nano .env
 # Create data directory for persistence
 mkdir -p ./data
 
-# Start the container
+# Start the container (note: file is in docker/ folder in repo, but we downloaded it to current dir)
 docker-compose -f docker-compose.hub.yml up -d
 
 # Access the app
@@ -266,7 +266,7 @@ mkdir -p ./data
 
 5. **Start with Docker Compose**
 ```bash
-docker-compose up -d
+docker-compose -f docker/docker-compose.yml up -d
 ```
 
 6. **Access the dashboard**
@@ -305,8 +305,11 @@ Navigate to http://localhost:5001
 
 ### View Logs
 ```bash
-# Docker Compose
-docker-compose logs -f
+# Docker Compose (from source)
+docker-compose -f docker/docker-compose.yml logs -f
+
+# Docker Compose (pre-built, if using docker-compose.hub.yml)
+docker-compose -f docker-compose.hub.yml logs -f
 
 # Docker run
 docker logs -f tesla-amber-sync
@@ -328,8 +331,8 @@ docker-compose -f docker-compose.hub.yml up -d
 ```bash
 cd tesla-amber-sync
 git pull
-docker-compose down
-docker-compose up -d --build
+docker-compose -f docker/docker-compose.yml down
+docker-compose -f docker/docker-compose.yml up -d --build
 ```
 
 **Local Development (Python venv):**
@@ -636,9 +639,9 @@ flask run
 
 ## Documentation
 
-- **[UNRAID_SETUP.md](UNRAID_SETUP.md)** - Complete Unraid deployment guide
-- **[TESLA_FLEET_SETUP.md](TESLA_FLEET_SETUP.md)** - Complete Tesla Fleet API setup guide
-- **[CLAUDE.md](CLAUDE.md)** - Development guide for Claude Code
+- **[UNRAID_SETUP.md](docs/UNRAID_SETUP.md)** - Complete Unraid deployment guide
+- **[TESLA_FLEET_SETUP.md](docs/TESLA_FLEET_SETUP.md)** - Complete Tesla Fleet API setup guide
+- **[CLAUDE.md](docs/CLAUDE.md)** - Development guide for Claude Code
 - **[Docker Hub](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)** - Pre-built container images
 - **[GitHub Actions](https://github.com/bolagnaise/tesla-amber-sync/actions)** - Automated build status
 - **Tesla Developer Docs:** https://developer.tesla.com/docs/fleet-api
