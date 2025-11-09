@@ -142,17 +142,25 @@ def settings():
     if form.validate_on_submit():
         logger.info(f"Settings form submitted by user: {current_user.email}")
 
+        # Handle Amber API token (encrypt if provided, clear if empty)
         if form.amber_token.data:
             logger.info("Encrypting and saving Amber API token")
             current_user.amber_api_token_encrypted = encrypt_token(form.amber_token.data)
+        else:
+            logger.info("Clearing Amber API token")
+            current_user.amber_api_token_encrypted = None
 
         if form.tesla_site_id.data:
             logger.info(f"Saving Tesla Site ID: {form.tesla_site_id.data}")
             current_user.tesla_energy_site_id = form.tesla_site_id.data
 
+        # Handle Teslemetry API key (encrypt if provided, clear if empty)
         if form.teslemetry_api_key.data:
             logger.info("Encrypting and saving Teslemetry API key")
             current_user.teslemetry_api_key_encrypted = encrypt_token(form.teslemetry_api_key.data)
+        else:
+            logger.info("Clearing Teslemetry API key")
+            current_user.teslemetry_api_key_encrypted = None
 
         if form.timezone.data:
             logger.info(f"Saving timezone: {form.timezone.data}")
