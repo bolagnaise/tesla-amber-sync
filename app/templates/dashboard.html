@@ -97,7 +97,8 @@
     </article>
     {% endif %}
 
-    <!-- Tariff Schedule -->
+    <!-- Tariff Schedule (Amber Only) -->
+    {% if has_amber_token %}
     <article id="tou-schedule-section">
         <header>
             <strong>Electricity Tariff Schedule (Rolling 24h)</strong>
@@ -121,11 +122,12 @@
         </details>
     </article>
 
-    <!-- Price History Chart -->
+    <!-- Price History Chart (Amber Only) -->
     <article id="price-history-section">
         <header><strong>Price History (Last 24 Hours)</strong></header>
         <canvas id="priceChart" style="max-height: 300px;"></canvas>
     </article>
+    {% endif %}
 
     <!-- Energy Usage Logging -->
     <article id="energy-usage-section">
