@@ -10,6 +10,18 @@
   [![Build Status](https://github.com/bolagnaise/tesla-sync/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/bolagnaise/tesla-sync/actions)
 </div>
 
+## Screenshots
+
+<div align="center">
+  <a href="https://imgur.com/a/TdzIgYT">
+    <img src="https://i.imgur.com/TdzIgYT.png" alt="Tesla Sync Dashboard Screenshots" width="100%"/>
+  </a>
+
+  **[View Full Screenshot Gallery →](https://imgur.com/a/TdzIgYT)**
+
+  *Dashboard showcasing real-time energy monitoring, AEMO wholesale pricing, Amber Electric integration, and custom TOU schedule management*
+</div>
+
 ## Features
 
 ### Core Functionality
