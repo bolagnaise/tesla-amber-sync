@@ -23,7 +23,6 @@
 - 🎯 **Custom TOU Schedules** - Create and manage custom time-of-use schedules for any electricity provider (not just Amber)
 - 💾 **Saved TOU Profiles** - Backup, restore, and manage multiple tariff configurations
 - 📈 **Demand Charge Tracking** - Monitor and track peak demand for electricity plans with capacity-based fees
-- 🎛️ **Manual Control Mode** - Override automatic operation with manual charge/discharge control
 
 ### Technical Features
 - 🔐 **Teslemetry Integration** - Secure Tesla API access via Teslemetry proxy service (no public domain required)
