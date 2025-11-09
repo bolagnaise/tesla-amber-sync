@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Tesla Amber Sync Setup",
-        "description": "Configure Tesla Amber Sync to automatically sync Amber Electric pricing to your Tesla Powerwall."
+        "title": "Tesla Sync Setup",
+        "description": "Configure Tesla Sync to automatically sync Amber Electric pricing to your Tesla Powerwall."
       },
       "amber": {
         "title": "Amber Electric Configuration",
@@ -49,14 +49,14 @@
       "unknown": "An unexpected error occurred. Please try again."
     },
     "abort": {
-      "already_configured": "Tesla Amber Sync is already configured.",
+      "already_configured": "Tesla Sync is already configured.",
       "no_energy_sites": "No Tesla energy sites found in your Teslemetry account. Please ensure you have a Powerwall or Solar system configured."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Tesla Amber Sync Options",
+        "title": "Tesla Sync Options",
         "data": {
           "auto_sync_enabled": "Enable automatic TOU schedule syncing"
         }

@@ -1,7 +1,7 @@
 <div align="center">
-  <img src="assets/images/logo.png" alt="Tesla-Amber-Sync Logo" width="400"/>
+  <img src="assets/images/logo.png" alt="Tesla Sync Logo" width="400"/>
 
-  # Tesla-Amber-Sync
+  # Tesla Sync
 
   Synchronize Tesla Powerwall energy management with Amber Electric dynamic pricing to optimize battery charging and discharging based on real-time electricity prices.
 
@@ -24,7 +24,7 @@
 
 ## Installation Options
 
-Tesla-Amber-Sync is available in two deployment options:
+Tesla Sync is available in two deployment options:
 
 1. **[Home Assistant Integration](#home-assistant-integration)** - Native HA custom integration (Recommended for HA users)
 2. **[Docker Application](#docker-deployment)** - Standalone web app with dashboard
@@ -33,7 +33,7 @@ Tesla-Amber-Sync is available in two deployment options:
 
 ## Home Assistant Integration
 
-The easiest way to use Tesla-Amber-Sync if you're already running Home Assistant.
+The easiest way to use Tesla Sync if you're already running Home Assistant.
 
 ### Features
 
@@ -61,13 +61,13 @@ The easiest way to use Tesla-Amber-Sync if you're already running Home Assistant
    - Add repository URL: `https://github.com/bolagnaise/tesla-amber-sync`
    - Category: `Integration`
    - Click "Add"
-   - Click "Download" on the Tesla Amber Sync integration
+   - Click "Download" on the Tesla Sync integration
    - Restart Home Assistant
 
 2. **Add Integration**
    - Go to Settings → Devices & Services
    - Click "+ Add Integration"
-   - Search for "Tesla Amber Sync"
+   - Search for "Tesla Sync"
    - Click to add
 
 3. **Configure**
