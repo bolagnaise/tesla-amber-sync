@@ -39,6 +39,11 @@
 
 *Rolling 24-hour tariff schedule with hourly buy/sell rates and auto-sync to Tesla Powerwall*
 
+### Price History (Last 24 Hours)
+<img src="https://i.imgur.com/1fCrMsW.png" alt="Price History Chart" width="80%"/>
+
+*Historical electricity price chart showing the last 24 hours of pricing data*
+
 ### AEMO Price Spike Settings
 <img src="https://i.imgur.com/bpobhtd.png" alt="AEMO Price Spike Detection Settings" width="80%"/>
 
