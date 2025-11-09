@@ -44,6 +44,11 @@
 
 *Historical electricity price chart showing the last 24 hours of pricing data*
 
+### Energy Usage History
+<img src="https://i.imgur.com/1BEp6s7.png" alt="Energy Usage History Charts" width="80%"/>
+
+*Comprehensive energy usage charts tracking solar generation, grid power, battery power, and home consumption*
+
 ### AEMO Price Spike Settings
 <img src="https://i.imgur.com/bpobhtd.png" alt="AEMO Price Spike Detection Settings" width="80%"/>
 
