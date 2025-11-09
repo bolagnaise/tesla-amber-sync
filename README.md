@@ -49,6 +49,11 @@
 
 *Comprehensive energy usage charts tracking solar generation, grid power, battery power, and home consumption*
 
+### Energy Summaries
+<img src="https://i.imgur.com/dskv5Os.png" alt="Energy Summaries" width="80%"/>
+
+*Daily energy summaries showing total generation, consumption, grid import/export, and battery charge/discharge totals*
+
 ### AEMO Price Spike Settings
 <img src="https://i.imgur.com/bpobhtd.png" alt="AEMO Price Spike Detection Settings" width="80%"/>
 
