@@ -3,7 +3,7 @@
 
   # Tesla Sync
 
-  Synchronize Tesla Powerwall energy management with Amber Electric dynamic pricing to optimize battery charging and discharging based on real-time electricity prices.
+  Intelligent Tesla Powerwall energy management for Australia. Automatically sync with Amber Electric dynamic pricing, create custom TOU schedules for any provider, and capitalize on AEMO wholesale price spikes to maximize your battery's earning potential.
 
   [![Docker Hub](https://img.shields.io/docker/v/bolagnaise/tesla-amber-sync?label=docker%20hub&logo=docker)](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)
   [![Docker Pulls](https://img.shields.io/docker/pulls/bolagnaise/tesla-amber-sync)](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)
@@ -12,15 +12,50 @@
 
 ## Features
 
+### Core Functionality
 - 🔋 **Automatic TOU Tariff Sync** - Updates Tesla Powerwall with Amber Electric pricing every 5 minutes
 - 📊 **Real-time Pricing Dashboard** - Monitor current and historical electricity prices with live updates
 - ⚡ **Near Real-Time Energy Monitoring** - Energy usage charts update every 30 seconds
-- 🌏 **Timezone Support** - Configure your local timezone for accurate time display
-- 🔐 **Teslemetry Integration** - Secure Tesla API access via Teslemetry proxy service
-- 🔒 **Secure Credential Storage** - All API tokens encrypted at rest
-- ⏱️ **Background Scheduler** - Automatic syncing runs every 5 minutes (aligned with Amber's forecast updates)
-- 🐳 **Docker Ready** - Pre-built multi-architecture images for easy deployment
+- 🌏 **Timezone Support** - Configure your local timezone for accurate time display across all Australian states
+
+### Advanced Features
+- ⚡ **AEMO Spike Detection** - Automatically monitors Australian wholesale electricity prices and switches to spike tariff during extreme price events (configurable threshold)
+- 🎯 **Custom TOU Schedules** - Create and manage custom time-of-use schedules for any electricity provider (not just Amber)
+- 💾 **Saved TOU Profiles** - Backup, restore, and manage multiple tariff configurations
+- 📈 **Demand Charge Tracking** - Monitor and track peak demand for electricity plans with capacity-based fees
+- 🎛️ **Manual Control Mode** - Override automatic operation with manual charge/discharge control
+
+### Technical Features
+- 🔐 **Teslemetry Integration** - Secure Tesla API access via Teslemetry proxy service (no public domain required)
+- 🔒 **Secure Credential Storage** - All API tokens encrypted at rest using Fernet encryption
+- ⏱️ **Background Scheduler** - Automatic syncing every 5 minutes (aligned with Amber's forecast updates)
+- 🐳 **Docker Ready** - Pre-built multi-architecture (amd64/arm64) images for easy deployment
 - 🏠 **Home Assistant Integration** - Native HACS integration for seamless HA deployment
+
+## Key Features Explained
+
+### AEMO Spike Detection
+Automatically monitors AEMO NEM wholesale electricity prices for your region (NSW1, QLD1, VIC1, SA1, TAS1). When prices exceed your configured threshold (e.g., $3000/MWh), the system:
+- Saves your current tariff configuration
+- Uploads a spike tariff with very high sell rates to encourage battery export
+- Tesla Powerwall responds by exporting to grid during the spike
+- Automatically restores your normal tariff when prices return to normal
+
+Perfect for maximizing revenue during extreme price events!
+
+### Custom TOU Schedules
+Not using Amber Electric? No problem! Create custom time-of-use schedules for any Australian electricity provider:
+- Define multiple seasonal periods (e.g., Summer, Winter)
+- Set different rates for peak, shoulder, and off-peak periods
+- Configure weekday/weekend variations
+- Upload directly to Tesla Powerwall via Teslemetry
+
+### Saved TOU Profiles
+Backup and restore your tariff configurations:
+- Save current Tesla tariff as named profile
+- Restore previous configurations anytime
+- Manage multiple tariff setups
+- Pre-spike backup for AEMO spike detection
 
 ## Installation Options
 
