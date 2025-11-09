@@ -34,6 +34,11 @@
 
 *Real-time Tesla Powerwall monitoring showing battery level, solar generation, battery power, grid power, and firmware version*
 
+### Amber Electricity Tariff Schedule (24H)
+<img src="https://i.imgur.com/PgkfMwH.png" alt="Amber Electricity Tariff Schedule" width="80%"/>
+
+*Rolling 24-hour tariff schedule with hourly buy/sell rates and auto-sync to Tesla Powerwall*
+
 ### AEMO Price Spike Settings
 <img src="https://i.imgur.com/bpobhtd.png" alt="AEMO Price Spike Detection Settings" width="80%"/>
 
