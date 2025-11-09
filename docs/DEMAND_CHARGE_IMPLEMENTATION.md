@@ -2,7 +2,7 @@
 
 ## Overview
 
-Demand charge tracking has been successfully integrated into the Tesla Amber Sync Home Assistant custom integration. This feature allows users to track peak power demand during configurable time periods and calculate associated demand charges.
+Demand charge tracking has been successfully integrated into the Tesla Sync Home Assistant custom integration. This feature allows users to track peak power demand during configurable time periods and calculate associated demand charges.
 
 ## Version
 
@@ -126,7 +126,7 @@ When demand charge tracking is enabled, five new sensors are created:
 2. Restart Home Assistant
 3. Go to Settings → Devices & Services
 4. Click "Add Integration"
-5. Search for "Tesla Amber Sync"
+5. Search for "Tesla Sync"
 6. Follow the setup wizard:
    - Step 1: Enter Amber API token
    - Step 2: Enter Teslemetry API token
@@ -151,7 +151,7 @@ If you don't want demand charge tracking:
 After setup, the demand charge sensors will appear under the integration's device:
 
 ```
-Tesla Amber Sync
+Tesla Sync
 ├── Current Electricity Price
 ├── Solar Power
 ├── Grid Power
@@ -316,7 +316,7 @@ For issues or questions:
 
 ## License
 
-MIT - Same as Tesla Amber Sync project
+MIT - Same as Tesla Sync project
 
 ---
 

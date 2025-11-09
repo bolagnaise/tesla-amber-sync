@@ -8,8 +8,8 @@ version: '3.8'
 
 services:
   web:
-    image: bolagnaise/tesla-amber-sync:latest
-    container_name: tesla-amber-sync
+    image: bolagnaise/tesla-sync:latest
+    container_name: tesla-sync
     restart: unless-stopped
     ports:
       - "5001:5001"
@@ -33,7 +33,7 @@ services:
 
     volumes:
       # Persist database and user data
-      # For Unraid, change to: /mnt/user/appdata/tesla-amber-sync/data:/app/data
+      # For Unraid, change to: /mnt/user/appdata/tesla-sync/data:/app/data
       - ./data:/app/data
 
     networks:

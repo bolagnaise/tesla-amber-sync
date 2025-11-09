@@ -1,4 +1,4 @@
-# Tesla Amber Sync - Home Assistant Integration Testing Guide
+# Tesla Sync - Home Assistant Integration Testing Guide
 
 ## Overview
 
@@ -60,7 +60,7 @@ Look for log lines mentioning `tesla_amber_sync`.
 
 1. Go to **Settings** → **Devices & Services**
 2. Click **Add Integration**
-3. Search for **Tesla Amber Sync**
+3. Search for **Tesla Sync**
 4. Follow the configuration wizard:
    - Verify Tesla Fleet is configured
    - Enter Amber API token
@@ -71,7 +71,7 @@ Look for log lines mentioning `tesla_amber_sync`.
 
 After configuration, check that entities are created:
 
-1. Go to **Settings** → **Devices & Services** → **Tesla Amber Sync**
+1. Go to **Settings** → **Devices & Services** → **Tesla Sync**
 2. You should see:
    - **Sensors**: Current Electricity Price, Solar Power, Grid Power, Battery Power, Home Load, Battery Level
    - **Switch**: Auto-Sync TOU Schedule
@@ -190,8 +190,8 @@ Once local testing is successful:
 3. **Push the changes** to the branch (NOT main)
 4. **Update main README.md** to reference both Flask and HA versions
 5. **Consider creating separate repositories**:
-   - `tesla-amber-sync` (Flask web app)
-   - `hacs-tesla-amber-sync` (HA integration)
+   - `tesla-sync` (Flask web app)
+   - `hacs-tesla-sync` (HA integration)
 
 ## API Rate Limits
 

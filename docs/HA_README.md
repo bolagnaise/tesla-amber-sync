@@ -1,4 +1,4 @@
-# Tesla Amber Sync - Home Assistant Integration
+# Tesla Sync - Home Assistant Integration
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
 
@@ -34,10 +34,10 @@ Before installing this integration, you need:
 2. Click on "Integrations"
 3. Click the three dots in the top right corner
 4. Select "Custom repositories"
-5. Add this repository URL: `https://github.com/benboller/tesla-amber-sync`
+5. Add this repository URL: `https://github.com/benboller/tesla-sync`
 6. Select category: "Integration"
 7. Click "Add"
-8. Find "Tesla Amber Sync" in HACS and click "Install"
+8. Find "Tesla Sync" in HACS and click "Install"
 9. Restart Home Assistant
 
 ### Method 2: Manual Installation
@@ -53,7 +53,7 @@ Before installing this integration, you need:
 
 1. Go to **Settings** → **Devices & Services**
 2. Click **Add Integration**
-3. Search for **Tesla Amber Sync**
+3. Search for **Tesla Sync**
 4. Follow the configuration steps:
    - **Step 1**: Confirmation that Tesla Fleet is configured
    - **Step 2**: Enter your Amber Electric API token
@@ -200,7 +200,7 @@ Typical savings range from 20-40% on electricity bills compared to fixed-rate pl
 ## Support
 
 For issues, questions, or feature requests:
-- GitHub Issues: https://github.com/benboller/tesla-amber-sync/issues
+- GitHub Issues: https://github.com/benboller/tesla-sync/issues
 - Home Assistant Community: https://community.home-assistant.io/
 
 ## License

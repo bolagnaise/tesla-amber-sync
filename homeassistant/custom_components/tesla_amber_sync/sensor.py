@@ -1,4 +1,4 @@
-"""Sensor platform for Tesla Amber Sync integration."""
+"""Sensor platform for Tesla Sync integration."""
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -57,7 +57,7 @@ _LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class TeslaAmberSensorEntityDescription(SensorEntityDescription):
-    """Describes Tesla Amber Sync sensor entity."""
+    """Describes Tesla Sync sensor entity."""
 
     value_fn: Callable[[Any], Any] | None = None
     attr_fn: Callable[[Any], dict[str, Any]] | None = None
@@ -184,7 +184,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Tesla Amber Sync sensor entities."""
+    """Set up Tesla Sync sensor entities."""
     domain_data = hass.data[DOMAIN][entry.entry_id]
     amber_coordinator: AmberPriceCoordinator = domain_data["amber_coordinator"]
     tesla_coordinator: TeslaEnergyCoordinator = domain_data["tesla_coordinator"]

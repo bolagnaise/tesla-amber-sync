@@ -3,7 +3,7 @@ version: '3.8'
 services:
   web:
     build: .
-    container_name: tesla-amber-sync
+    container_name: tesla-sync
     restart: unless-stopped
     ports:
       - "5001:5001"
@@ -28,8 +28,8 @@ services:
     volumes:
       # UNRAID ABSOLUTE PATH - Change this to match your Unraid setup
       # This path must be absolute (starts with /) to persist across rebuilds
-      # Default: /mnt/user/appdata/tesla-amber-sync/data
-      - /mnt/user/appdata/tesla-amber-sync/data:/app/data
+      # Default: /mnt/user/appdata/tesla-sync/data
+      - /mnt/user/appdata/tesla-sync/data:/app/data
 
     networks:
       - tesla-sync-network

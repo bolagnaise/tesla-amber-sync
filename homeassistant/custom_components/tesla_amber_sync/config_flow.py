@@ -1,4 +1,4 @@
-"""Config flow for Tesla Amber Sync integration."""
+"""Config flow for Tesla Sync integration."""
 from __future__ import annotations
 
 import logging
@@ -111,7 +111,7 @@ async def validate_teslemetry_token(
 
 
 class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Tesla Amber Sync."""
+    """Handle a config flow for Tesla Sync."""
 
     VERSION = 1
 
@@ -287,7 +287,7 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 data[CONF_DEMAND_CHARGE_ENABLED] = False
 
-            return self.async_create_entry(title="Tesla Amber Sync", data=data)
+            return self.async_create_entry(title="Tesla Sync", data=data)
 
         # Build the form schema
         data_schema = vol.Schema(
@@ -326,7 +326,7 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class TeslaAmberSyncOptionsFlow(config_entries.OptionsFlow):
-    """Handle options flow for Tesla Amber Sync."""
+    """Handle options flow for Tesla Sync."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""

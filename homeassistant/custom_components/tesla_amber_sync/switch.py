@@ -1,4 +1,4 @@
-"""Switch platform for Tesla Amber Sync integration."""
+"""Switch platform for Tesla Sync integration."""
 from __future__ import annotations
 
 import logging
@@ -25,7 +25,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Tesla Amber Sync switch entities."""
+    """Set up Tesla Sync switch entities."""
     entities = [
         AutoSyncSwitch(
             entry=entry,

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Tesla-Amber-Sync is a Flask web application that synchronizes Tesla Powerwall energy data with Amber Electric pricing. Users authenticate via a web interface, securely store their Tesla and Amber Electric credentials, and enable automated integration between the two services.
+Tesla Sync is a Flask web application that synchronizes Tesla Powerwall energy data with dynamic electricity pricing APIs (like Amber Electric). Users authenticate via a web interface, securely store their Tesla and pricing API credentials, and enable automated integration between the services.
 
 ## Architecture
 

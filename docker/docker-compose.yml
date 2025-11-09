@@ -3,7 +3,7 @@ version: '3.8'
 services:
   web:
     build: .
-    container_name: tesla-amber-sync
+    container_name: tesla-sync
     restart: unless-stopped
     ports:
       - "5001:5001"
@@ -28,7 +28,7 @@ services:
     volumes:
       # ⚠️ IMPORTANT: This directory persists your database across container restarts
       # Before first run: mkdir -p ./data
-      # For Unraid: Use /mnt/user/appdata/tesla-amber-sync/data:/app/data
+      # For Unraid: Use /mnt/user/appdata/tesla-sync/data:/app/data
       # See DATABASE.md for backup and restore instructions
       - ./data:/app/data
 

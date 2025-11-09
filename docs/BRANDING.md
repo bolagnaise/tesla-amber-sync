@@ -1,6 +1,6 @@
 # Branding Assets
 
-This document explains how to use the Tesla-Amber-Sync logo across different platforms.
+This document explains how to use the Tesla Sync logo across different platforms.
 
 ## Available Assets
 
@@ -29,7 +29,7 @@ This image appears when sharing your repository on social media.
 
 **Steps:**
 
-1. Go to your repository: https://github.com/bolagnaise/tesla-amber-sync
+1. Go to your repository: https://github.com/bolagnaise/tesla-sync
 2. Click **Settings** (repository settings, not account settings)
 3. Scroll down to **Social preview** section
 4. Click **Edit**
@@ -44,7 +44,7 @@ This icon appears next to your container image on Docker Hub.
 
 **Steps:**
 
-1. Go to Docker Hub: https://hub.docker.com/r/bolagnaise/tesla-amber-sync
+1. Go to Docker Hub: https://hub.docker.com/r/bolagnaise/tesla-sync
 2. Log in to your Docker Hub account
 3. Navigate to your repository page
 4. Click the **Settings** tab

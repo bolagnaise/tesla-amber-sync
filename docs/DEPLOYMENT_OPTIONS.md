@@ -1,8 +1,8 @@
-# Tesla Amber Sync - Deployment Options
+# Tesla Sync - Deployment Options
 
 ## Overview
 
-Tesla Amber Sync is available in two deployment options:
+Tesla Sync is available in two deployment options:
 
 1. **Flask Web App** (Docker/Unraid) - Standalone web application
 2. **Home Assistant Integration** (HACS) - Native HA integration
@@ -24,9 +24,9 @@ You can use **either or both** depending on your needs.
 #### Docker Compose
 ```yaml
 services:
-  tesla-amber-sync:
-    image: benboller/tesla-amber-sync:latest
-    container_name: tesla-amber-sync
+  tesla-sync:
+    image: benboller/tesla-sync:latest
+    container_name: tesla-sync
     ports:
       - "5001:5000"
     volumes:
@@ -39,7 +39,7 @@ services:
 ```
 
 #### Unraid Template
-Available via Community Applications - search "Tesla Amber Sync"
+Available via Community Applications - search "Tesla Sync"
 
 ### Features
 - ✅ Web UI with login/authentication
@@ -76,7 +76,7 @@ Available via Community Applications - search "Tesla Amber Sync"
 
 #### HACS Installation
 1. Add custom repository to HACS
-2. Install "Tesla Amber Sync"
+2. Install "Tesla Sync"
 3. Restart Home Assistant
 4. Configure via UI
 
@@ -102,7 +102,7 @@ Available via Community Applications - search "Tesla Amber Sync"
 - You want to avoid running a separate service
 
 ### Access
-- Settings → Devices & Services → Tesla Amber Sync
+- Settings → Devices & Services → Tesla Sync
 - View entities in HA UI
 - Use in Lovelace dashboards
 - Trigger automations
@@ -269,7 +269,7 @@ automation:
 ## Support & Updates
 
 ### Flask Web App
-- **Updates**: Docker Hub (`benboller/tesla-amber-sync`)
+- **Updates**: Docker Hub (`benboller/tesla-sync`)
 - **Docs**: README.md, UNRAID_SETUP.md
 - **Issues**: GitHub Issues
 - **Logs**: `/app/logs` directory

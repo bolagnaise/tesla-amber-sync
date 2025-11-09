@@ -2,7 +2,7 @@
 
 ## Understanding Database Storage
 
-Tesla-Amber-Sync uses SQLite to store:
+Tesla Sync uses SQLite to store:
 - User accounts and encrypted credentials
 - Tesla and Amber API tokens
 - Configuration settings
@@ -16,7 +16,7 @@ Tesla-Amber-Sync uses SQLite to store:
 
 ### On Host (Unraid/Your Server)
 - Path: `./data/app.db` (relative to docker-compose.yml location)
-- **Example**: If docker-compose.yml is in `/mnt/user/appdata/tesla-amber-sync/`, then database is at `/mnt/user/appdata/tesla-amber-sync/data/app.db`
+- **Example**: If docker-compose.yml is in `/mnt/user/appdata/tesla-sync/`, then database is at `/mnt/user/appdata/tesla-sync/data/app.db`
 
 ## ⚠️ Common Issue: Lost Data After Upgrade
 
@@ -35,7 +35,7 @@ When you run `docker-compose down && docker-compose up -d --build`, the containe
 ssh root@192.168.1.100
 
 # Navigate to your app directory
-cd /path/to/tesla-amber-sync
+cd /path/to/tesla-sync
 
 # Create data directory if it doesn't exist
 mkdir -p data
@@ -58,7 +58,7 @@ docker-compose up -d --build
 ssh root@192.168.1.100
 
 # Backup database AND encryption key
-cd /path/to/tesla-amber-sync
+cd /path/to/tesla-sync
 DATE=$(date +%Y%m%d-%H%M%S)
 cp data/app.db data/app.db.backup-$DATE
 cp data/.fernet_key data/.fernet_key.backup-$DATE
@@ -78,9 +78,9 @@ Create a cron job to backup daily:
 
 ```bash
 # Create backup script
-cat > /path/to/tesla-amber-sync/backup-db.sh << 'EOF'
+cat > /path/to/tesla-sync/backup-db.sh << 'EOF'
 #!/bin/bash
-BACKUP_DIR="/path/to/tesla-amber-sync/data"
+BACKUP_DIR="/path/to/tesla-sync/data"
 DATE=$(date +%Y%m%d-%H%M%S)
 
 # Backup database and encryption key together
@@ -94,12 +94,12 @@ ls -t "$BACKUP_DIR"/.fernet_key.backup-* | tail -n +8 | xargs rm -f
 echo "Database and encryption key backed up: backup-$DATE"
 EOF
 
-chmod +x /path/to/tesla-amber-sync/backup-db.sh
+chmod +x /path/to/tesla-sync/backup-db.sh
 
 # Add to crontab (daily at 2 AM)
 crontab -e
 # Add line:
-0 2 * * * /path/to/tesla-amber-sync/backup-db.sh
+0 2 * * * /path/to/tesla-sync/backup-db.sh
 ```
 
 ## Restore From Backup
@@ -109,7 +109,7 @@ crontab -e
 ssh root@192.168.1.100
 
 # Stop container
-cd /path/to/tesla-amber-sync
+cd /path/to/tesla-sync
 docker-compose down
 
 # Restore backup
@@ -132,11 +132,11 @@ If you have a local `app.db` from development:
 
 ```bash
 # From your Mac (adjust paths as needed)
-scp app.db root@192.168.1.100:/path/to/tesla-amber-sync/data/app.db
+scp app.db root@192.168.1.100:/path/to/tesla-sync/data/app.db
 
 # Then restart container on Unraid
 ssh root@192.168.1.100
-cd /path/to/tesla-amber-sync
+cd /path/to/tesla-sync
 docker-compose restart
 ```
 
@@ -149,11 +149,11 @@ After any upgrade, check that your database was preserved:
 ssh root@192.168.1.100
 
 # Check database exists and has content
-cd /path/to/tesla-amber-sync
+cd /path/to/tesla-sync
 ls -lh data/app.db
 
 # View users in database
-docker exec tesla-amber-sync sqlite3 /app/data/app.db "SELECT email FROM user;"
+docker exec tesla-sync sqlite3 /app/data/app.db "SELECT email FROM user;"
 ```
 
 ## Unraid-Specific Notes
@@ -164,14 +164,14 @@ For Unraid, use an absolute path to ensure persistence across Docker updates:
 
 ```yaml
 volumes:
-  - /mnt/user/appdata/tesla-amber-sync/data:/app/data
+  - /mnt/user/appdata/tesla-sync/data:/app/data
 ```
 
 ### Community Applications
 
 If installing via Unraid Community Applications:
-1. Set **AppData Path** to `/mnt/user/appdata/tesla-amber-sync`
-2. Database will automatically persist at `/mnt/user/appdata/tesla-amber-sync/data/app.db`
+1. Set **AppData Path** to `/mnt/user/appdata/tesla-sync`
+2. Database will automatically persist at `/mnt/user/appdata/tesla-sync/data/app.db`
 3. Survives all container updates
 
 ## Troubleshooting
@@ -179,14 +179,14 @@ If installing via Unraid Community Applications:
 ### Database is read-only
 ```bash
 # Fix permissions
-docker exec tesla-amber-sync chown -R root:root /app/data
-docker exec tesla-amber-sync chmod 644 /app/data/app.db
+docker exec tesla-sync chown -R root:root /app/data
+docker exec tesla-sync chmod 644 /app/data/app.db
 ```
 
 ### Database is locked
 ```bash
 # Check for zombie processes
-docker exec tesla-amber-sync ps aux | grep gunicorn
+docker exec tesla-sync ps aux | grep gunicorn
 
 # Restart container
 docker-compose restart
@@ -195,7 +195,7 @@ docker-compose restart
 ### Fresh database every restart
 ```bash
 # Check volume mount is working
-docker inspect tesla-amber-sync | grep -A 10 Mounts
+docker inspect tesla-sync | grep -A 10 Mounts
 
 # Verify ./data directory exists on host
 ls -la ./data
@@ -211,5 +211,5 @@ When upgrading between versions, Flask-Migrate automatically runs database migra
 
 If a migration fails, check logs:
 ```bash
-docker logs tesla-amber-sync | grep -i migration
+docker logs tesla-sync | grep -i migration
 ```

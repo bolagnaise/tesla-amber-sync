@@ -5,9 +5,9 @@
 
   Intelligent Tesla Powerwall energy management for Australia. Automatically sync with Amber Electric dynamic pricing, create custom TOU schedules for any provider, and capitalize on AEMO wholesale price spikes to maximize your battery's earning potential.
 
-  [![Docker Hub](https://img.shields.io/docker/v/bolagnaise/tesla-amber-sync?label=docker%20hub&logo=docker)](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)
-  [![Docker Pulls](https://img.shields.io/docker/pulls/bolagnaise/tesla-amber-sync)](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)
-  [![Build Status](https://github.com/bolagnaise/tesla-amber-sync/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/bolagnaise/tesla-amber-sync/actions)
+  [![Docker Hub](https://img.shields.io/docker/v/bolagnaise/tesla-sync?label=docker%20hub&logo=docker)](https://hub.docker.com/r/bolagnaise/tesla-sync)
+  [![Docker Pulls](https://img.shields.io/docker/pulls/bolagnaise/tesla-sync)](https://hub.docker.com/r/bolagnaise/tesla-sync)
+  [![Build Status](https://github.com/bolagnaise/tesla-sync/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/bolagnaise/tesla-sync/actions)
 </div>
 
 ## Features
@@ -92,7 +92,7 @@ The easiest way to use Tesla Sync if you're already running Home Assistant.
    - Open HACS in Home Assistant
    - Click the three dots in the top right
    - Select "Custom repositories"
-   - Add repository URL: `https://github.com/bolagnaise/tesla-amber-sync`
+   - Add repository URL: `https://github.com/bolagnaise/tesla-sync`
    - Category: `Integration`
    - Click "Add"
    - Click "Download" on the Tesla Sync integration
@@ -220,8 +220,8 @@ The easiest way to deploy is using the official pre-built image from Docker Hub.
 
 ```bash
 # Download the docker-compose file
-curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/docker/docker-compose.hub.yml
-curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/.env.example
+curl -O https://raw.githubusercontent.com/bolagnaise/tesla-sync/main/docker/docker-compose.hub.yml
+curl -O https://raw.githubusercontent.com/bolagnaise/tesla-sync/main/.env.example
 mv .env.example .env
 
 # Edit .env with your Tesla credentials (encryption key auto-generated on first run)
@@ -244,12 +244,12 @@ open http://localhost:5001
 mkdir -p $(pwd)/data
 
 docker run -d \
-  --name tesla-amber-sync \
+  --name tesla-sync \
   -p 5001:5001 \
   -v $(pwd)/data:/app/data \
   -e SECRET_KEY=your-secret-key-here \
   --restart unless-stopped \
-  bolagnaise/tesla-amber-sync:latest
+  bolagnaise/tesla-sync:latest
 
 # Note: Encryption key is auto-generated and saved to ./data/.fernet_key
 # Tesla OAuth credentials can be configured via the Environment Settings page in the web UI
@@ -270,7 +270,7 @@ SECRET_KEY=your-random-secret-key-here
 - **Important:** Back up `./data/.fernet_key` - without it, you cannot decrypt stored credentials
 
 **Docker Hub Image Details:**
-- **Repository:** `bolagnaise/tesla-amber-sync`
+- **Repository:** `bolagnaise/tesla-sync`
 - **Multi-Architecture:** Supports `linux/amd64` and `linux/arm64`
 - **Automated Builds:** Every push to main branch
 - **Production Server:** Gunicorn with 4 workers
@@ -281,8 +281,8 @@ For development or customization:
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/bolagnaise/tesla-amber-sync.git
-cd tesla-amber-sync
+git clone https://github.com/bolagnaise/tesla-sync.git
+cd tesla-sync
 ```
 
 2. **Create `.env` file**
@@ -346,15 +346,15 @@ docker-compose -f docker/docker-compose.yml logs -f
 docker-compose -f docker-compose.hub.yml logs -f
 
 # Docker run
-docker logs -f tesla-amber-sync
+docker logs -f tesla-sync
 ```
 
 ### Update to Latest Version
 
 **Pre-built Image:**
 ```bash
-docker pull bolagnaise/tesla-amber-sync:latest
-docker restart tesla-amber-sync
+docker pull bolagnaise/tesla-sync:latest
+docker restart tesla-sync
 
 # Or with docker-compose
 docker-compose -f docker-compose.hub.yml pull
@@ -363,7 +363,7 @@ docker-compose -f docker-compose.hub.yml up -d
 
 **Built from Source:**
 ```bash
-cd tesla-amber-sync
+cd tesla-sync
 git pull
 docker-compose -f docker/docker-compose.yml down
 docker-compose -f docker/docker-compose.yml up -d --build
@@ -371,7 +371,7 @@ docker-compose -f docker/docker-compose.yml up -d --build
 
 **Local Development (Python venv):**
 ```bash
-cd tesla-amber-sync
+cd tesla-sync
 git pull
 source venv/bin/activate
 flask db upgrade  # Apply any database migrations
@@ -400,7 +400,7 @@ cp ./data/app.db ./data/app.db.backup-$(date +%Y%m%d)
 
 # Restore database
 cp ./data/app.db.backup-YYYYMMDD ./data/app.db
-docker restart tesla-amber-sync
+docker restart tesla-sync
 ```
 
 📖 **See [DATABASE.md](DATABASE.md) for:**
@@ -676,8 +676,8 @@ flask run
 - **[UNRAID_SETUP.md](docs/UNRAID_SETUP.md)** - Complete Unraid deployment guide
 - **[TESLA_FLEET_SETUP.md](docs/TESLA_FLEET_SETUP.md)** - Complete Tesla Fleet API setup guide
 - **[CLAUDE.md](docs/CLAUDE.md)** - Development guide for Claude Code
-- **[Docker Hub](https://hub.docker.com/r/bolagnaise/tesla-amber-sync)** - Pre-built container images
-- **[GitHub Actions](https://github.com/bolagnaise/tesla-amber-sync/actions)** - Automated build status
+- **[Docker Hub](https://hub.docker.com/r/bolagnaise/tesla-sync)** - Pre-built container images
+- **[GitHub Actions](https://github.com/bolagnaise/tesla-sync/actions)** - Automated build status
 - **Tesla Developer Docs:** https://developer.tesla.com/docs/fleet-api
 - **Amber API Docs:** https://api.amber.com.au/docs
 

@@ -1,6 +1,6 @@
 # Tesla Fleet API Setup Guide
 
-This guide will walk you through setting up Tesla Fleet API credentials for the Tesla-Amber-Sync application.
+This guide will walk you through setting up Tesla Fleet API credentials for the Tesla Sync application.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ This guide will walk you through setting up Tesla Fleet API credentials for the 
 
    **Application Name:**
    ```
-   Tesla Amber Sync
+   Tesla Sync
    ```
    (Or any name you prefer - this is what users see during OAuth)
 
@@ -348,4 +348,4 @@ Once setup is complete:
 3. ✅ Test API connectivity
 4. ✅ Set up automatic TOU schedule syncing
 
-Your Tesla-Amber-Sync integration should now be fully functional!
+Your Tesla Sync integration should now be fully functional!

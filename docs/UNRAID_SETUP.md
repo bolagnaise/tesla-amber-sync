@@ -1,9 +1,9 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/assets/images/logo.png" alt="Tesla-Amber-Sync Logo" width="400"/>
+  <img src="https://raw.githubusercontent.com/bolagnaise/tesla-sync/main/assets/images/logo.png" alt="Tesla Sync Logo" width="400"/>
 
-  # Tesla-Amber-Sync on Unraid
+  # Tesla Sync on Unraid
 
-  Complete guide to deploy Tesla-Amber-Sync on Unraid using Docker.
+  Complete guide to deploy Tesla Sync on Unraid using Docker.
 </div>
 
 ## Method 1: Pre-built Docker Image (Recommended)
@@ -19,14 +19,14 @@ The easiest way to deploy is using the official pre-built image from Docker Hub.
 ssh root@your-unraid-ip
 
 # Create directory
-mkdir -p /mnt/user/appdata/tesla-amber-sync
-cd /mnt/user/appdata/tesla-amber-sync
+mkdir -p /mnt/user/appdata/tesla-sync
+cd /mnt/user/appdata/tesla-sync
 ```
 
 2. Download the docker-compose file:
 ```bash
-curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/docker-compose.hub.yml
-curl -O https://raw.githubusercontent.com/bolagnaise/tesla-amber-sync/main/.env.example
+curl -O https://raw.githubusercontent.com/bolagnaise/tesla-sync/main/docker-compose.hub.yml
+curl -O https://raw.githubusercontent.com/bolagnaise/tesla-sync/main/.env.example
 mv .env.example .env
 ```
 
@@ -40,7 +40,7 @@ Add your Tesla credentials (see Configuration section below).
 
 4. Create data directory:
 ```bash
-mkdir -p /mnt/user/appdata/tesla-amber-sync/data
+mkdir -p /mnt/user/appdata/tesla-sync/data
 ```
 
 5. Start the container:
@@ -52,17 +52,17 @@ docker-compose -f docker-compose.hub.yml up -d
 
 ```bash
 # Create data directory first
-mkdir -p /mnt/user/appdata/tesla-amber-sync/data
+mkdir -p /mnt/user/appdata/tesla-sync/data
 
 docker run -d \
-  --name tesla-amber-sync \
+  --name tesla-sync \
   -p 5001:5001 \
-  -v /mnt/user/appdata/tesla-amber-sync/data:/app/data \
+  -v /mnt/user/appdata/tesla-sync/data:/app/data \
   -e SECRET_KEY=your-secret-key-here \
   --restart unless-stopped \
-  bolagnaise/tesla-amber-sync:latest
+  bolagnaise/tesla-sync:latest
 
-# Note: Encryption key is auto-generated and saved to /mnt/user/appdata/tesla-amber-sync/data/.fernet_key
+# Note: Encryption key is auto-generated and saved to /mnt/user/appdata/tesla-sync/data/.fernet_key
 # Tesla OAuth credentials can be configured via the Environment Settings page in the web UI
 ```
 
@@ -74,11 +74,11 @@ docker run -d \
 
 | Setting | Value |
 |---------|-------|
-| **Name** | `tesla-amber-sync` |
-| **Repository** | `bolagnaise/tesla-amber-sync:latest` |
+| **Name** | `tesla-sync` |
+| **Repository** | `bolagnaise/tesla-sync:latest` |
 | **Network Type** | `bridge` |
 | **Port** | `5001:5001` (TCP) |
-| **Path** | `/mnt/user/appdata/tesla-amber-sync/data` → `/app/data` |
+| **Path** | `/mnt/user/appdata/tesla-sync/data` → `/app/data` |
 | **Restart Policy** | `Unless Stopped` |
 
 Add environment variables (see Configuration section below).
@@ -105,15 +105,15 @@ SSH into your Unraid server:
 ssh root@your-unraid-ip
 
 # Create directory for the project
-mkdir -p /mnt/user/appdata/tesla-amber-sync
-cd /mnt/user/appdata/tesla-amber-sync
+mkdir -p /mnt/user/appdata/tesla-sync
+cd /mnt/user/appdata/tesla-sync
 ```
 
 ### Step 3: Download Docker Compose Files
 
 ```bash
 # Clone the repository
-git clone https://github.com/bolagnaise/tesla-amber-sync.git .
+git clone https://github.com/bolagnaise/tesla-sync.git .
 
 # Or manually download files using wget/curl
 ```
@@ -148,7 +148,7 @@ SECRET_KEY=your-long-random-secret-key-here
 
 **✨ New: Auto-Generated Encryption Key**
 - The app automatically generates an encryption key on first startup
-- Saved to: `/mnt/user/appdata/tesla-amber-sync/data/.fernet_key`
+- Saved to: `/mnt/user/appdata/tesla-sync/data/.fernet_key`
 - Persists across container restarts via volume mount
 - **Important:** Always backup this file along with your database!
 
@@ -158,7 +158,7 @@ The existing `docker-compose.yml` works, but update the volume path:
 
 ```yaml
 volumes:
-  - /mnt/user/appdata/tesla-amber-sync/data:/app/data
+  - /mnt/user/appdata/tesla-sync/data:/app/data
 ```
 
 ### Step 6: Start the Container
@@ -216,7 +216,7 @@ If you don't want to deal with HTTPS/domains, use Teslemetry:
 
 ### View Logs
 ```bash
-docker logs tesla-amber-sync
+docker logs tesla-sync
 
 # Or with Docker Compose
 docker-compose logs -f
@@ -224,7 +224,7 @@ docker-compose logs -f
 
 ### Restart Container
 ```bash
-docker restart tesla-amber-sync
+docker restart tesla-sync
 
 # Or with Docker Compose
 docker-compose restart
@@ -235,20 +235,20 @@ docker-compose restart
 **If using Pre-built Image (Method 1):**
 ```bash
 # Pull latest image
-docker pull bolagnaise/tesla-amber-sync:latest
+docker pull bolagnaise/tesla-sync:latest
 
 # Restart container
-docker restart tesla-amber-sync
+docker restart tesla-sync
 
 # Or with docker-compose
-cd /mnt/user/appdata/tesla-amber-sync
+cd /mnt/user/appdata/tesla-sync
 docker-compose -f docker-compose.hub.yml pull
 docker-compose -f docker-compose.hub.yml up -d
 ```
 
 **If building from source (Method 2):**
 ```bash
-cd /mnt/user/appdata/tesla-amber-sync
+cd /mnt/user/appdata/tesla-sync
 git pull
 docker-compose down
 docker-compose up -d --build
@@ -261,14 +261,14 @@ docker-compose up -d --build
 ```bash
 # Backup both database and encryption key
 DATE=$(date +%Y%m%d-%H%M%S)
-BACKUP_DIR=/mnt/user/backups/tesla-amber-sync
+BACKUP_DIR=/mnt/user/backups/tesla-sync
 mkdir -p $BACKUP_DIR
 
 # Copy database
-cp /mnt/user/appdata/tesla-amber-sync/data/app.db $BACKUP_DIR/app.db.backup-$DATE
+cp /mnt/user/appdata/tesla-sync/data/app.db $BACKUP_DIR/app.db.backup-$DATE
 
 # Copy encryption key (critical - without this, encrypted credentials are lost!)
-cp /mnt/user/appdata/tesla-amber-sync/data/.fernet_key $BACKUP_DIR/.fernet_key.backup-$DATE
+cp /mnt/user/appdata/tesla-sync/data/.fernet_key $BACKUP_DIR/.fernet_key.backup-$DATE
 
 echo "Backup complete: $DATE"
 ```
@@ -286,18 +286,18 @@ echo "Backup complete: $DATE"
 
 Check logs:
 ```bash
-docker logs tesla-amber-sync
+docker logs tesla-sync
 ```
 
 Common issues:
 - Missing environment variables
 - Port 5001 already in use
-- Permissions on `/mnt/user/appdata/tesla-amber-sync/data`
+- Permissions on `/mnt/user/appdata/tesla-sync/data`
 
 ### Can't Access Web Interface
 
 1. Check container is running: `docker ps`
-2. Check port mapping: `docker port tesla-amber-sync`
+2. Check port mapping: `docker port tesla-sync`
 3. Try accessing via: `http://UNRAID-SERVER-IP:5001`
 4. Check Unraid firewall settings
 
@@ -305,8 +305,8 @@ Common issues:
 
 If you get database errors:
 ```bash
-chown -R nobody:users /mnt/user/appdata/tesla-amber-sync/data
-chmod -R 775 /mnt/user/appdata/tesla-amber-sync/data
+chown -R nobody:users /mnt/user/appdata/tesla-sync/data
+chmod -R 775 /mnt/user/appdata/tesla-sync/data
 ```
 
 ### ⚠️ User Account Lost After Container Update
@@ -326,7 +326,7 @@ chmod -R 775 /mnt/user/appdata/tesla-amber-sync/data
 ssh root@your-unraid-ip
 
 # Check if database exists on the host
-ls -lh /mnt/user/appdata/tesla-amber-sync/data/app.db
+ls -lh /mnt/user/appdata/tesla-sync/data/app.db
 
 # If it doesn't exist or is empty, that's the problem
 ```
@@ -337,26 +337,26 @@ ls -lh /mnt/user/appdata/tesla-amber-sync/data/app.db
 docker-compose down
 
 # Make sure you're in the right directory
-cd /mnt/user/appdata/tesla-amber-sync
+cd /mnt/user/appdata/tesla-sync
 
 # Create the data directory if it doesn't exist
-mkdir -p /mnt/user/appdata/tesla-amber-sync/data
+mkdir -p /mnt/user/appdata/tesla-sync/data
 
 # If using docker-compose, use the Unraid-specific file:
 docker-compose -f docker-compose.unraid.yml up -d --build
 
 # Or edit your docker-compose.yml to use absolute path:
 # volumes:
-#   - /mnt/user/appdata/tesla-amber-sync/data:/app/data
+#   - /mnt/user/appdata/tesla-sync/data:/app/data
 ```
 
 3. **Verify the volume is mounted correctly:**
 ```bash
 # Check the container's volume mounts
-docker inspect tesla-amber-sync | grep -A 10 Mounts
+docker inspect tesla-sync | grep -A 10 Mounts
 
 # You should see:
-# "Source": "/mnt/user/appdata/tesla-amber-sync/data"
+# "Source": "/mnt/user/appdata/tesla-sync/data"
 # "Destination": "/app/data"
 ```
 
@@ -364,7 +364,7 @@ docker inspect tesla-amber-sync | grep -A 10 Mounts
 ```bash
 # Register a new user in the web interface
 # Then check the database was created on the host:
-ls -lh /mnt/user/appdata/tesla-amber-sync/data/app.db
+ls -lh /mnt/user/appdata/tesla-sync/data/app.db
 
 # Rebuild the container
 docker-compose down && docker-compose up -d --build
@@ -377,7 +377,7 @@ docker-compose down && docker-compose up -d --build
 For Unraid, always use `docker-compose.unraid.yml` which has the correct absolute path:
 
 ```bash
-cd /mnt/user/appdata/tesla-amber-sync
+cd /mnt/user/appdata/tesla-sync
 docker-compose -f docker-compose.unraid.yml up -d
 ```
 
@@ -388,7 +388,7 @@ docker-compose -f docker-compose.unraid.yml up -d
 Docker containers in Unraid auto-start by default. To verify:
 
 1. Go to **Docker** tab
-2. Find `tesla-amber-sync`
+2. Find `tesla-sync`
 3. Check **Autostart** is enabled
 
 Or with Docker Compose, ensure restart policy:
@@ -413,15 +413,15 @@ restart: unless-stopped
 ### Add to Unraid Dashboard
 
 Create a custom icon:
-1. Download logo to `/boot/config/plugins/dynamix/tesla-amber-sync.png`
+1. Download logo to `/boot/config/plugins/dynamix/tesla-sync.png`
 2. Edit container settings
-3. Set **Icon URL:** `/boot/config/plugins/dynamix/tesla-amber-sync.png`
+3. Set **Icon URL:** `/boot/config/plugins/dynamix/tesla-sync.png`
 
 ### Monitor Resources
 
 Check container stats:
 ```bash
-docker stats tesla-amber-sync
+docker stats tesla-sync
 ```
 
 ### Integration with Unraid Notifications
@@ -432,7 +432,7 @@ Set up Unraid User Scripts to notify on sync failures.
 
 ## Support
 
-- **GitHub Issues:** https://github.com/bolagnaise/tesla-amber-sync/issues
+- **GitHub Issues:** https://github.com/bolagnaise/tesla-sync/issues
 - **Unraid Forums:** Post in Docker Containers section
 - **Documentation:** See main README.md
 
@@ -442,16 +442,16 @@ Set up Unraid User Scripts to notify on sync failures.
 
 **Access App:** `http://UNRAID-IP:5001`
 
-**Config Location:** `/mnt/user/appdata/tesla-amber-sync/`
+**Config Location:** `/mnt/user/appdata/tesla-sync/`
 
-**Database:** `/mnt/user/appdata/tesla-amber-sync/data/app.db`
+**Database:** `/mnt/user/appdata/tesla-sync/data/app.db`
 
-**Logs:** `docker logs tesla-amber-sync`
+**Logs:** `docker logs tesla-sync`
 
-**Restart:** `docker restart tesla-amber-sync`
+**Restart:** `docker restart tesla-sync`
 
-**Update (Pre-built):** `docker pull bolagnaise/tesla-amber-sync:latest && docker restart tesla-amber-sync`
+**Update (Pre-built):** `docker pull bolagnaise/tesla-sync:latest && docker restart tesla-sync`
 
-**Update (Source):** `cd /mnt/user/appdata/tesla-amber-sync && git pull && docker-compose up -d --build`
+**Update (Source):** `cd /mnt/user/appdata/tesla-sync && git pull && docker-compose up -d --build`
 
-**Docker Hub:** `https://hub.docker.com/r/bolagnaise/tesla-amber-sync`
+**Docker Hub:** `https://hub.docker.com/r/bolagnaise/tesla-sync`

@@ -1,4 +1,4 @@
-# Tesla-Amber-Sync Project Structure Analysis
+# Tesla Sync Project Structure Analysis
 
 ## Executive Summary
 
@@ -336,7 +336,7 @@ class ConfigFlow:
 ## 7. Project File Structure Summary
 
 ```
-tesla-amber-sync/
+tesla-sync/
 ├── app/                                    # FLASK WEB APPLICATION
 │   ├── __init__.py                         # App factory
 │   ├── routes.py                           # Main routes

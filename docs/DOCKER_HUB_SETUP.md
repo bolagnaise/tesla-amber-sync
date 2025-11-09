@@ -22,14 +22,14 @@ If you don't have one:
 3. Go to **Security** → **Access Tokens**
 4. Click **New Access Token**
 5. Settings:
-   - **Description:** `GitHub Actions - Tesla Amber Sync`
+   - **Description:** `GitHub Actions - Tesla Sync`
    - **Permissions:** `Read, Write, Delete`
 6. Click **Generate**
 7. **COPY THE TOKEN** - you won't see it again!
 
 ## Step 3: Add Token to GitHub Secrets
 
-1. Go to your GitHub repository: https://github.com/bolagnaise/tesla-amber-sync
+1. Go to your GitHub repository: https://github.com/bolagnaise/tesla-sync
 2. Click **Settings** (repository settings, not your account)
 3. In left sidebar: **Secrets and variables** → **Actions**
 4. Click **New repository secret**
@@ -73,7 +73,7 @@ git push
 
 Once build completes:
 
-1. Go to https://hub.docker.com/r/bolagnaise/tesla-amber-sync
+1. Go to https://hub.docker.com/r/bolagnaise/tesla-sync
 2. You should see your image with tags:
    - `latest` - most recent main branch
    - `main` - same as latest
@@ -91,8 +91,8 @@ version: '3.8'
 
 services:
   web:
-    image: bolagnaise/tesla-amber-sync:latest  # Use Docker Hub image
-    container_name: tesla-amber-sync
+    image: bolagnaise/tesla-sync:latest  # Use Docker Hub image
+    container_name: tesla-sync
     restart: unless-stopped
     ports:
       - "5001:5001"
@@ -110,7 +110,7 @@ services:
 **Or with docker run:**
 ```bash
 docker run -d \
-  --name tesla-amber-sync \
+  --name tesla-sync \
   -p 5001:5001 \
   -v $(pwd)/data:/app/data \
   -e SECRET_KEY=your-secret \
@@ -120,7 +120,7 @@ docker run -d \
   -e TESLA_REDIRECT_URI=http://localhost:5001/tesla-fleet/callback \
   -e APP_DOMAIN=http://localhost:5001 \
   --restart unless-stopped \
-  bolagnaise/tesla-amber-sync:latest
+  bolagnaise/tesla-sync:latest
 ```
 
 ## Automatic Updates
@@ -129,15 +129,15 @@ docker run -d \
 
 ```bash
 # Pull latest image
-docker pull bolagnaise/tesla-amber-sync:latest
+docker pull bolagnaise/tesla-sync:latest
 
 # Recreate container
 docker-compose down
 docker-compose up -d
 
 # Or with docker run
-docker stop tesla-amber-sync
-docker rm tesla-amber-sync
+docker stop tesla-sync
+docker rm tesla-sync
 # Run docker run command again with latest image
 ```
 
@@ -150,7 +150,7 @@ docker run -d \
   --name watchtower \
   -v /var/run/docker.sock:/var/run/docker.sock \
   containrrr/watchtower \
-  tesla-amber-sync \
+  tesla-sync \
   --interval 3600 \
   --cleanup
 ```
@@ -168,10 +168,10 @@ git push origin v1.0.0
 ```
 
 This creates additional Docker tags:
-- `bolagnaise/tesla-amber-sync:1.0.0`
-- `bolagnaise/tesla-amber-sync:1.0`
-- `bolagnaise/tesla-amber-sync:1`
-- `bolagnaise/tesla-amber-sync:latest`
+- `bolagnaise/tesla-sync:1.0.0`
+- `bolagnaise/tesla-sync:1.0`
+- `bolagnaise/tesla-sync:1`
+- `bolagnaise/tesla-sync:latest`
 
 ## Multi-Architecture Support
 
@@ -195,10 +195,10 @@ Docker automatically pulls the correct architecture for your system.
 
 ```bash
 # Ensure image name is correct
-docker pull bolagnaise/tesla-amber-sync:latest
+docker pull bolagnaise/tesla-sync:latest
 
 # Check if public (should be)
-# Visit: https://hub.docker.com/r/bolagnaise/tesla-amber-sync
+# Visit: https://hub.docker.com/r/bolagnaise/tesla-sync
 ```
 
 ### Image Size
@@ -219,7 +219,7 @@ Edit `.github/workflows/docker-publish.yml`:
 ```yaml
 env:
   DOCKER_HUB_USERNAME: your-username  # Change this
-  IMAGE_NAME: tesla-amber-sync
+  IMAGE_NAME: tesla-sync
 ```
 
 ### Build on Different Branches
@@ -263,7 +263,7 @@ on:
 ---
 
 **Your image will be available at:**
-`docker pull bolagnaise/tesla-amber-sync:latest`
+`docker pull bolagnaise/tesla-sync:latest`
 
 **Docker Hub page:**
-https://hub.docker.com/r/bolagnaise/tesla-amber-sync
+https://hub.docker.com/r/bolagnaise/tesla-sync

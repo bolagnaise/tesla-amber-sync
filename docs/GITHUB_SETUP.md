@@ -28,17 +28,17 @@ If you have GitHub CLI installed:
 
 ```bash
 # Create a new GitHub repository
-gh repo create tesla-amber-sync --public --source=. --remote=origin --push
+gh repo create tesla-sync --public --source=. --remote=origin --push
 
 # Or for private repository:
-gh repo create tesla-amber-sync --private --source=. --remote=origin --push
+gh repo create tesla-sync --private --source=. --remote=origin --push
 ```
 
 ### Option 2: Using GitHub Web Interface
 
 1. **Create a new repository on GitHub:**
    - Go to https://github.com/new
-   - Repository name: `tesla-amber-sync`
+   - Repository name: `tesla-sync`
    - Description: "Synchronize Tesla Powerwall with Amber Electric dynamic pricing"
    - Choose Public or Private
    - **DO NOT** initialize with README (we already have one)
@@ -47,7 +47,7 @@ gh repo create tesla-amber-sync --private --source=. --remote=origin --push
 2. **Push your code:**
    ```bash
    # Add the GitHub remote (replace YOUR_USERNAME with your GitHub username)
-   git remote add origin https://github.com/YOUR_USERNAME/tesla-amber-sync.git
+   git remote add origin https://github.com/YOUR_USERNAME/tesla-sync.git
 
    # Push to GitHub
    git push -u origin main
@@ -72,8 +72,8 @@ When deploying elsewhere:
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/tesla-amber-sync.git
-cd tesla-amber-sync
+git clone https://github.com/YOUR_USERNAME/tesla-sync.git
+cd tesla-sync
 
 # Create .env from template
 cp .env.example .env
@@ -93,12 +93,12 @@ After creating the GitHub repository, update the clone URL in README.md:
 
 Find line 73 and replace:
 ```bash
-git clone https://github.com/YOUR_USERNAME/tesla-amber-sync.git
+git clone https://github.com/YOUR_USERNAME/tesla-sync.git
 ```
 
 With your actual GitHub username:
 ```bash
-git clone https://github.com/your-actual-username/tesla-amber-sync.git
+git clone https://github.com/your-actual-username/tesla-sync.git
 ```
 
 Then commit and push the change:

@@ -75,7 +75,7 @@ The Custom TOU (Time-of-Use) Scheduler allows users to create fixed-rate electri
 Run these commands to create the new tables:
 
 ```bash
-cd /Users/benboller/Downloads/tesla-amber-sync
+cd /Users/benboller/Downloads/tesla-sync
 flask db migrate -m "Add custom TOU schedule models"
 flask db upgrade
 ```

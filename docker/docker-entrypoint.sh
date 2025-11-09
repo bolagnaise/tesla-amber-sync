@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "Starting Tesla-Amber-Sync..."
+echo "Starting Tesla Sync..."
 
 # Wait a moment for the filesystem to be ready
 sleep 2

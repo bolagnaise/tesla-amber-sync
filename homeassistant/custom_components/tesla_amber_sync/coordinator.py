@@ -1,4 +1,4 @@
-"""Data update coordinators for Tesla Amber Sync."""
+"""Data update coordinators for Tesla Sync."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta

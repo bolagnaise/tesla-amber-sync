@@ -1,4 +1,4 @@
-"""The Tesla Amber Sync integration."""
+"""The Tesla Sync integration."""
 from __future__ import annotations
 
 import aiohttp
@@ -85,8 +85,8 @@ async def send_tariff_to_tesla(
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Tesla Amber Sync from a config entry."""
-    _LOGGER.info("Setting up Tesla Amber Sync integration")
+    """Set up Tesla Sync from a config entry."""
+    _LOGGER.info("Setting up Tesla Sync integration")
 
     # Initialize coordinators for data fetching
     amber_coordinator = AmberPriceCoordinator(
@@ -187,13 +187,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Store the cancel function so we can clean it up later
     hass.data[DOMAIN][entry.entry_id]["auto_sync_cancel"] = cancel_timer
 
-    _LOGGER.info("Tesla Amber Sync integration setup complete")
+    _LOGGER.info("Tesla Sync integration setup complete")
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    _LOGGER.info("Unloading Tesla Amber Sync integration")
+    _LOGGER.info("Unloading Tesla Sync integration")
 
     # Cancel the auto-sync timer if it exists
     entry_data = hass.data[DOMAIN].get(entry.entry_id, {})

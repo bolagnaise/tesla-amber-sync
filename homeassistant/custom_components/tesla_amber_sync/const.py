@@ -1,4 +1,4 @@
-"""Constants for the Tesla Amber Sync integration."""
+"""Constants for the Tesla Sync integration."""
 from datetime import timedelta
 
 # Integration domain
