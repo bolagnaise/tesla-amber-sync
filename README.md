@@ -19,6 +19,11 @@
 
 *Configure AEMO wholesale price monitoring with customizable thresholds and regional settings*
 
+### AEMO Price Spike Detection Testing
+<img src="https://i.imgur.com/MpLmELt.png" alt="AEMO Price Spike Detection Testing" width="80%"/>
+
+*Test spike detection functionality with manual spike simulation*
+
 ---
 
 **[View Full Screenshot Gallery →](https://imgur.com/a/TdzIgYT)**
