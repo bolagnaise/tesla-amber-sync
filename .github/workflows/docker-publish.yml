@@ -14,6 +14,7 @@ on:
 env:
   DOCKER_HUB_USERNAME: bolagnaise
   IMAGE_NAME: tesla-sync
+  IMAGE_NAME_LEGACY: tesla-amber-sync  # Keep old name for backward compatibility
 
 jobs:
   build-and-push:
@@ -37,7 +38,10 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          # Push to both new and legacy repository names for backward compatibility
+          images: |
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}
+            ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME_LEGACY }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -58,7 +62,7 @@ jobs:
           cache-to: type=registry,ref=${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
           platforms: linux/amd64,linux/arm64
 
-      - name: Update Docker Hub description
+      - name: Update Docker Hub description (new repo)
         if: github.event_name != 'pull_request'
         uses: peter-evans/dockerhub-description@v3
         with:
@@ -66,3 +70,13 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
           repository: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME }}
           readme-filepath: ./README.md
+
+      - name: Update Docker Hub description (legacy repo)
+        if: github.event_name != 'pull_request'
+        uses: peter-evans/dockerhub-description@v3
+        with:
+          username: ${{ env.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+          repository: ${{ env.DOCKER_HUB_USERNAME }}/${{ env.IMAGE_NAME_LEGACY }}
+          readme-filepath: ./README.md
+          short-description: "⚠️ DEPRECATED: Please use bolagnaise/tesla-sync instead"
