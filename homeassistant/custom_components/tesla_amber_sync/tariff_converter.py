@@ -59,11 +59,17 @@ def convert_amber_to_tesla_tariff(
 
             per_kwh_dollars = per_kwh_cents / 100
 
-            # Round to nearest 30-minute interval
-            minute_bucket = 0 if timestamp.minute < 30 else 30
+            # IMPORTANT: Amber's nemTime represents the END of the interval
+            # Example: nemTime=00:30 means price for 00:00-00:30 interval
+            # Tesla's PERIOD_XX_YY uses START time (PERIOD_00_00 = 00:00-00:30)
+            # So we subtract 30 minutes to convert END time to START time
+            interval_start = timestamp - timedelta(minutes=30)
 
-            date_str = timestamp.date().isoformat()
-            lookup_key = (date_str, timestamp.hour, minute_bucket)
+            # Round to nearest 30-minute interval
+            minute_bucket = 0 if interval_start.minute < 30 else 30
+
+            date_str = interval_start.date().isoformat()
+            lookup_key = (date_str, interval_start.hour, minute_bucket)
 
             if channel_type == "general":
                 if lookup_key not in general_lookup:
@@ -120,10 +126,10 @@ def _build_rolling_24h_tariff(
         for minute in [0, 30]:
             period_key = f"PERIOD_{hour:02d}_{minute:02d}"
 
-            # Calculate the NEXT 30-minute slot (shift left by one slot)
-            # This gives Tesla 30 minutes advance notice of price changes
-            next_minute = 30 if minute == 0 else 0
-            next_hour = hour if minute == 0 else (hour + 1) % 24
+            # No shift - use current period's time (aligned with interval start time)
+            # We already converted Amber's nemTime (end time) to interval start time
+            next_minute = minute
+            next_hour = hour
 
             # Determine if this period has already passed
             if (hour < current_hour) or (hour == current_hour and minute < current_minute):

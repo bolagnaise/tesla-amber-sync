@@ -89,12 +89,18 @@ class AmberTariffConverter:
 
                 per_kwh_dollars = per_kwh_cents / 100
 
-                # Round down to nearest 30-minute interval
-                minute_bucket = 0 if timestamp.minute < 30 else 30
+                # IMPORTANT: Amber's nemTime represents the END of the interval
+                # Example: nemTime=00:30 means price for 00:00-00:30 interval
+                # Tesla's PERIOD_XX_YY uses START time (PERIOD_00_00 = 00:00-00:30)
+                # So we subtract 30 minutes to convert END time to START time
+                interval_start = timestamp - timedelta(minutes=30)
 
-                # Key by date, hour, minute for lookup
-                date_str = timestamp.date().isoformat()
-                lookup_key = (date_str, timestamp.hour, minute_bucket)
+                # Round down to nearest 30-minute interval
+                minute_bucket = 0 if interval_start.minute < 30 else 30
+
+                # Key by date, hour, minute for lookup (using interval START time)
+                date_str = interval_start.date().isoformat()
+                lookup_key = (date_str, interval_start.hour, minute_bucket)
 
                 if channel_type == 'general':
                     if lookup_key not in general_lookup:
