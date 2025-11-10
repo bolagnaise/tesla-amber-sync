@@ -152,14 +152,12 @@ class AmberTariffConverter:
         from datetime import datetime, timedelta
         from zoneinfo import ZoneInfo
 
-        # Use user's configured timezone (default: Australia/Brisbane)
-        # This ensures correct "past vs future" period detection
-        user_tz_str = 'Australia/Brisbane'  # Default
-        if user and hasattr(user, 'timezone') and user.timezone:
-            user_tz_str = user.timezone
-
-        user_tz = ZoneInfo(user_tz_str)
-        now = datetime.now(user_tz)
+        # IMPORTANT: Always use Australian Eastern timezone for Amber pricing
+        # Amber API returns nemTime in Australian Eastern Time (AEST/AEDT)
+        # We must use the same timezone for "now" to correctly determine past/future periods
+        # Using any other timezone would cause incorrect period classification
+        amber_tz = ZoneInfo('Australia/Sydney')  # Australian Eastern Time
+        now = datetime.now(amber_tz)
         today = now.date()
         tomorrow = today + timedelta(days=1)
 
