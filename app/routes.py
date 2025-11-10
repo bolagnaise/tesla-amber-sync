@@ -303,7 +303,7 @@ def amber_settings():
     # Pre-populate form with existing data
     logger.debug("Pre-populating Amber settings form data")
     form.amber_forecast_type.data = current_user.amber_forecast_type or 'predicted'
-    form.amber_30min_shift_enabled.data = current_user.amber_30min_shift_enabled if current_user.amber_30min_shift_enabled is not None else True
+    form.amber_30min_shift_enabled.data = current_user.amber_30min_shift_enabled if current_user.amber_30min_shift_enabled is not None else False
 
     logger.info(f"Rendering Amber settings page - Forecast type: {form.amber_forecast_type.data}, 30min shift: {form.amber_30min_shift_enabled.data}")
     return render_template('amber_settings.html', title='Amber Settings', form=form)

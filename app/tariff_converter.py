@@ -173,10 +173,10 @@ class AmberTariffConverter:
         general_prices = {}
         feedin_prices = {}
 
-        # Check if 30-minute shift is enabled (default: True)
-        shift_enabled = True
+        # Check if 30-minute shift is enabled (default: False - not needed after nemTime fix)
+        shift_enabled = False
         if user and hasattr(user, 'amber_30min_shift_enabled'):
-            shift_enabled = user.amber_30min_shift_enabled if user.amber_30min_shift_enabled is not None else True
+            shift_enabled = user.amber_30min_shift_enabled if user.amber_30min_shift_enabled is not None else False
 
         # Build all 48 half-hour periods in a day
         for hour in range(24):
