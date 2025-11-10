@@ -150,8 +150,16 @@ class AmberTariffConverter:
             (general_prices, feedin_prices) as dicts mapping PERIOD_XX_XX to price
         """
         from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
 
-        now = datetime.now()
+        # Use user's configured timezone (default: Australia/Brisbane)
+        # This ensures correct "past vs future" period detection
+        user_tz_str = 'Australia/Brisbane'  # Default
+        if user and hasattr(user, 'timezone') and user.timezone:
+            user_tz_str = user.timezone
+
+        user_tz = ZoneInfo(user_tz_str)
+        now = datetime.now(user_tz)
         today = now.date()
         tomorrow = today + timedelta(days=1)
 

@@ -100,7 +100,12 @@ def _build_rolling_24h_tariff(
     feedin_lookup: dict[tuple[str, int, int], list[float]],
 ) -> tuple[dict[str, float], dict[str, float]]:
     """Build a rolling 24-hour tariff where past periods use tomorrow's prices."""
-    now = datetime.now()
+    from zoneinfo import ZoneInfo
+
+    # IMPORTANT: Use Australian Eastern timezone since Amber is Australia-only
+    # This ensures correct "past vs future" period detection regardless of HA server timezone
+    aus_tz = ZoneInfo("Australia/Sydney")
+    now = datetime.now(aus_tz)
     today = now.date()
     tomorrow = today + timedelta(days=1)
 
