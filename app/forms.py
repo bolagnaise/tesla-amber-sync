@@ -86,6 +86,26 @@ class DemandChargeForm(FlaskForm):
     submit = SubmitField('Save Demand Charges')
 
 
+class AmberSettingsForm(FlaskForm):
+    """Form for configuring Amber Electric specific settings"""
+    # Forecast type selection
+    amber_forecast_type = SelectField('Forecast Pricing Type', choices=[
+        ('predicted', 'Predicted (Default)'),
+        ('low', 'Low (Conservative)'),
+        ('high', 'High (Optimistic)')
+    ], default='predicted', validators=[DataRequired()],
+    description='Select which Amber forecast to use for TOU tariff: Low (conservative), Predicted (default), or High (optimistic)')
+
+    # 30-minute shift toggle
+    amber_30min_shift_enabled = BooleanField(
+        'Enable 30-Minute Price Shift',
+        default=True,
+        description='Shifts pricing forward by 30 minutes in TOU tariff to optimize battery charging/discharging timing'
+    )
+
+    submit = SubmitField('Save Amber Settings')
+
+
 class CustomTOUScheduleForm(FlaskForm):
     """Form for creating/editing custom TOU schedules"""
     # Tesla API: Utility Provider - shown in Tesla app as the electricity provider

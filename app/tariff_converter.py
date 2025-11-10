@@ -51,23 +51,24 @@ class AmberTariffConverter:
                 channel_type = point.get('channelType', '')
                 interval_type = point.get('type', 'unknown')
 
-                # Use advancedPrice.predicted for SmartShift compatibility
+                # Use advancedPrice with user-selected forecast type
                 # advancedPrice is Amber's forecasted price prediction that includes:
                 # - Wholesale price forecast
                 # - Network fees
                 # - Market fees
-                # This matches Netzero/SmartShift approach and provides the most accurate
-                # total cost prediction for battery optimization.
                 #
-                # Priority order:
-                # 1. advancedPrice.predicted - Amber's ML forecast (best - matches SmartShift)
-                # 2. perKwh - actual/current total price (fallback)
+                # User can select: 'predicted' (default), 'low' (conservative), 'high' (optimistic)
+                # Forecast type from user settings (default: 'predicted')
+                forecast_type = 'predicted'
+                if user and hasattr(user, 'amber_forecast_type') and user.amber_forecast_type:
+                    forecast_type = user.amber_forecast_type
+
                 advanced_price = point.get('advancedPrice')
 
-                if advanced_price and isinstance(advanced_price, dict) and 'predicted' in advanced_price:
-                    # Use Amber's ML predicted price (preferred - matches Netzero/SmartShift)
-                    per_kwh_cents = advanced_price['predicted']
-                    logger.debug(f"{nem_time}: Using advancedPrice.predicted={per_kwh_cents:.2f}c/kWh (ML forecast)")
+                if advanced_price and isinstance(advanced_price, dict) and forecast_type in advanced_price:
+                    # Use user's selected forecast type (predicted/low/high)
+                    per_kwh_cents = advanced_price[forecast_type]
+                    logger.debug(f"{nem_time}: Using advancedPrice.{forecast_type}={per_kwh_cents:.2f}c/kWh (user setting)")
                 elif advanced_price and isinstance(advanced_price, (int, float)):
                     # advancedPrice is a simple number (legacy format)
                     per_kwh_cents = advanced_price
@@ -157,19 +158,30 @@ class AmberTariffConverter:
         general_prices = {}
         feedin_prices = {}
 
+        # Check if 30-minute shift is enabled (default: True)
+        shift_enabled = True
+        if user and hasattr(user, 'amber_30min_shift_enabled'):
+            shift_enabled = user.amber_30min_shift_enabled if user.amber_30min_shift_enabled is not None else True
+
         # Build all 48 half-hour periods in a day
         for hour in range(24):
             for minute in [0, 30]:
                 period_key = f"PERIOD_{hour:02d}_{minute:02d}"
 
-                # Calculate the NEXT 30-minute slot (shift left by one slot)
-                # This gives Tesla 30 minutes advance notice of price changes
-                next_minute = 30 if minute == 0 else 0
-                next_hour = hour if minute == 0 else (hour + 1) % 24
+                # Optionally shift prices by 30 minutes based on user setting
+                if shift_enabled:
+                    # Calculate the NEXT 30-minute slot (shift left by one slot)
+                    # This gives Tesla 30 minutes advance notice of price changes
+                    next_minute = 30 if minute == 0 else 0
+                    next_hour = hour if minute == 0 else (hour + 1) % 24
+                else:
+                    # No shift - use current period's time
+                    next_minute = minute
+                    next_hour = hour
 
                 # If we rolled over to next day (23:30 -> 00:00), adjust date
-                if next_hour == 0 and hour == 23 and minute == 30:
-                    # Wrapping from 23:30 to 00:00 next day
+                if next_hour == 0 and hour == 23 and minute == 30 and shift_enabled:
+                    # Wrapping from 23:30 to 00:00 next day (only when shift is enabled)
                     # Determine if this period has already passed today
                     if (hour < current_hour) or (hour == current_hour and minute < current_minute):
                         # Past period - use day after tomorrow's price
@@ -187,7 +199,7 @@ class AmberTariffConverter:
                         date_to_use = today
 
                 date_str = date_to_use.isoformat()
-                # Use the NEXT slot's time for lookup (shifted left)
+                # Use the calculated slot's time for lookup (shifted or not based on setting)
                 lookup_key = (date_str, next_hour, next_minute)
 
                 # Get general price (buy price)

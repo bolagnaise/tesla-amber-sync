@@ -1,0 +1,68 @@
+{% extends "settings_base.html" %}
+
+{% block settings_content %}
+    <hgroup>
+        <h1>Amber Electric Settings</h1>
+        <h2>Configure Amber-specific TOU tariff options</h2>
+    </hgroup>
+
+    <article>
+        <header><strong>Amber Electric Configuration</strong></header>
+        <p>These settings control how Amber Electric pricing forecasts are used for your TOU tariff sync.</p>
+
+        <form action="{{ url_for('main.amber_settings') }}" method="post" novalidate>
+            {{ form.hidden_tag() }}
+
+            <fieldset>
+                <legend>Forecast Pricing Type</legend>
+                <label for="amber_forecast_type">
+                    {{ form.amber_forecast_type.label }}
+                    {{ form.amber_forecast_type(style="width: 100%;") }}
+                    <small>{{ form.amber_forecast_type.description }}</small>
+                </label>
+                <details style="margin-top: 0.5em;">
+                    <summary style="font-size: 0.85em;">What do these options mean?</summary>
+                    <div style="font-size: 0.8em; margin-top: 0.5em; padding: 0.5em; background: rgba(100, 150, 200, 0.05); border-radius: 0.3em;">
+                        <ul style="margin: 0.3em 0 0 1.2em; padding: 0;">
+                            <li style="margin: 0.5em 0;"><strong>Predicted (Default):</strong> Uses Amber's best estimate for upcoming prices. Balanced approach.</li>
+                            <li style="margin: 0.5em 0;"><strong>Low (Conservative):</strong> Uses the low-end forecast. Battery may charge more conservatively and discharge less aggressively.</li>
+                            <li style="margin: 0.5em 0;"><strong>High (Optimistic):</strong> Uses the high-end forecast. Battery may charge more aggressively during predicted low prices and export more during predicted high prices.</li>
+                        </ul>
+                    </div>
+                </details>
+            </fieldset>
+
+            <fieldset style="margin-top: 1.5em;">
+                <legend>TOU Tariff Timing</legend>
+                <label for="amber_30min_shift_enabled">
+                    {{ form.amber_30min_shift_enabled }}
+                    {{ form.amber_30min_shift_enabled.label }}
+                    <small>{{ form.amber_30min_shift_enabled.description }}</small>
+                </label>
+                <details style="margin-top: 0.5em;">
+                    <summary style="font-size: 0.85em;">Why shift pricing by 30 minutes?</summary>
+                    <div style="font-size: 0.8em; margin-top: 0.5em; padding: 0.5em; background: rgba(100, 150, 200, 0.05); border-radius: 0.3em;">
+                        <p style="margin: 0 0 0.5em 0;">The 30-minute shift optimizes battery behavior by anticipating price changes:</p>
+                        <ul style="margin: 0.3em 0 0 1.2em; padding: 0;">
+                            <li style="margin: 0.5em 0;"><strong>Before low prices:</strong> Battery begins charging earlier to maximize cheap energy capture</li>
+                            <li style="margin: 0.5em 0;"><strong>Before high prices:</strong> Battery prepares to export by ensuring it's charged</li>
+                            <li style="margin: 0.5em 0;"><strong>Recommended:</strong> Keep enabled for optimal battery performance</li>
+                        </ul>
+                        <p style="margin: 0.5em 0 0 0;"><em>Disable this if you want prices to match exactly without timing optimization.</em></p>
+                    </div>
+                </details>
+            </fieldset>
+
+            <div style="margin-top: 1.5em;">
+                {{ form.submit(style="width: 100%;") }}
+            </div>
+        </form>
+    </article>
+
+    <!-- Information Box -->
+    <article style="margin-top: 1.5em; background: rgba(100, 150, 200, 0.05); border-left: 4px solid var(--primary);">
+        <header><strong>ℹ️ About These Settings</strong></header>
+        <p style="font-size: 0.9em; margin: 0;">These settings only affect the TOU tariff that gets synced to your Tesla Powerwall. Changes will take effect on the next automatic sync (every 5 minutes).</p>
+        <p style="font-size: 0.9em; margin: 0.5em 0 0 0;">You can test different forecast types to see which strategy works best for your usage patterns and preferences.</p>
+    </article>
+{% endblock %}

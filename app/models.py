@@ -26,6 +26,10 @@ class User(UserMixin, db.Model):
     timezone = db.Column(db.String(50), default='Australia/Brisbane')  # IANA timezone string
     sync_enabled = db.Column(db.Boolean, default=True)  # Enable/disable automatic Tesla syncing
 
+    # Amber Electric Preferences
+    amber_forecast_type = db.Column(db.String(20), default='predicted')  # 'low', 'predicted', 'high'
+    amber_30min_shift_enabled = db.Column(db.Boolean, default=True)  # Enable 30-minute price shift in TOU tariff
+
     # Manual Control Override
     manual_control_mode = db.Column(db.String(20))  # 'charge', 'discharge', or None
     manual_control_end_time = db.Column(db.DateTime)  # When manual control expires
