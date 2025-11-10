@@ -112,7 +112,7 @@ class AmberTariffConverter:
 
         # Now build the rolling 24-hour tariff
         general_prices, feedin_prices = self._build_rolling_24h_tariff(
-            general_lookup, feedin_lookup
+            general_lookup, feedin_lookup, user
         )
 
         logger.info(f"Built rolling 24h tariff with {len(general_prices)} general and {len(feedin_prices)} feed-in periods")
@@ -128,20 +128,23 @@ class AmberTariffConverter:
 
         return tariff
 
-    def _build_rolling_24h_tariff(self, general_lookup: Dict, feedin_lookup: Dict) -> tuple:
+    def _build_rolling_24h_tariff(self, general_lookup: Dict, feedin_lookup: Dict, user=None) -> tuple:
         """
         Build a rolling 24-hour tariff where past periods use tomorrow's prices
 
-        IMPORTANT: Prices are shifted LEFT by one 30-min slot to give Tesla advance notice.
+        IMPORTANT: Prices are optionally shifted LEFT by one 30-min slot to give Tesla advance notice.
         This allows the battery to prepare for upcoming price changes.
 
-        Example (if current time is 4:15 PM):
+        Example (if current time is 4:15 PM and shift is enabled):
         - PERIOD_04_00 (4:00-4:30) → uses 4:30 price (next slot)
         - PERIOD_04_30 (4:30-5:00) → uses 5:00 price (next slot)
         - PERIOD_05_00 (5:00-5:30) → uses 5:30 price (next slot)
 
         This means if there's a price spike at 5:00 PM, the battery knows about it
         at 4:30 PM and has 30 minutes to prepare (charge before spike, etc.)
+
+        Args:
+            user: User object with amber_30min_shift_enabled preference
 
         Returns:
             (general_prices, feedin_prices) as dicts mapping PERIOD_XX_XX to price
