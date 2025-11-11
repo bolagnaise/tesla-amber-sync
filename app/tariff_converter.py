@@ -16,21 +16,21 @@ class AmberTariffConverter:
     @staticmethod
     def _round_price(price: float) -> float:
         """
-        Round price to 5 decimal places, removing trailing zeros.
+        Round price to 4 decimal places, removing trailing zeros.
 
         This matches Netzero's behavior:
-        - 0.2014191 → 0.20142 (5 decimals)
+        - 0.2014191 → 0.2014 (4 decimals)
         - 0.1990000 → 0.199 (3 decimals, trailing zeros removed)
-        - 0.1234500 → 0.12345 (5 decimals, trailing zero removed)
+        - 0.1234500 → 0.1235 (4 decimals, rounded)
 
         Args:
             price: Price in dollars per kWh
 
         Returns:
-            Price rounded to max 5 decimal places with trailing zeros removed
+            Price rounded to max 4 decimal places with trailing zeros removed
         """
-        # Round to 5 decimal places
-        rounded = round(price, 5)
+        # Round to 4 decimal places
+        rounded = round(price, 4)
         # Python's float naturally drops trailing zeros in JSON serialization
         return rounded
 
