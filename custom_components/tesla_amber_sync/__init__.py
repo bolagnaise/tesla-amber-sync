@@ -189,6 +189,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         else:
             _LOGGER.debug("Auto-sync disabled, skipping TOU sync")
 
+    # Perform initial TOU sync if auto-sync is enabled
+    auto_sync_enabled = entry.options.get(
+        CONF_AUTO_SYNC_ENABLED,
+        entry.data.get(CONF_AUTO_SYNC_ENABLED, True)
+    )
+
+    if auto_sync_enabled:
+        _LOGGER.info("Performing initial TOU sync")
+        await handle_sync_tou(None)
+
     # Start the automatic sync timer (every 5 minutes)
     cancel_timer = async_track_time_interval(
         hass,
