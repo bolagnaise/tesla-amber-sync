@@ -13,7 +13,7 @@ class AmberTariffConverter:
     def __init__(self):
         logger.info("AmberTariffConverter initialized")
 
-    def convert_amber_to_tesla_tariff(self, forecast_data: List[Dict], manual_override: str = None, user=None) -> Dict:
+    def convert_amber_to_tesla_tariff(self, forecast_data: List[Dict], user=None) -> Dict:
         """
         Convert Amber price forecast to Tesla tariff format
 
@@ -22,7 +22,7 @@ class AmberTariffConverter:
 
         Args:
             forecast_data: List of price forecast points from Amber API
-            manual_override: 'charge' or 'discharge' to force battery behavior, None for normal
+            user: User object for demand charge settings (optional)
 
         Returns:
             Tesla-compatible tariff structure
@@ -31,7 +31,7 @@ class AmberTariffConverter:
             logger.warning("No forecast data provided")
             return None
 
-        logger.info(f"Converting {len(forecast_data)} Amber forecast points to Tesla tariff (manual_override={manual_override})")
+        logger.info(f"Converting {len(forecast_data)} Amber forecast points to Tesla tariff")
 
         # Build timestamp-indexed price lookup: (date, hour, minute) -> price
         general_lookup = {}  # (date_str, hour, minute) -> [prices]
@@ -50,6 +50,7 @@ class AmberTariffConverter:
                 timestamp = datetime.fromisoformat(nem_time.replace('Z', '+00:00'))
                 channel_type = point.get('channelType', '')
                 interval_type = point.get('type', 'unknown')
+                duration = point.get('duration', 30)  # Get actual interval duration (usually 5 or 30 minutes)
 
                 # Use advancedPrice with user-selected forecast type
                 # advancedPrice is Amber's forecasted price prediction that includes:
@@ -90,10 +91,14 @@ class AmberTariffConverter:
                 per_kwh_dollars = per_kwh_cents / 100
 
                 # IMPORTANT: Amber's nemTime represents the END of the interval
-                # Example: nemTime=00:30 means price for 00:00-00:30 interval
+                # The 'duration' field tells us the interval length (typically 5 or 30 minutes)
                 # Tesla's PERIOD_XX_YY uses START time (PERIOD_00_00 = 00:00-00:30)
-                # So we subtract 30 minutes to convert END time to START time
-                interval_start = timestamp - timedelta(minutes=30)
+                # So we subtract the duration to convert END time to START time
+                #
+                # Example with 5-min intervals:
+                #   nemTime=00:05, duration=5 → interval_start=00:00 → PERIOD_00_00
+                #   nemTime=00:30, duration=5 → interval_start=00:25 → PERIOD_00_00
+                interval_start = timestamp - timedelta(minutes=duration)
 
                 # Round down to nearest 30-minute interval
                 minute_bucket = 0 if interval_start.minute < 30 else 30
@@ -123,14 +128,8 @@ class AmberTariffConverter:
 
         logger.info(f"Built rolling 24h tariff with {len(general_prices)} general and {len(feedin_prices)} feed-in periods")
 
-        # Apply manual override if specified
-        if manual_override:
-            general_prices, feedin_prices = self._apply_manual_override(
-                general_prices, feedin_prices, manual_override
-            )
-
         # Create the Tesla tariff structure
-        tariff = self._build_tariff_structure(general_prices, feedin_prices, manual_override, user)
+        tariff = self._build_tariff_structure(general_prices, feedin_prices, user)
 
         return tariff
 
@@ -315,7 +314,6 @@ class AmberTariffConverter:
 
     def _build_tariff_structure(self, general_prices: Dict[str, float],
                                 feedin_prices: Dict[str, float],
-                                manual_override: str = None,
                                 user=None) -> Dict:
         """Build the complete Tesla tariff structure"""
 
@@ -328,19 +326,10 @@ class AmberTariffConverter:
             # Ensure demand charges match the exact periods that exist in general_prices
             demand_charges_summer = self._build_demand_charge_rates(user, general_prices.keys())
 
-        # Change code and name based on manual override to force Tesla app refresh
-        if manual_override == 'charge':
-            code = "TESLA_SYNC:MANUAL:CHARGE"
-            name = "MANUAL CHARGE MODE (Tesla Sync)"
-            utility = "Tesla Sync - Manual Control"
-        elif manual_override == 'discharge':
-            code = "TESLA_SYNC:MANUAL:DISCHARGE"
-            name = "MANUAL DISCHARGE MODE (Tesla Sync)"
-            utility = "Tesla Sync - Manual Control"
-        else:
-            code = "TESLA_SYNC:AMBER:AMBER"
-            name = "Amber Electric (Tesla Sync)"
-            utility = "Amber Electric"
+        # Set tariff metadata
+        code = "TESLA_SYNC:AMBER:AMBER"
+        name = "Amber Electric (Tesla Sync)"
+        utility = "Amber Electric"
 
         tariff = {
             "version": 1,
@@ -504,51 +493,6 @@ class AmberTariffConverter:
 
         logger.debug(f"Built {len(tou_periods)} TOU period definitions")
         return tou_periods
-
-    def _apply_manual_override(self, general_prices: Dict[str, float],
-                               feedin_prices: Dict[str, float],
-                               mode: str) -> tuple:
-        """
-        Apply manual override to force charging or discharging
-
-        Uses actual min/max prices from the 24h period to make the override more realistic
-
-        Args:
-            general_prices: Buy prices (what you pay to import from grid)
-            feedin_prices: Sell prices (what you get paid to export to grid)
-            mode: 'charge' or 'discharge'
-
-        Returns:
-            (modified_general_prices, modified_feedin_prices)
-        """
-        # Calculate min/max prices from the actual 24h period
-        buy_prices = [p for p in general_prices.values() if p > 0]
-        sell_prices = [p for p in feedin_prices.values() if p > 0]
-
-        min_buy = min(buy_prices) if buy_prices else 0.05
-        max_buy = max(buy_prices) if buy_prices else 0.30
-        min_sell = min(sell_prices) if sell_prices else 0.02
-        max_sell = max(sell_prices) if sell_prices else 0.20
-
-        if mode == 'charge':
-            # Force charging: set buy price to minimum (makes grid charging appear cheapest)
-            # and sell price to maximum (makes exporting appear expensive/wasteful)
-            logger.info(f"Applying CHARGE override - setting buy={min_buy:.4f}, sell={max_sell:.4f}")
-            for period_key in general_prices:
-                general_prices[period_key] = min_buy
-            for period_key in feedin_prices:
-                feedin_prices[period_key] = max_sell
-
-        elif mode == 'discharge':
-            # Force discharging: set sell price to maximum (makes exporting very profitable)
-            # and keep buy prices at maximum (makes importing expensive)
-            logger.info(f"Applying DISCHARGE override - setting sell={max_sell:.4f}, buy={max_buy:.4f}")
-            for period_key in feedin_prices:
-                feedin_prices[period_key] = max_sell
-            for period_key in general_prices:
-                general_prices[period_key] = max_buy
-
-        return general_prices, feedin_prices
 
     def _build_demand_charge_rates(self, user, period_keys) -> Dict[str, float]:
         """

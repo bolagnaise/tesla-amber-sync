@@ -11,6 +11,7 @@ _LOGGER = logging.getLogger(__name__)
 def convert_amber_to_tesla_tariff(
     forecast_data: list[dict[str, Any]],
     tesla_site_id: str,
+    forecast_type: str = "predicted",
 ) -> dict[str, Any] | None:
     """
     Convert Amber price forecast to Tesla tariff format.
@@ -21,6 +22,7 @@ def convert_amber_to_tesla_tariff(
     Args:
         forecast_data: List of price forecast points from Amber API
         tesla_site_id: Tesla energy site ID
+        forecast_type: Amber forecast type to use ('predicted', 'low', or 'high')
 
     Returns:
         Tesla-compatible tariff structure or None if conversion fails
@@ -40,12 +42,13 @@ def convert_amber_to_tesla_tariff(
             nem_time = point.get("nemTime", "")
             timestamp = datetime.fromisoformat(nem_time.replace("Z", "+00:00"))
             channel_type = point.get("channelType", "")
+            duration = point.get("duration", 30)  # Get actual interval duration (usually 5 or 30 minutes)
 
-            # Use advancedPrice.predicted for best forecast
+            # Use advancedPrice with user-selected forecast type (predicted/low/high)
             advanced_price = point.get("advancedPrice")
 
-            if advanced_price and isinstance(advanced_price, dict) and "predicted" in advanced_price:
-                per_kwh_cents = advanced_price["predicted"]
+            if advanced_price and isinstance(advanced_price, dict) and forecast_type in advanced_price:
+                per_kwh_cents = advanced_price[forecast_type]
             elif advanced_price and isinstance(advanced_price, (int, float)):
                 per_kwh_cents = advanced_price
             else:
@@ -60,10 +63,14 @@ def convert_amber_to_tesla_tariff(
             per_kwh_dollars = per_kwh_cents / 100
 
             # IMPORTANT: Amber's nemTime represents the END of the interval
-            # Example: nemTime=00:30 means price for 00:00-00:30 interval
+            # The 'duration' field tells us the interval length (typically 5 or 30 minutes)
             # Tesla's PERIOD_XX_YY uses START time (PERIOD_00_00 = 00:00-00:30)
-            # So we subtract 30 minutes to convert END time to START time
-            interval_start = timestamp - timedelta(minutes=30)
+            # So we subtract the duration to convert END time to START time
+            #
+            # Example with 5-min intervals:
+            #   nemTime=00:05, duration=5 → interval_start=00:00 → PERIOD_00_00
+            #   nemTime=00:30, duration=5 → interval_start=00:25 → PERIOD_00_00
+            interval_start = timestamp - timedelta(minutes=duration)
 
             # Round to nearest 30-minute interval
             minute_bucket = 0 if interval_start.minute < 30 else 30
