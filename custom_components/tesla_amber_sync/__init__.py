@@ -18,6 +18,7 @@ from .const import (
     DOMAIN,
     CONF_AMBER_API_TOKEN,
     CONF_AMBER_FORECAST_TYPE,
+    CONF_AUTO_SYNC_ENABLED,
     CONF_TESLEMETRY_API_TOKEN,
     CONF_TESLA_SITE_ID,
     SERVICE_SYNC_TOU,
@@ -176,11 +177,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Set up automatic TOU sync every 5 minutes if auto-sync is enabled
     async def auto_sync_tou(now):
         """Automatically sync TOU schedule if enabled."""
-        # Check if auto-sync switch is on
-        switch_entity_id = f"switch.{DOMAIN}_auto_sync"
-        switch_state = hass.states.get(switch_entity_id)
+        # Check if auto-sync is enabled in the config entry options
+        auto_sync_enabled = entry.options.get(
+            CONF_AUTO_SYNC_ENABLED,
+            entry.data.get(CONF_AUTO_SYNC_ENABLED, True)
+        )
 
-        if switch_state and switch_state.state == "on":
+        if auto_sync_enabled:
             _LOGGER.debug("Auto-sync enabled, triggering TOU sync")
             await handle_sync_tou(None)
         else:
