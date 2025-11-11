@@ -33,6 +33,20 @@ def convert_amber_to_tesla_tariff(
 
     _LOGGER.info("Converting %d Amber forecast points to Tesla tariff", len(forecast_data))
 
+    # Auto-detect timezone from first Amber timestamp
+    # Amber timestamps include timezone info: "2025-11-11T16:05:00+10:00"
+    detected_tz = None
+    for point in forecast_data:
+        nem_time = point.get("nemTime", "")
+        if nem_time:
+            try:
+                timestamp = datetime.fromisoformat(nem_time.replace("Z", "+00:00"))
+                detected_tz = timestamp.tzinfo
+                _LOGGER.info("Auto-detected timezone from Amber data: %s", detected_tz)
+                break
+            except Exception:
+                continue
+
     # Build timestamp-indexed price lookup: (date, hour, minute) -> price
     general_lookup: dict[tuple[str, int, int], list[float]] = {}
     feedin_lookup: dict[tuple[str, int, int], list[float]] = {}
@@ -93,7 +107,7 @@ def convert_amber_to_tesla_tariff(
 
     # Build the rolling 24-hour tariff
     general_prices, feedin_prices = _build_rolling_24h_tariff(
-        general_lookup, feedin_lookup
+        general_lookup, feedin_lookup, detected_tz
     )
 
     _LOGGER.info(
@@ -111,13 +125,21 @@ def convert_amber_to_tesla_tariff(
 def _build_rolling_24h_tariff(
     general_lookup: dict[tuple[str, int, int], list[float]],
     feedin_lookup: dict[tuple[str, int, int], list[float]],
+    detected_tz: Any = None,
 ) -> tuple[dict[str, float], dict[str, float]]:
     """Build a rolling 24-hour tariff where past periods use tomorrow's prices."""
     from zoneinfo import ZoneInfo
 
-    # IMPORTANT: Use Australian Eastern timezone since Amber is Australia-only
-    # This ensures correct "past vs future" period detection regardless of HA server timezone
-    aus_tz = ZoneInfo("Australia/Sydney")
+    # IMPORTANT: Use the timezone from Amber data (auto-detected from nemTime timestamps)
+    # This ensures correct "past vs future" period detection for all Australian locations
+    # Falls back to Sydney timezone if detection failed
+    if detected_tz:
+        aus_tz = detected_tz
+        _LOGGER.info("Using auto-detected timezone: %s", aus_tz)
+    else:
+        aus_tz = ZoneInfo("Australia/Sydney")
+        _LOGGER.warning("Timezone detection failed, falling back to Australia/Sydney")
+
     now = datetime.now(aus_tz)
     today = now.date()
     tomorrow = today + timedelta(days=1)

@@ -16,6 +16,7 @@ from .const import (
     DOMAIN,
     CONF_AMBER_API_TOKEN,
     CONF_AMBER_SITE_ID,
+    CONF_AMBER_FORECAST_TYPE,
     CONF_TESLEMETRY_API_TOKEN,
     CONF_TESLA_SITE_ID,
     CONF_AUTO_SYNC_ENABLED,
@@ -219,6 +220,7 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_AMBER_SITE_ID: amber_site_id,
                 CONF_TESLA_SITE_ID: user_input[CONF_TESLA_SITE_ID],
                 CONF_AUTO_SYNC_ENABLED: user_input.get(CONF_AUTO_SYNC_ENABLED, True),
+                CONF_AMBER_FORECAST_TYPE: user_input.get(CONF_AMBER_FORECAST_TYPE, "predicted"),
             }
 
             # Go to optional demand charge configuration
@@ -253,6 +255,11 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         data_schema_dict[vol.Optional(CONF_AUTO_SYNC_ENABLED, default=True)] = bool
+        data_schema_dict[vol.Optional(CONF_AMBER_FORECAST_TYPE, default="predicted")] = vol.In({
+            "predicted": "Predicted (Default)",
+            "low": "Low (Conservative)",
+            "high": "High (Optimistic)"
+        })
 
         data_schema = vol.Schema(data_schema_dict)
 
@@ -349,6 +356,16 @@ class TeslaAmberSyncOptionsFlow(config_entries.OptionsFlow):
                             CONF_AUTO_SYNC_ENABLED, True
                         ),
                     ): bool,
+                    vol.Optional(
+                        CONF_AMBER_FORECAST_TYPE,
+                        default=self.config_entry.options.get(
+                            CONF_AMBER_FORECAST_TYPE, "predicted"
+                        ),
+                    ): vol.In({
+                        "predicted": "Predicted (Default)",
+                        "low": "Low (Conservative)",
+                        "high": "High (Optimistic)"
+                    }),
                 }
             ),
         )

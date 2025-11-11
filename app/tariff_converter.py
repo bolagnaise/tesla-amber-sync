@@ -33,6 +33,20 @@ class AmberTariffConverter:
 
         logger.info(f"Converting {len(forecast_data)} Amber forecast points to Tesla tariff")
 
+        # Auto-detect timezone from first Amber timestamp
+        # Amber timestamps include timezone info: "2025-11-11T16:05:00+10:00"
+        detected_tz = None
+        for point in forecast_data:
+            nem_time = point.get('nemTime', '')
+            if nem_time:
+                try:
+                    timestamp = datetime.fromisoformat(nem_time.replace('Z', '+00:00'))
+                    detected_tz = timestamp.tzinfo
+                    logger.info(f"Auto-detected timezone from Amber data: {detected_tz}")
+                    break
+                except Exception:
+                    continue
+
         # Build timestamp-indexed price lookup: (date, hour, minute) -> price
         general_lookup = {}  # (date_str, hour, minute) -> [prices]
         feedin_lookup = {}
@@ -123,7 +137,7 @@ class AmberTariffConverter:
 
         # Now build the rolling 24-hour tariff
         general_prices, feedin_prices = self._build_rolling_24h_tariff(
-            general_lookup, feedin_lookup, user
+            general_lookup, feedin_lookup, user, detected_tz
         )
 
         logger.info(f"Built rolling 24h tariff with {len(general_prices)} general and {len(feedin_prices)} feed-in periods")
@@ -133,7 +147,7 @@ class AmberTariffConverter:
 
         return tariff
 
-    def _build_rolling_24h_tariff(self, general_lookup: Dict, feedin_lookup: Dict, user=None) -> tuple:
+    def _build_rolling_24h_tariff(self, general_lookup: Dict, feedin_lookup: Dict, user=None, detected_tz=None) -> tuple:
         """
         Build a rolling 24-hour tariff where past periods use tomorrow's prices
 
@@ -150,6 +164,7 @@ class AmberTariffConverter:
 
         Args:
             user: User object with amber_30min_shift_enabled preference
+            detected_tz: Timezone detected from Amber data timestamps
 
         Returns:
             (general_prices, feedin_prices) as dicts mapping PERIOD_XX_XX to price
@@ -157,11 +172,16 @@ class AmberTariffConverter:
         from datetime import datetime, timedelta
         from zoneinfo import ZoneInfo
 
-        # IMPORTANT: Always use Australian Eastern timezone for Amber pricing
-        # Amber API returns nemTime in Australian Eastern Time (AEST/AEDT)
-        # We must use the same timezone for "now" to correctly determine past/future periods
-        # Using any other timezone would cause incorrect period classification
-        amber_tz = ZoneInfo('Australia/Sydney')  # Australian Eastern Time
+        # IMPORTANT: Use the timezone from Amber data (auto-detected from nemTime timestamps)
+        # This ensures correct "past vs future" period detection for all Australian locations
+        # Falls back to Sydney timezone if detection failed
+        if detected_tz:
+            amber_tz = detected_tz
+            logger.info(f"Using auto-detected timezone: {amber_tz}")
+        else:
+            amber_tz = ZoneInfo('Australia/Sydney')
+            logger.warning("Timezone detection failed, falling back to Australia/Sydney")
+
         now = datetime.now(amber_tz)
         today = now.date()
         tomorrow = today + timedelta(days=1)

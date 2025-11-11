@@ -726,7 +726,7 @@ def tou_schedule():
     # Convert to Tesla tariff format
     from app.tariff_converter import AmberTariffConverter
     converter = AmberTariffConverter()
-    tariff = converter.convert_amber_to_tesla_tariff(forecast, manual_override=None, user=current_user)
+    tariff = converter.convert_amber_to_tesla_tariff(forecast, user=current_user)
 
     if not tariff:
         logger.error("Failed to convert tariff")
@@ -811,7 +811,7 @@ def sync_tesla_schedule():
         # Convert Amber prices to Tesla tariff format
         from app.tariff_converter import AmberTariffConverter
         converter = AmberTariffConverter()
-        tariff = converter.convert_amber_to_tesla_tariff(forecast, manual_override=None, user=current_user)
+        tariff = converter.convert_amber_to_tesla_tariff(forecast, user=current_user)
 
         if not tariff:
             logger.error("Failed to convert tariff")

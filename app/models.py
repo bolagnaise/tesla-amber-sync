@@ -29,10 +29,6 @@ class User(UserMixin, db.Model):
     # Amber Electric Preferences
     amber_forecast_type = db.Column(db.String(20), default='predicted')  # 'low', 'predicted', 'high'
 
-    # Manual Control Override
-    manual_control_mode = db.Column(db.String(20))  # 'charge', 'discharge', or None
-    manual_control_end_time = db.Column(db.DateTime)  # When manual control expires
-
     # Demand Charge Configuration
     enable_demand_charges = db.Column(db.Boolean, default=False)
     peak_demand_rate = db.Column(db.Float, default=0.0)

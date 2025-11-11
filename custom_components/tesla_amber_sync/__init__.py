@@ -17,6 +17,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from .const import (
     DOMAIN,
     CONF_AMBER_API_TOKEN,
+    CONF_AMBER_FORECAST_TYPE,
     CONF_TESLEMETRY_API_TOKEN,
     CONF_TESLA_SITE_ID,
     SERVICE_SYNC_TOU,
@@ -132,10 +133,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Import tariff converter from existing code
         from .tariff_converter import convert_amber_to_tesla_tariff
 
+        # Get forecast type from options (if set) or data (from initial config)
+        forecast_type = entry.options.get(
+            CONF_AMBER_FORECAST_TYPE,
+            entry.data.get(CONF_AMBER_FORECAST_TYPE, "predicted")
+        )
+        _LOGGER.info(f"Using Amber forecast type: {forecast_type}")
+
         # Convert prices to Tesla tariff format
         tariff = convert_amber_to_tesla_tariff(
             amber_coordinator.data.get("forecast", []),
             tesla_site_id=entry.data[CONF_TESLA_SITE_ID],
+            forecast_type=forecast_type,
         )
 
         if not tariff:

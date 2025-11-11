@@ -69,7 +69,7 @@ def sync_all_users():
 
             # Convert Amber prices to Tesla tariff format
             converter = AmberTariffConverter()
-            tariff = converter.convert_amber_to_tesla_tariff(forecast, manual_override=None, user=user)
+            tariff = converter.convert_amber_to_tesla_tariff(forecast, user=user)
 
             if not tariff:
                 logger.error(f"Failed to convert tariff for user {user.email}")
