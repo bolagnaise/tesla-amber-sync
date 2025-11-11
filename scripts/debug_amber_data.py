@@ -93,7 +93,7 @@ def main():
             print(f"  forecast:          {interval.get('forecast')}")
 
         # Save full data to JSON file for detailed analysis
-        output_file = '/Users/benboller/Downloads/amber_raw_data.json'
+        output_file = 'amber_raw_data.json'
         output_data = {
             'fetch_time': datetime.utcnow().isoformat(),
             'total_intervals': len(forecast),

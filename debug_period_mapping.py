@@ -9,7 +9,7 @@ from app.api_clients import AmberAPIClient
 from collections import defaultdict
 
 # Get user from database
-db_path = '/Users/benboller/Downloads/tesla-amber-sync/app.db'
+db_path = 'app.db'
 conn = sqlite3.connect(db_path)
 cursor = conn.cursor()
 cursor.execute("SELECT amber_api_token_encrypted FROM user LIMIT 1")
