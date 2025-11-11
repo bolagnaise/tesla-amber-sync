@@ -526,7 +526,7 @@ def tesla_status():
 @login_required
 def price_history():
     """Get historical price data"""
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone, timedelta
     from zoneinfo import ZoneInfo
 
     logger.info(f"Price history requested by user: {current_user.email}")
@@ -534,17 +534,22 @@ def price_history():
     # Get user's timezone
     user_tz = ZoneInfo(current_user.timezone or 'Australia/Brisbane')
 
+    # Calculate 24 hours ago
+    now_utc = datetime.now(timezone.utc)
+    twenty_four_hours_ago = now_utc - timedelta(hours=24)
+
     # Get last 24 hours of price data (only actual prices, not forecasts)
-    records = PriceRecord.query.filter_by(
-        user_id=current_user.id,
-        channel_type='general',
-        forecast=False
+    records = PriceRecord.query.filter(
+        PriceRecord.user_id == current_user.id,
+        PriceRecord.channel_type == 'general',
+        PriceRecord.forecast == False,
+        PriceRecord.timestamp >= twenty_four_hours_ago
     ).order_by(
-        PriceRecord.timestamp.desc()
-    ).limit(48).all()
+        PriceRecord.timestamp.asc()
+    ).all()
 
     data = []
-    for record in reversed(records):
+    for record in records:
         # Convert UTC timestamp to user's timezone
         if record.timestamp.tzinfo is None:
             # Assume UTC if no timezone info
