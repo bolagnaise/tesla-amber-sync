@@ -183,6 +183,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry.data.get(CONF_AUTO_SYNC_ENABLED, True)
         )
 
+        _LOGGER.debug(
+            "Auto-sync check: options=%s, data=%s, enabled=%s",
+            entry.options.get(CONF_AUTO_SYNC_ENABLED),
+            entry.data.get(CONF_AUTO_SYNC_ENABLED),
+            auto_sync_enabled
+        )
+
         if auto_sync_enabled:
             _LOGGER.debug("Auto-sync enabled, triggering TOU sync")
             await handle_sync_tou(None)
