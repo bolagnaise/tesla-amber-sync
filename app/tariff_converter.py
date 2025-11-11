@@ -13,6 +13,27 @@ class AmberTariffConverter:
     def __init__(self):
         logger.info("AmberTariffConverter initialized")
 
+    @staticmethod
+    def _round_price(price: float) -> float:
+        """
+        Round price to 5 decimal places, removing trailing zeros.
+
+        This matches Netzero's behavior:
+        - 0.2014191 → 0.20142 (5 decimals)
+        - 0.1990000 → 0.199 (3 decimals, trailing zeros removed)
+        - 0.1234500 → 0.12345 (5 decimals, trailing zero removed)
+
+        Args:
+            price: Price in dollars per kWh
+
+        Returns:
+            Price rounded to max 5 decimal places with trailing zeros removed
+        """
+        # Round to 5 decimal places
+        rounded = round(price, 5)
+        # Python's float naturally drops trailing zeros in JSON serialization
+        return rounded
+
     def convert_amber_to_tesla_tariff(self, forecast_data: List[Dict], user=None) -> Dict:
         """
         Convert Amber price forecast to Tesla tariff format
@@ -102,7 +123,7 @@ class AmberTariffConverter:
                 if channel_type == 'feedIn':
                     per_kwh_cents = -per_kwh_cents
 
-                per_kwh_dollars = per_kwh_cents / 100
+                per_kwh_dollars = self._round_price(per_kwh_cents / 100)
 
                 # IMPORTANT: Amber's nemTime represents the END of the interval
                 # The 'duration' field tells us the interval length (typically 5 or 30 minutes)
@@ -229,7 +250,7 @@ class AmberTariffConverter:
                 # Get general price (buy price)
                 if lookup_key in general_lookup:
                     prices = general_lookup[lookup_key]
-                    buy_price = sum(prices) / len(prices)
+                    buy_price = self._round_price(sum(prices) / len(prices))
 
                     # Tesla restriction: No negative prices - clamp to 0
                     if buy_price < 0:
@@ -250,7 +271,7 @@ class AmberTariffConverter:
                     fallback_key = (today.isoformat(), fallback_hour, fallback_minute)
                     if fallback_key in general_lookup:
                         prices = general_lookup[fallback_key]
-                        buy_price = max(0, sum(prices) / len(prices))
+                        buy_price = max(0, self._round_price(sum(prices) / len(prices)))
                         logger.info(f"{period_key}: No forecast for slot ({hour:02d}:{minute:02d}), using current slot price: ${buy_price:.4f}")
                         general_prices[period_key] = buy_price
                     else:
@@ -261,7 +282,7 @@ class AmberTariffConverter:
                 # Get feedin price (sell price)
                 if lookup_key in feedin_lookup:
                     prices = feedin_lookup[lookup_key]
-                    sell_price = sum(prices) / len(prices)
+                    sell_price = self._round_price(sum(prices) / len(prices))
                     original_sell = sell_price
                     adjustments = []
 
@@ -297,7 +318,7 @@ class AmberTariffConverter:
                     fallback_key = (today.isoformat(), fallback_hour, fallback_minute)
                     if fallback_key in feedin_lookup:
                         prices = feedin_lookup[fallback_key]
-                        sell_price = max(0, sum(prices) / len(prices))
+                        sell_price = max(0, self._round_price(sum(prices) / len(prices)))
                         # Tesla restriction: sell price cannot exceed buy price
                         if period_key in general_prices and sell_price > general_prices[period_key]:
                             sell_price = general_prices[period_key]

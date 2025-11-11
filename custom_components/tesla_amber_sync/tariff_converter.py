@@ -8,6 +8,27 @@ from typing import Any
 _LOGGER = logging.getLogger(__name__)
 
 
+def _round_price(price: float) -> float:
+    """
+    Round price to 5 decimal places, removing trailing zeros.
+
+    This matches Netzero's behavior:
+    - 0.2014191 → 0.20142 (5 decimals)
+    - 0.1990000 → 0.199 (3 decimals, trailing zeros removed)
+    - 0.1234500 → 0.12345 (5 decimals, trailing zero removed)
+
+    Args:
+        price: Price in dollars per kWh
+
+    Returns:
+        Price rounded to max 5 decimal places with trailing zeros removed
+    """
+    # Round to 5 decimal places
+    rounded = round(price, 5)
+    # Python's float naturally drops trailing zeros in JSON serialization
+    return rounded
+
+
 def convert_amber_to_tesla_tariff(
     forecast_data: list[dict[str, Any]],
     tesla_site_id: str,
@@ -74,7 +95,7 @@ def convert_amber_to_tesla_tariff(
             if channel_type == "feedIn":
                 per_kwh_cents = -per_kwh_cents
 
-            per_kwh_dollars = per_kwh_cents / 100
+            per_kwh_dollars = _round_price(per_kwh_cents / 100)
 
             # IMPORTANT: Amber's nemTime represents the END of the interval
             # The 'duration' field tells us the interval length (typically 5 or 30 minutes)
@@ -187,7 +208,7 @@ def _build_rolling_24h_tariff(
             # Get general price (buy price)
             if lookup_key in general_lookup:
                 prices = general_lookup[lookup_key]
-                buy_price = sum(prices) / len(prices)
+                buy_price = _round_price(sum(prices) / len(prices))
                 # Tesla restriction: No negative prices
                 general_prices[period_key] = max(0, buy_price)
             else:
@@ -202,14 +223,14 @@ def _build_rolling_24h_tariff(
                 fallback_key = (today.isoformat(), fallback_hour, fallback_minute)
                 if fallback_key in general_lookup:
                     prices = general_lookup[fallback_key]
-                    general_prices[period_key] = max(0, sum(prices) / len(prices))
+                    general_prices[period_key] = max(0, _round_price(sum(prices) / len(prices)))
                 else:
                     general_prices[period_key] = 0
 
             # Get feedin price (sell price)
             if lookup_key in feedin_lookup:
                 prices = feedin_lookup[lookup_key]
-                sell_price = sum(prices) / len(prices)
+                sell_price = _round_price(sum(prices) / len(prices))
 
                 # Tesla restriction #1: No negative prices
                 sell_price = max(0, sell_price)
@@ -231,7 +252,7 @@ def _build_rolling_24h_tariff(
                 fallback_key = (today.isoformat(), fallback_hour, fallback_minute)
                 if fallback_key in feedin_lookup:
                     prices = feedin_lookup[fallback_key]
-                    sell_price = max(0, sum(prices) / len(prices))
+                    sell_price = max(0, _round_price(sum(prices) / len(prices)))
                     # Tesla restriction: sell price cannot exceed buy price
                     if period_key in general_prices:
                         sell_price = min(sell_price, general_prices[period_key])
