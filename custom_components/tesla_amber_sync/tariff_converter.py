@@ -78,19 +78,25 @@ def convert_amber_to_tesla_tariff(
 
             # IMPORTANT: Amber's nemTime represents the END of the interval
             # The 'duration' field tells us the interval length (typically 5 or 30 minutes)
-            # Tesla's PERIOD_XX_YY uses START time (PERIOD_00_00 = 00:00-00:30)
-            # So we subtract the duration to convert END time to START time
             #
-            # Example with 5-min intervals:
-            #   nemTime=00:05, duration=5 → interval_start=00:00 → PERIOD_00_00
-            #   nemTime=00:30, duration=5 → interval_start=00:25 → PERIOD_00_00
+            # Amber displays 30-minute forecasts using END time labels:
+            #   "18:00 forecast" = the 17:30-18:00 period
+            # Tesla's PERIOD_17_30 = the 17:30-18:00 period (START time label)
+            #
+            # To match Amber's display convention, we bucket by nemTime (END time)
+            # Then when building Tesla tariff, we shift lookup by +30 minutes
+            #
+            # Example:
+            #   nemTime=18:00, duration=30 → bucket key (18, 0)
+            #   Tesla PERIOD_17_30 → looks up key (18, 0)
+            #   Result: Correct alignment with Amber's "18:00 forecast"
             interval_start = timestamp - timedelta(minutes=duration)
 
-            # Round to nearest 30-minute interval
-            minute_bucket = 0 if interval_start.minute < 30 else 30
+            # Round nemTime to nearest 30-minute interval (use END time for bucketing)
+            minute_bucket = 0 if timestamp.minute < 30 else 30
 
-            date_str = interval_start.date().isoformat()
-            lookup_key = (date_str, interval_start.hour, minute_bucket)
+            date_str = timestamp.date().isoformat()
+            lookup_key = (date_str, timestamp.hour, minute_bucket)
 
             if channel_type == "general":
                 if lookup_key not in general_lookup:
@@ -155,11 +161,6 @@ def _build_rolling_24h_tariff(
         for minute in [0, 30]:
             period_key = f"PERIOD_{hour:02d}_{minute:02d}"
 
-            # No shift - use current period's time (aligned with interval start time)
-            # We already converted Amber's nemTime (end time) to interval start time
-            next_minute = minute
-            next_hour = hour
-
             # Determine if this period has already passed
             if (hour < current_hour) or (hour == current_hour and minute < current_minute):
                 # Past period - use tomorrow's price
@@ -167,6 +168,18 @@ def _build_rolling_24h_tariff(
             else:
                 # Future period - use today's price
                 date_to_use = today
+
+            # Shift by +30 minutes to match Amber's END time labeling
+            # Tesla PERIOD_17_30 (17:30-18:00) looks up Amber's "18:00 forecast" (17:30-18:00)
+            next_minute = minute + 30
+            next_hour = hour
+            if next_minute >= 60:
+                next_minute = 0
+                next_hour = hour + 1
+                if next_hour >= 24:
+                    next_hour = 0
+                    # Crossed into next day
+                    date_to_use = date_to_use + timedelta(days=1)
 
             date_str = date_to_use.isoformat()
             lookup_key = (date_str, next_hour, next_minute)
@@ -178,8 +191,15 @@ def _build_rolling_24h_tariff(
                 # Tesla restriction: No negative prices
                 general_prices[period_key] = max(0, buy_price)
             else:
-                # Fallback to current slot
-                fallback_key = (today.isoformat(), hour, minute)
+                # Fallback to current slot (also shifted)
+                fallback_minute = minute + 30
+                fallback_hour = hour
+                if fallback_minute >= 60:
+                    fallback_minute = 0
+                    fallback_hour = hour + 1
+                    if fallback_hour >= 24:
+                        fallback_hour = 0
+                fallback_key = (today.isoformat(), fallback_hour, fallback_minute)
                 if fallback_key in general_lookup:
                     prices = general_lookup[fallback_key]
                     general_prices[period_key] = max(0, sum(prices) / len(prices))
@@ -200,8 +220,15 @@ def _build_rolling_24h_tariff(
 
                 feedin_prices[period_key] = sell_price
             else:
-                # Fallback to current slot
-                fallback_key = (today.isoformat(), hour, minute)
+                # Fallback to current slot (also shifted)
+                fallback_minute = minute + 30
+                fallback_hour = hour
+                if fallback_minute >= 60:
+                    fallback_minute = 0
+                    fallback_hour = hour + 1
+                    if fallback_hour >= 24:
+                        fallback_hour = 0
+                fallback_key = (today.isoformat(), fallback_hour, fallback_minute)
                 if fallback_key in feedin_lookup:
                     prices = feedin_lookup[fallback_key]
                     sell_price = max(0, sum(prices) / len(prices))
