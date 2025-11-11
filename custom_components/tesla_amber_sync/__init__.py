@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import aiohttp
 import logging
-from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -12,7 +11,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_track_utc_time_change
 
 from .const import (
     DOMAIN,
@@ -206,11 +205,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info("Performing initial TOU sync")
         await handle_sync_tou(None)
 
-    # Start the automatic sync timer (every 5 minutes)
-    cancel_timer = async_track_time_interval(
+    # Start the automatic sync timer (every 5 minutes, aligned to clock)
+    # Triggers at :00, :05, :10, :15, :20, :25, :30, :35, :40, :45, :50, :55
+    cancel_timer = async_track_utc_time_change(
         hass,
         auto_sync_tou,
-        timedelta(minutes=5),
+        minute=[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55],
+        second=0,
     )
 
     # Store the cancel function so we can clean it up later
