@@ -1,7 +1,7 @@
 # app/tasks.py
 """Background tasks for automatic syncing"""
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from app.models import User, PriceRecord, EnergyRecord, SavedTOUProfile
 from app.api_clients import get_amber_client, get_tesla_client, AEMOAPIClient
 from app.tariff_converter import AmberTariffConverter
@@ -89,7 +89,7 @@ def sync_all_users():
 
                 # Update user's last_update timestamp
                 from datetime import datetime
-                user.last_update_time = datetime.utcnow()
+                user.last_update_time = datetime.now(timezone.utc)
                 user.last_update_status = "Auto-sync successful"
                 db.session.commit()
 
@@ -181,7 +181,7 @@ def save_price_history():
                         forecast=price_data.get('forecast', False),
                         nem_time=nem_time,
                         spike_status=price_data.get('spikeStatus'),
-                        timestamp=datetime.utcnow()
+                        timestamp=datetime.now(timezone.utc)
                     )
                     db.session.add(record)
                     records_saved += 1
@@ -266,7 +266,7 @@ def save_energy_usage():
                 grid_power=grid_power,
                 load_power=load_power,
                 battery_level=battery_level,
-                timestamp=datetime.utcnow()
+                timestamp=datetime.now(timezone.utc)
             )
 
             db.session.add(record)
@@ -342,7 +342,7 @@ def monitor_aemo_prices():
                 continue
 
             # Update user's last check data
-            user.aemo_last_check = datetime.utcnow()
+            user.aemo_last_check = datetime.now(timezone.utc)
             user.aemo_last_price = current_price
 
             # Get Tesla client
@@ -382,7 +382,7 @@ def monitor_aemo_prices():
                         logger.info(f"Powerwall is already optimizing correctly during spike event")
                         # Still mark as in spike mode so we don't keep checking
                         user.aemo_in_spike_mode = True
-                        user.aemo_spike_start_time = datetime.utcnow()
+                        user.aemo_spike_start_time = datetime.now(timezone.utc)
                         db.session.commit()
                         success_count += 1
                         continue  # Skip to next user
@@ -395,14 +395,14 @@ def monitor_aemo_prices():
                     # Save to database
                     backup_profile = SavedTOUProfile(
                         user_id=user.id,
-                        name=f"Pre-Spike Backup - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+                        name=f"Pre-Spike Backup - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
                         description=f"Automatic backup before AEMO spike at ${current_price}/MWh",
                         source_type='aemo_backup',
                         tariff_name=current_tariff.get('name', 'Unknown'),
                         utility=current_tariff.get('utility', 'Unknown'),
                         tariff_json=json.dumps(current_tariff),
-                        created_at=datetime.utcnow(),
-                        fetched_from_tesla_at=datetime.utcnow()
+                        created_at=datetime.now(timezone.utc),
+                        fetched_from_tesla_at=datetime.now(timezone.utc)
                     )
                     db.session.add(backup_profile)
                     db.session.flush()  # Get the ID
@@ -420,7 +420,7 @@ def monitor_aemo_prices():
 
                 if result:
                     user.aemo_in_spike_mode = True
-                    user.aemo_spike_start_time = datetime.utcnow()
+                    user.aemo_spike_start_time = datetime.now(timezone.utc)
                     logger.info(f"✅ Entered spike mode for {user.email} - uploaded spike tariff")
 
                     # Force Powerwall to immediately apply the new spike tariff
@@ -448,7 +448,7 @@ def monitor_aemo_prices():
                         if result:
                             user.aemo_in_spike_mode = False
                             user.aemo_spike_start_time = None
-                            backup_profile.last_restored_at = datetime.utcnow()
+                            backup_profile.last_restored_at = datetime.now(timezone.utc)
                             logger.info(f"✅ Exited spike mode for {user.email} - restored backup tariff")
 
                             # Force Powerwall to immediately apply the restored tariff
