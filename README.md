@@ -90,6 +90,10 @@
 - ⏱️ **Background Scheduler** - Automatic syncing every 5 minutes (aligned with Amber's forecast updates)
 - 🐳 **Docker Ready** - Pre-built multi-architecture (amd64/arm64) images for easy deployment
 - 🏠 **Home Assistant Integration** - Native HACS integration for seamless HA deployment
+- 🌏 **Australia-Wide Compatibility** - Auto-detects timezone from Amber data, works in all Australian states (QLD, NSW, VIC, SA, TAS, WA, NT)
+- 📊 **Intelligent Price Averaging** - Averages 5-minute Amber intervals into 30-minute Tesla periods for maximum accuracy
+- 🎯 **Period Alignment** - Correctly aligns with Amber's forecast labels (e.g., "18:00 forecast" → Tesla PERIOD_17_30)
+- 🔄 **Rolling 24-Hour Window** - Always provides Tesla with 9-24 hours lookahead for optimal battery management
 
 ## Key Features Explained
 
@@ -115,6 +119,53 @@ Backup and restore your tariff configurations:
 - Restore previous configurations anytime
 - Manage multiple tariff setups
 - Pre-spike backup for AEMO spike detection
+
+## How It Works
+
+### Intelligent Price Conversion
+
+Tesla Sync uses sophisticated algorithms to convert Amber Electric's dynamic pricing into Tesla-compatible TOU (Time-of-Use) tariffs:
+
+#### 1. **Smart Period Mapping**
+Amber Electric labels their forecasts using **END time** convention (e.g., "18:00 forecast" = 17:30-18:00 period), while Tesla uses **START time** labels (e.g., PERIOD_17_30 = 17:30-18:00). Tesla Sync automatically aligns these conventions so prices match exactly what you see in the Amber app.
+
+#### 2. **5-Minute Averaging**
+- **Recent/Current Prices:** Amber provides 5-minute actual intervals with high precision
+- **Conversion:** Tesla Sync averages six 5-minute intervals into each 30-minute Tesla period
+- **Result:** More accurate pricing that captures real market volatility
+- **Example:** Period 20:00-20:30 averages prices from 20:05, 20:10, 20:15, 20:20, 20:25, 20:30
+
+#### 3. **Rolling 24-Hour Window**
+Tesla requires a static 24-hour tariff structure, but Tesla Sync makes it "roll" forward:
+- **Future periods** (not yet reached today): Use today's forecast prices
+- **Past periods** (already passed today): Use tomorrow's forecast prices
+- **Benefit:** Tesla always has 9-24 hours of lookahead for every period, enabling optimal battery decisions
+
+**Example at 2:15 PM:**
+```
+PERIOD_00_00 → Tomorrow's 00:00 forecast (+9h 45m lookahead)
+PERIOD_14_00 → Today's 14:30 forecast    (+15m lookahead - current)
+PERIOD_23_30 → Tomorrow's 00:00 forecast (+9h 45m lookahead)
+```
+
+#### 4. **Timezone Auto-Detection**
+Works anywhere in Australia without configuration:
+- **Brisbane (AEST UTC+10:00):** No DST
+- **Sydney/Melbourne (AEDT UTC+11:00):** DST in summer
+- **Adelaide (ACDT UTC+10:30):** Unique 30-minute offset + DST
+- **Perth (AWST UTC+8:00):** No DST
+- **Darwin (ACST UTC+9:30):** No DST
+
+The system automatically extracts timezone information from Amber's API data, ensuring correct "past vs future" period detection for all locations.
+
+#### 5. **Precision Matching**
+Prices are rounded to **4 decimal places** (matching Netzero's format) with trailing zeros automatically removed:
+- `0.2014191` → `0.2014` (4 decimals)
+- `0.1990000` → `0.199` (3 decimals, trailing zeros dropped)
+
+### Sync Frequency
+
+**Every 5 minutes** - Perfectly aligned with Amber Electric's forecast update schedule for maximum freshness.
 
 ## Installation Options
 
