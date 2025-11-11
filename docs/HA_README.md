@@ -34,7 +34,7 @@ Before installing this integration, you need:
 2. Click on "Integrations"
 3. Click the three dots in the top right corner
 4. Select "Custom repositories"
-5. Add this repository URL: `https://github.com/benboller/tesla-sync`
+5. Add this repository URL: `https://github.com/bolagnaise/tesla-sync`
 6. Select category: "Integration"
 7. Click "Add"
 8. Find "Tesla Sync" in HACS and click "Install"
@@ -200,7 +200,7 @@ Typical savings range from 20-40% on electricity bills compared to fixed-rate pl
 ## Support
 
 For issues, questions, or feature requests:
-- GitHub Issues: https://github.com/benboller/tesla-sync/issues
+- GitHub Issues: https://github.com/bolagnaise/tesla-sync/issues
 - Home Assistant Community: https://community.home-assistant.io/
 
 ## License
