@@ -96,13 +96,6 @@ class AmberSettingsForm(FlaskForm):
     ], default='predicted', validators=[DataRequired()],
     description='Select which Amber forecast to use for TOU tariff: Low (conservative), Predicted (default), or High (optimistic)')
 
-    # 30-minute shift toggle
-    amber_30min_shift_enabled = BooleanField(
-        'Enable 30-Minute Price Shift',
-        default=True,
-        description='Shifts pricing forward by 30 minutes in TOU tariff to optimize battery charging/discharging timing'
-    )
-
     submit = SubmitField('Save Amber Settings')
 
 

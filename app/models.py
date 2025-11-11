@@ -28,7 +28,6 @@ class User(UserMixin, db.Model):
 
     # Amber Electric Preferences
     amber_forecast_type = db.Column(db.String(20), default='predicted')  # 'low', 'predicted', 'high'
-    amber_30min_shift_enabled = db.Column(db.Boolean, default=False)  # Enable 30-minute price shift for advance warning optimization
 
     # Manual Control Override
     manual_control_mode = db.Column(db.String(20))  # 'charge', 'discharge', or None

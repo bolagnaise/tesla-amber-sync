@@ -32,27 +32,6 @@
                 </details>
             </fieldset>
 
-            <fieldset style="margin-top: 1.5em;">
-                <legend>TOU Tariff Timing</legend>
-                <label for="amber_30min_shift_enabled">
-                    {{ form.amber_30min_shift_enabled }}
-                    {{ form.amber_30min_shift_enabled.label }}
-                    <small>{{ form.amber_30min_shift_enabled.description }}</small>
-                </label>
-                <details style="margin-top: 0.5em;">
-                    <summary style="font-size: 0.85em;">Why shift pricing by 30 minutes?</summary>
-                    <div style="font-size: 0.8em; margin-top: 0.5em; padding: 0.5em; background: rgba(100, 150, 200, 0.05); border-radius: 0.3em;">
-                        <p style="margin: 0 0 0.5em 0;">The 30-minute shift optimizes battery behavior by anticipating price changes:</p>
-                        <ul style="margin: 0.3em 0 0 1.2em; padding: 0;">
-                            <li style="margin: 0.5em 0;"><strong>Before low prices:</strong> Battery begins charging earlier to maximize cheap energy capture</li>
-                            <li style="margin: 0.5em 0;"><strong>Before high prices:</strong> Battery prepares to export by ensuring it's charged</li>
-                            <li style="margin: 0.5em 0;"><strong>Recommended:</strong> Keep enabled for optimal battery performance</li>
-                        </ul>
-                        <p style="margin: 0.5em 0 0 0;"><em>Disable this if you want prices to match exactly without timing optimization.</em></p>
-                    </div>
-                </details>
-            </fieldset>
-
             <div style="margin-top: 1.5em;">
                 {{ form.submit(style="width: 100%;") }}
             </div>

@@ -287,11 +287,10 @@ def amber_settings():
 
         # Update Amber-specific settings
         current_user.amber_forecast_type = form.amber_forecast_type.data
-        current_user.amber_30min_shift_enabled = form.amber_30min_shift_enabled.data
 
         try:
             db.session.commit()
-            logger.info(f"Amber settings saved successfully: forecast_type={form.amber_forecast_type.data}, 30min_shift={form.amber_30min_shift_enabled.data}")
+            logger.info(f"Amber settings saved successfully: forecast_type={form.amber_forecast_type.data}")
             flash('Amber settings have been saved.')
         except Exception as e:
             logger.error(f"Error saving Amber settings to database: {e}")
@@ -303,9 +302,8 @@ def amber_settings():
     # Pre-populate form with existing data
     logger.debug("Pre-populating Amber settings form data")
     form.amber_forecast_type.data = current_user.amber_forecast_type or 'predicted'
-    form.amber_30min_shift_enabled.data = current_user.amber_30min_shift_enabled if current_user.amber_30min_shift_enabled is not None else False
 
-    logger.info(f"Rendering Amber settings page - Forecast type: {form.amber_forecast_type.data}, 30min shift: {form.amber_30min_shift_enabled.data}")
+    logger.info(f"Rendering Amber settings page - Forecast type: {form.amber_forecast_type.data}")
     return render_template('amber_settings.html', title='Amber Settings', form=form)
 
 
