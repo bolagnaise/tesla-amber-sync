@@ -783,7 +783,8 @@ def tou_schedule():
         return jsonify({'error': 'Amber API not configured'}), 400
 
     # Get price forecast for next 48 hours (to build rolling 24h window)
-    forecast = amber_client.get_price_forecast(next_hours=48)
+    # Request 30-minute resolution - Amber pre-averages 5-min intervals for us
+    forecast = amber_client.get_price_forecast(next_hours=48, resolution=30)
     if not forecast:
         logger.error("Failed to fetch price forecast")
         return jsonify({'error': 'Failed to fetch price forecast'}), 500
@@ -880,7 +881,8 @@ def sync_tesla_schedule():
 
     try:
         # Get price forecast (48 hours for better coverage)
-        forecast = amber_client.get_price_forecast(next_hours=48)
+        # Request 30-minute resolution - Amber pre-averages 5-min intervals for us
+        forecast = amber_client.get_price_forecast(next_hours=48, resolution=30)
         if not forecast:
             logger.error("Failed to fetch price forecast for sync")
             return jsonify({'error': 'Failed to fetch price forecast'}), 500

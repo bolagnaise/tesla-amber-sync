@@ -61,7 +61,8 @@ def sync_all_users():
                 continue
 
             # Get price forecast (48 hours for better coverage)
-            forecast = amber_client.get_price_forecast(next_hours=48)
+            # Request 30-minute resolution - Amber pre-averages 5-min intervals for us
+            forecast = amber_client.get_price_forecast(next_hours=48, resolution=30)
             if not forecast:
                 logger.error(f"Failed to fetch price forecast for user {user.email}")
                 error_count += 1
