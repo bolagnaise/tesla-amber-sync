@@ -415,26 +415,12 @@
             const feedinPrice = prices.find(p => p.channelType === 'feedIn');
 
             if (generalPrice) {
-                // Use nemTime which is already in Australian Eastern Time
-                if (generalPrice.nemTime) {
-                    // nemTime format: "2025-11-12T17:15:00+10:00"
-                    // Extract time portion directly from ISO string
-                    const timeMatch = generalPrice.nemTime.match(/T(\d{2}):(\d{2})/);
-
-                    if (timeMatch) {
-                        const hour = parseInt(timeMatch[1]);
-                        const minute = parseInt(timeMatch[2]);
-
-                        // Calculate 5-minute interval boundaries
-                        const intervalStart = Math.floor(minute / 5) * 5;
-                        const intervalEnd = intervalStart + 5;
-
-                        const startTime = `${String(hour).padStart(2, '0')}:${String(intervalStart).padStart(2, '0')}`;
-                        const endTime = `${String(hour).padStart(2, '0')}:${String(intervalEnd).padStart(2, '0')}`;
-                        document.getElementById('current-interval-time').textContent = `${startTime} - ${endTime}`;
-                    }
+                // Use backend-provided display times (already formatted in user's timezone)
+                if (generalPrice.displayIntervalStart && generalPrice.displayIntervalEnd) {
+                    document.getElementById('current-interval-time').textContent =
+                        `${generalPrice.displayIntervalStart} - ${generalPrice.displayIntervalEnd}`;
                 } else {
-                    // Fallback: calculate from current browser time (if API doesn't provide nemTime)
+                    // Fallback: calculate from current browser time (if backend doesn't provide display times)
                     const now = new Date();
                     const currentMinute = now.getMinutes();
                     const intervalStart = Math.floor(currentMinute / 5) * 5;

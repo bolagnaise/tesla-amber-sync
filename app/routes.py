@@ -355,7 +355,7 @@ def amber_current_price():
         logger.error("Failed to fetch current prices")
         return jsonify({'error': 'Failed to fetch prices'}), 500
 
-    # Store prices in database
+    # Store prices in database and add display times
     try:
         for price_data in prices:
             # Check if we already have this price record
@@ -376,6 +376,15 @@ def amber_current_price():
                 timestamp=datetime.utcnow()
             )
             db.session.add(record)
+
+            # Add display time for 5-minute interval in nemTime (already in Australian timezone)
+            # Calculate 5-minute interval boundaries from nemTime minute value
+            minute = nem_time.minute
+            interval_start = (minute // 5) * 5
+            interval_end = interval_start + 5
+
+            price_data['displayIntervalStart'] = f"{nem_time.hour:02d}:{interval_start:02d}"
+            price_data['displayIntervalEnd'] = f"{nem_time.hour:02d}:{interval_end:02d}"
 
         db.session.commit()
         logger.info(f"Saved {len(prices)} price records to database")
