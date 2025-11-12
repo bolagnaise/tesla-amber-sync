@@ -1883,6 +1883,11 @@ def _restore_tou_rate_background(app, user_id, profile_id, site_id, tariff_data,
                 db.session.commit()
 
                 logger.info(f"✅ Background restore completed: {profile_name}")
+
+                # Force Powerwall to immediately apply the restored tariff
+                from app.tasks import force_tariff_refresh
+                logger.info(f"Forcing Powerwall to apply restored tariff by toggling operation mode")
+                force_tariff_refresh(tesla_client, site_id)
             else:
                 logger.error(f"❌ Background restore failed: {profile_name}")
 
