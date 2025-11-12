@@ -65,7 +65,7 @@ def convert_amber_to_tesla_tariff(
         from zoneinfo import ZoneInfo
         try:
             detected_tz = ZoneInfo(powerwall_timezone)
-            _LOGGER.info("Using Powerwall timezone from site_info: %s", powerwall_timezone)
+            _LOGGER.info("✓ Using Powerwall timezone from site_info: %s", powerwall_timezone)
         except Exception as err:
             _LOGGER.warning(
                 "Invalid Powerwall timezone '%s': %s, falling back to auto-detection",

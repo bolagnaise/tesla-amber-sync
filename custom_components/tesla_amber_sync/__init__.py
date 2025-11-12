@@ -225,11 +225,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
         _LOGGER.info(f"Using Amber forecast type: {forecast_type}")
 
+        # Fetch Powerwall timezone from site_info
+        # This ensures correct timezone handling for TOU schedule alignment
+        powerwall_timezone = None
+        site_info = await tesla_coordinator.async_get_site_info()
+        if site_info:
+            powerwall_timezone = site_info.get("installation_time_zone")
+            if powerwall_timezone:
+                _LOGGER.info(f"Using Powerwall timezone: {powerwall_timezone}")
+            else:
+                _LOGGER.warning("No installation_time_zone in site_info, will auto-detect from Amber data")
+        else:
+            _LOGGER.warning("Failed to fetch site_info, will auto-detect timezone from Amber data")
+
         # Convert prices to Tesla tariff format
         tariff = convert_amber_to_tesla_tariff(
             amber_coordinator.data.get("forecast", []),
             tesla_site_id=entry.data[CONF_TESLA_SITE_ID],
             forecast_type=forecast_type,
+            powerwall_timezone=powerwall_timezone,
         )
 
         if not tariff:

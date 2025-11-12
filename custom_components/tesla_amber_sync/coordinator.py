@@ -168,6 +168,7 @@ class TeslaEnergyCoordinator(DataUpdateCoordinator):
         self.site_id = site_id
         self.api_token = api_token
         self.session = async_get_clientsession(hass)
+        self._site_info_cache = None  # Cache site_info since timezone doesn't change
 
         super().__init__(
             hass,
@@ -213,3 +214,55 @@ class TeslaEnergyCoordinator(DataUpdateCoordinator):
             raise  # Re-raise UpdateFailed exceptions
         except Exception as err:
             raise UpdateFailed(f"Unexpected error fetching Tesla energy data: {err}") from err
+
+    async def async_get_site_info(self) -> dict[str, Any] | None:
+        """
+        Fetch site_info from Teslemetry API.
+
+        Includes installation_time_zone which is critical for correct TOU schedule alignment.
+        Results are cached since site info (especially timezone) doesn't change.
+
+        Returns:
+            Site info dict containing installation_time_zone, or None if fetch fails
+        """
+        # Return cached value if available
+        if self._site_info_cache:
+            _LOGGER.debug("Returning cached site_info")
+            return self._site_info_cache
+
+        headers = {
+            "Authorization": f"Bearer {self.api_token}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            _LOGGER.info(f"Fetching site_info for site {self.site_id}")
+
+            data = await _fetch_with_retry(
+                self.session,
+                f"{TESLEMETRY_API_BASE_URL}/api/1/energy_sites/{self.site_id}/site_info",
+                headers,
+                max_retries=3,
+                timeout_seconds=60,
+            )
+
+            site_info = data.get("response", {})
+
+            # Log timezone info for debugging
+            installation_tz = site_info.get("installation_time_zone")
+            if installation_tz:
+                _LOGGER.info(f"Found Powerwall timezone: {installation_tz}")
+            else:
+                _LOGGER.warning("No installation_time_zone in site_info response")
+
+            # Cache the result
+            self._site_info_cache = site_info
+
+            return site_info
+
+        except UpdateFailed as err:
+            _LOGGER.error(f"Failed to fetch site_info: {err}")
+            return None
+        except Exception as err:
+            _LOGGER.error(f"Unexpected error fetching site_info: {err}")
+            return None
