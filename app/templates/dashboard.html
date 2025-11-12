@@ -417,15 +417,16 @@
             if (generalPrice) {
                 // Use start/end time from API (in user's timezone) instead of browser time
                 if (generalPrice.startTime && generalPrice.endTime) {
-                    // Strip timezone and parse as naive datetime
-                    const startStr = generalPrice.startTime.replace(/[+-]\d{2}:\d{2}|Z$/, '');
-                    const endStr = generalPrice.endTime.replace(/[+-]\d{2}:\d{2}|Z$/, '');
-                    const startDate = new Date(startStr);
-                    const endDate = new Date(endStr);
+                    // Parse time directly from ISO string to avoid timezone conversion
+                    // Format: "2025-11-12T16:05:00+10:00" -> extract "16:05"
+                    const startMatch = generalPrice.startTime.match(/T(\d{2}):(\d{2})/);
+                    const endMatch = generalPrice.endTime.match(/T(\d{2}):(\d{2})/);
 
-                    const startTime = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
-                    const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
-                    document.getElementById('current-interval-time').textContent = `${startTime} - ${endTime}`;
+                    if (startMatch && endMatch) {
+                        const startTime = `${startMatch[1]}:${startMatch[2]}`;
+                        const endTime = `${endMatch[1]}:${endMatch[2]}`;
+                        document.getElementById('current-interval-time').textContent = `${startTime} - ${endTime}`;
+                    }
                 } else {
                     // Fallback: calculate from current browser time (if API doesn't provide times)
                     const now = new Date();
