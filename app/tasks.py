@@ -67,9 +67,26 @@ def sync_all_users():
                 error_count += 1
                 continue
 
+            # Fetch Powerwall timezone from site_info
+            # This ensures time alignment with the Powerwall's actual location
+            powerwall_tz = None
+            site_info = tesla_client.get_site_info(user.tesla_energy_site_id)
+            if site_info:
+                powerwall_tz = site_info.get('installation_time_zone')
+                if powerwall_tz:
+                    logger.info(f"Using Powerwall timezone: {powerwall_tz}")
+                else:
+                    logger.warning(f"No installation_time_zone in site_info for {user.email}")
+            else:
+                logger.warning(f"Failed to fetch site_info for {user.email}")
+
             # Convert Amber prices to Tesla tariff format
             converter = AmberTariffConverter()
-            tariff = converter.convert_amber_to_tesla_tariff(forecast, user=user)
+            tariff = converter.convert_amber_to_tesla_tariff(
+                forecast,
+                user=user,
+                powerwall_timezone=powerwall_tz
+            )
 
             if not tariff:
                 logger.error(f"Failed to convert tariff for user {user.email}")

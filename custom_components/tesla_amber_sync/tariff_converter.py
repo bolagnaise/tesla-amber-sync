@@ -33,6 +33,7 @@ def convert_amber_to_tesla_tariff(
     forecast_data: list[dict[str, Any]],
     tesla_site_id: str,
     forecast_type: str = "predicted",
+    powerwall_timezone: str | None = None,
 ) -> dict[str, Any] | None:
     """
     Convert Amber price forecast to Tesla tariff format.
@@ -44,6 +45,8 @@ def convert_amber_to_tesla_tariff(
         forecast_data: List of price forecast points from Amber API
         tesla_site_id: Tesla energy site ID
         forecast_type: Amber forecast type to use ('predicted', 'low', or 'high')
+        powerwall_timezone: Powerwall timezone from site_info (optional)
+                           If provided, uses this instead of auto-detecting from Amber data
 
     Returns:
         Tesla-compatible tariff structure or None if conversion fails
@@ -54,19 +57,35 @@ def convert_amber_to_tesla_tariff(
 
     _LOGGER.info("Converting %d Amber forecast points to Tesla tariff", len(forecast_data))
 
-    # Auto-detect timezone from first Amber timestamp
-    # Amber timestamps include timezone info: "2025-11-11T16:05:00+10:00"
+    # Timezone handling:
+    # 1. Prefer Powerwall timezone from site_info (most accurate)
+    # 2. Fall back to auto-detection from Amber data
     detected_tz = None
-    for point in forecast_data:
-        nem_time = point.get("nemTime", "")
-        if nem_time:
-            try:
-                timestamp = datetime.fromisoformat(nem_time.replace("Z", "+00:00"))
-                detected_tz = timestamp.tzinfo
-                _LOGGER.info("Auto-detected timezone from Amber data: %s", detected_tz)
-                break
-            except Exception:
-                continue
+    if powerwall_timezone:
+        from zoneinfo import ZoneInfo
+        try:
+            detected_tz = ZoneInfo(powerwall_timezone)
+            _LOGGER.info("Using Powerwall timezone from site_info: %s", powerwall_timezone)
+        except Exception as err:
+            _LOGGER.warning(
+                "Invalid Powerwall timezone '%s': %s, falling back to auto-detection",
+                powerwall_timezone,
+                err,
+            )
+
+    if not detected_tz:
+        # Auto-detect timezone from first Amber timestamp
+        # Amber timestamps include timezone info: "2025-11-11T16:05:00+10:00"
+        for point in forecast_data:
+            nem_time = point.get("nemTime", "")
+            if nem_time:
+                try:
+                    timestamp = datetime.fromisoformat(nem_time.replace("Z", "+00:00"))
+                    detected_tz = timestamp.tzinfo
+                    _LOGGER.info("Auto-detected timezone from Amber data: %s", detected_tz)
+                    break
+                except Exception:
+                    continue
 
     # Build timestamp-indexed price lookup: (date, hour, minute) -> price
     general_lookup: dict[tuple[str, int, int], list[float]] = {}
@@ -97,27 +116,22 @@ def convert_amber_to_tesla_tariff(
 
             per_kwh_dollars = _round_price(per_kwh_cents / 100)
 
-            # IMPORTANT: Amber's nemTime represents the END of the interval
-            # The 'duration' field tells us the interval length (typically 5 or 30 minutes)
-            #
-            # Amber displays 30-minute forecasts using END time labels:
-            #   "18:00 forecast" = the 17:30-18:00 period
-            # Tesla's PERIOD_17_30 = the 17:30-18:00 period (START time label)
-            #
-            # To match Amber's display convention, we bucket by nemTime (END time)
-            # Then when building Tesla tariff, we shift lookup by +30 minutes
+            # Use interval START time for bucketing
+            # Amber's nemTime is the END of the interval, duration tells us the length
+            # Calculate startTime = nemTime - duration
+            # This gives us direct alignment with Tesla's PERIOD_XX_XX naming
             #
             # Example:
-            #   nemTime=18:00, duration=30 → bucket key (18, 0)
-            #   Tesla PERIOD_17_30 → looks up key (18, 0)
-            #   Result: Correct alignment with Amber's "18:00 forecast"
+            #   nemTime=18:00, duration=30 → startTime=17:30 → bucket key (17, 30)
+            #   Tesla PERIOD_17_30 → looks up key (17, 30) directly
+            #   Result: Clean alignment with no shifting needed
             interval_start = timestamp - timedelta(minutes=duration)
 
-            # Round nemTime to nearest 30-minute interval (use END time for bucketing)
-            minute_bucket = 0 if timestamp.minute < 30 else 30
+            # Round interval start time to nearest 30-minute bucket
+            start_minute_bucket = 0 if interval_start.minute < 30 else 30
 
-            date_str = timestamp.date().isoformat()
-            lookup_key = (date_str, timestamp.hour, minute_bucket)
+            date_str = interval_start.date().isoformat()
+            lookup_key = (date_str, interval_start.hour, start_minute_bucket)
 
             if channel_type == "general":
                 if lookup_key not in general_lookup:
@@ -190,20 +204,10 @@ def _build_rolling_24h_tariff(
                 # Future period - use today's price
                 date_to_use = today
 
-            # Shift by +30 minutes to match Amber's END time labeling
-            # Tesla PERIOD_17_30 (17:30-18:00) looks up Amber's "18:00 forecast" (17:30-18:00)
-            next_minute = minute + 30
-            next_hour = hour
-            if next_minute >= 60:
-                next_minute = 0
-                next_hour = hour + 1
-                if next_hour >= 24:
-                    next_hour = 0
-                    # Crossed into next day
-                    date_to_use = date_to_use + timedelta(days=1)
-
+            # Direct lookup - no shifting needed with START time bucketing
+            # Tesla PERIOD_17_30 (17:30-18:00) directly looks up bucket (17, 30)
             date_str = date_to_use.isoformat()
-            lookup_key = (date_str, next_hour, next_minute)
+            lookup_key = (date_str, hour, minute)
 
             # Get general price (buy price)
             if lookup_key in general_lookup:
@@ -212,15 +216,8 @@ def _build_rolling_24h_tariff(
                 # Tesla restriction: No negative prices
                 general_prices[period_key] = max(0, buy_price)
             else:
-                # Fallback to current slot (also shifted)
-                fallback_minute = minute + 30
-                fallback_hour = hour
-                if fallback_minute >= 60:
-                    fallback_minute = 0
-                    fallback_hour = hour + 1
-                    if fallback_hour >= 24:
-                        fallback_hour = 0
-                fallback_key = (today.isoformat(), fallback_hour, fallback_minute)
+                # Fallback to current slot (no shifting with START time bucketing)
+                fallback_key = (today.isoformat(), hour, minute)
                 if fallback_key in general_lookup:
                     prices = general_lookup[fallback_key]
                     general_prices[period_key] = max(0, _round_price(sum(prices) / len(prices)))
@@ -241,15 +238,8 @@ def _build_rolling_24h_tariff(
 
                 feedin_prices[period_key] = sell_price
             else:
-                # Fallback to current slot (also shifted)
-                fallback_minute = minute + 30
-                fallback_hour = hour
-                if fallback_minute >= 60:
-                    fallback_minute = 0
-                    fallback_hour = hour + 1
-                    if fallback_hour >= 24:
-                        fallback_hour = 0
-                fallback_key = (today.isoformat(), fallback_hour, fallback_minute)
+                # Fallback to current slot (no shifting with START time bucketing)
+                fallback_key = (today.isoformat(), hour, minute)
                 if fallback_key in feedin_lookup:
                     prices = feedin_lookup[fallback_key]
                     sell_price = max(0, _round_price(sum(prices) / len(prices)))

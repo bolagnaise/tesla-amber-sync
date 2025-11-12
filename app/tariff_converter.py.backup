@@ -34,7 +34,7 @@ class AmberTariffConverter:
         # Python's float naturally drops trailing zeros in JSON serialization
         return rounded
 
-    def convert_amber_to_tesla_tariff(self, forecast_data: List[Dict], user=None, powerwall_timezone=None) -> Dict:
+    def convert_amber_to_tesla_tariff(self, forecast_data: List[Dict], user=None) -> Dict:
         """
         Convert Amber price forecast to Tesla tariff format
 
@@ -44,8 +44,6 @@ class AmberTariffConverter:
         Args:
             forecast_data: List of price forecast points from Amber API
             user: User object for demand charge settings (optional)
-            powerwall_timezone: Powerwall timezone from site_info (optional)
-                               If provided, uses this instead of auto-detecting from Amber data
 
         Returns:
             Tesla-compatible tariff structure
@@ -56,31 +54,19 @@ class AmberTariffConverter:
 
         logger.info(f"Converting {len(forecast_data)} Amber forecast points to Tesla tariff")
 
-        # Timezone handling:
-        # 1. Prefer Powerwall timezone from site_info (most accurate)
-        # 2. Fall back to auto-detection from Amber data
+        # Auto-detect timezone from first Amber timestamp
+        # Amber timestamps include timezone info: "2025-11-11T16:05:00+10:00"
         detected_tz = None
-        if powerwall_timezone:
-            from zoneinfo import ZoneInfo
-            try:
-                detected_tz = ZoneInfo(powerwall_timezone)
-                logger.info(f"Using Powerwall timezone from site_info: {powerwall_timezone}")
-            except Exception as e:
-                logger.warning(f"Invalid Powerwall timezone '{powerwall_timezone}': {e}, falling back to auto-detection")
-
-        if not detected_tz:
-            # Auto-detect timezone from first Amber timestamp
-            # Amber timestamps include timezone info: "2025-11-11T16:05:00+10:00"
-            for point in forecast_data:
-                nem_time = point.get('nemTime', '')
-                if nem_time:
-                    try:
-                        timestamp = datetime.fromisoformat(nem_time.replace('Z', '+00:00'))
-                        detected_tz = timestamp.tzinfo
-                        logger.info(f"Auto-detected timezone from Amber data: {detected_tz}")
-                        break
-                    except Exception:
-                        continue
+        for point in forecast_data:
+            nem_time = point.get('nemTime', '')
+            if nem_time:
+                try:
+                    timestamp = datetime.fromisoformat(nem_time.replace('Z', '+00:00'))
+                    detected_tz = timestamp.tzinfo
+                    logger.info(f"Auto-detected timezone from Amber data: {detected_tz}")
+                    break
+                except Exception:
+                    continue
 
         # Build timestamp-indexed price lookup: (date, hour, minute) -> price
         general_lookup = {}  # (date_str, hour, minute) -> [prices]
@@ -139,24 +125,28 @@ class AmberTariffConverter:
 
                 per_kwh_dollars = self._round_price(per_kwh_cents / 100)
 
-                # Use interval START time for bucketing
-                # Amber's nemTime is the END of the interval, duration tells us the length
-                # Calculate startTime = nemTime - duration
-                # This gives us direct alignment with Tesla's PERIOD_XX_XX naming
+                # IMPORTANT: Amber's nemTime represents the END of the interval
+                # The 'duration' field tells us the interval length (typically 5 or 30 minutes)
+                #
+                # Amber displays 30-minute forecasts using END time labels:
+                #   "18:00 forecast" = the 17:30-18:00 period
+                # Tesla's PERIOD_17_30 = the 17:30-18:00 period (START time label)
+                #
+                # To match Amber's display convention, we bucket by nemTime (END time)
+                # Then when building Tesla tariff, we shift lookup by +30 minutes
                 #
                 # Example:
-                #   nemTime=18:00, duration=30
-                #   startTime=17:30
-                #   Tesla PERIOD_17_30 (17:30-18:00) → looks up key (17, 30)
-                #   Result: Direct match, no shifting needed!
+                #   nemTime=18:00, duration=30 → bucket key (18, 0)
+                #   Tesla PERIOD_17_30 → looks up key (18, 0)
+                #   Result: Correct alignment with Amber's "18:00 forecast"
                 interval_start = timestamp - timedelta(minutes=duration)
 
-                # Round to nearest 30-minute interval using START time
-                start_minute_bucket = 0 if interval_start.minute < 30 else 30
+                # Round nemTime to nearest 30-minute interval (use END time for bucketing)
+                minute_bucket = 0 if timestamp.minute < 30 else 30
 
-                # Key by date, hour, minute for lookup (using START time)
-                date_str = interval_start.date().isoformat()
-                lookup_key = (date_str, interval_start.hour, start_minute_bucket)
+                # Key by date, hour, minute for lookup (using nemTime END time)
+                date_str = timestamp.date().isoformat()
+                lookup_key = (date_str, timestamp.hour, minute_bucket)
 
                 if channel_type == 'general':
                     if lookup_key not in general_lookup:
@@ -209,12 +199,12 @@ class AmberTariffConverter:
         from datetime import datetime, timedelta
         from zoneinfo import ZoneInfo
 
-        # Use Powerwall timezone from site_info (if provided)
-        # Otherwise fall back to auto-detection from Amber data
-        # This ensures correct "past vs future" period detection aligned with Powerwall's location
+        # IMPORTANT: Use the timezone from Amber data (auto-detected from nemTime timestamps)
+        # This ensures correct "past vs future" period detection for all Australian locations
+        # Falls back to Sydney timezone if detection failed
         if detected_tz:
             amber_tz = detected_tz
-            logger.info(f"Using timezone: {amber_tz}")
+            logger.info(f"Using auto-detected timezone: {amber_tz}")
         else:
             amber_tz = ZoneInfo('Australia/Sydney')
             logger.warning("Timezone detection failed, falling back to Australia/Sydney")
@@ -242,10 +232,20 @@ class AmberTariffConverter:
                     # Future period - use today's price
                     date_to_use = today
 
-                # Direct lookup - no shifting needed with START time bucketing
-                # Tesla PERIOD_17_30 (17:30-18:00) directly looks up bucket (17, 30)
+                # Shift by +30 minutes to match Amber's END time labeling
+                # Tesla PERIOD_17_30 (17:30-18:00) looks up Amber's "18:00 forecast" (17:30-18:00)
+                next_minute = minute + 30
+                next_hour = hour
+                if next_minute >= 60:
+                    next_minute = 0
+                    next_hour = hour + 1
+                    if next_hour >= 24:
+                        next_hour = 0
+                        # Crossed into next day
+                        date_to_use = date_to_use + timedelta(days=1)
+
                 date_str = date_to_use.isoformat()
-                lookup_key = (date_str, hour, minute)
+                lookup_key = (date_str, next_hour, next_minute)
 
                 # Get general price (buy price)
                 if lookup_key in general_lookup:
@@ -260,16 +260,23 @@ class AmberTariffConverter:
                         general_prices[period_key] = buy_price
                         logger.debug(f"{period_key} (using {hour:02d}:{minute:02d} price): ${buy_price:.4f}")
                 else:
-                    # Fallback to today's price if no future price available (direct lookup)
-                    fallback_key = (today.isoformat(), hour, minute)
+                    # If next slot's forecast not available, fallback to current slot's price (also shifted)
+                    fallback_minute = minute + 30
+                    fallback_hour = hour
+                    if fallback_minute >= 60:
+                        fallback_minute = 0
+                        fallback_hour = hour + 1
+                        if fallback_hour >= 24:
+                            fallback_hour = 0
+                    fallback_key = (today.isoformat(), fallback_hour, fallback_minute)
                     if fallback_key in general_lookup:
                         prices = general_lookup[fallback_key]
                         buy_price = max(0, self._round_price(sum(prices) / len(prices)))
-                        logger.info(f"{period_key}: No forecast for slot ({hour:02d}:{minute:02d}), using fallback: ${buy_price:.4f}")
+                        logger.info(f"{period_key}: No forecast for slot ({hour:02d}:{minute:02d}), using current slot price: ${buy_price:.4f}")
                         general_prices[period_key] = buy_price
                     else:
                         # Last resort: use 0 (shouldn't happen for current day)
-                        logger.warning(f"{period_key}: No price data available for ({hour:02d}:{minute:02d}), using 0.00")
+                        logger.warning(f"{period_key}: No price data available (current or next slot), using 0.00")
                         general_prices[period_key] = 0
 
                 # Get feedin price (sell price)
@@ -300,8 +307,15 @@ class AmberTariffConverter:
                     if not adjustments:
                         logger.debug(f"{period_key} (using {hour:02d}:{minute:02d} sell price): ${sell_price:.4f}")
                 else:
-                    # Fallback to today's price if no future price available (direct lookup)
-                    fallback_key = (today.isoformat(), hour, minute)
+                    # If next slot's forecast not available, fallback to current slot's price (also shifted)
+                    fallback_minute = minute + 30
+                    fallback_hour = hour
+                    if fallback_minute >= 60:
+                        fallback_minute = 0
+                        fallback_hour = hour + 1
+                        if fallback_hour >= 24:
+                            fallback_hour = 0
+                    fallback_key = (today.isoformat(), fallback_hour, fallback_minute)
                     if fallback_key in feedin_lookup:
                         prices = feedin_lookup[fallback_key]
                         sell_price = max(0, self._round_price(sum(prices) / len(prices)))
