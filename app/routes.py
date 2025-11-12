@@ -1658,9 +1658,10 @@ def _test_aemo_restore_background(app, user_id, backup_profile_id, site_id, tari
                 logger.info(f"✅ Background spike restore completed for user {user_id}")
 
                 # Force Powerwall to immediately apply the restored tariff
+                # Use 60s wait time for restore (vs 30s for spike activation)
                 from app.tasks import force_tariff_refresh
-                logger.info(f"Forcing Powerwall to apply restored tariff")
-                force_tariff_refresh(tesla_client, site_id)
+                logger.info(f"Forcing Powerwall to apply restored tariff (60s wait)")
+                force_tariff_refresh(tesla_client, site_id, wait_seconds=60)
             else:
                 logger.error(f"❌ Background spike restore failed for user {user_id}")
 
@@ -1709,7 +1710,7 @@ def test_aemo_restore():
                 thread.start()
 
                 logger.info(f"Spike restore initiated in background for {current_user.email}")
-                flash('⏳ Restoring original tariff from spike mode. This will take ~30 seconds. You can navigate away.')
+                flash('⏳ Restoring original tariff from spike mode. This will take ~60 seconds. You can navigate away.')
             else:
                 logger.error(f"Backup tariff ID {current_user.aemo_saved_tariff_id} not found")
                 flash('Backup tariff not found. Exiting spike mode anyway.')
@@ -1885,9 +1886,10 @@ def _restore_tou_rate_background(app, user_id, profile_id, site_id, tariff_data,
                 logger.info(f"✅ Background restore completed: {profile_name}")
 
                 # Force Powerwall to immediately apply the restored tariff
+                # Use 60s wait time for restore (vs 30s for spike activation)
                 from app.tasks import force_tariff_refresh
-                logger.info(f"Forcing Powerwall to apply restored tariff by toggling operation mode")
-                force_tariff_refresh(tesla_client, site_id)
+                logger.info(f"Forcing Powerwall to apply restored tariff by toggling operation mode (60s wait)")
+                force_tariff_refresh(tesla_client, site_id, wait_seconds=60)
             else:
                 logger.error(f"❌ Background restore failed: {profile_name}")
 
@@ -1937,7 +1939,7 @@ def restore_tou_rate(profile_id):
         thread.start()
 
         logger.info(f"Restore initiated in background for profile: {profile.name}")
-        flash(f'⏳ Restoring TOU rate: {profile.name}. This will take ~30 seconds. You can navigate away.')
+        flash(f'⏳ Restoring TOU rate: {profile.name}. This will take ~60 seconds. You can navigate away.')
 
     except Exception as e:
         logger.error(f"Error initiating TOU rate restore: {e}")

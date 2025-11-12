@@ -481,8 +481,9 @@ def monitor_aemo_prices():
                             logger.info(f"✅ Exited spike mode for {user.email} - restored backup tariff")
 
                             # Force Powerwall to immediately apply the restored tariff
-                            logger.info(f"Forcing Powerwall to apply restored tariff for {user.email}")
-                            force_tariff_refresh(tesla_client, user.tesla_energy_site_id)
+                            # Use 60s wait time for restore (vs 30s for spike activation)
+                            logger.info(f"Forcing Powerwall to apply restored tariff for {user.email} (60s wait)")
+                            force_tariff_refresh(tesla_client, user.tesla_energy_site_id, wait_seconds=60)
 
                             success_count += 1
                         else:
@@ -520,7 +521,7 @@ def monitor_aemo_prices():
     return success_count, error_count
 
 
-def force_tariff_refresh(tesla_client, site_id):
+def force_tariff_refresh(tesla_client, site_id, wait_seconds=30):
     """
     Force Powerwall to immediately apply new tariff by toggling operation mode
 
@@ -530,6 +531,8 @@ def force_tariff_refresh(tesla_client, site_id):
     Args:
         tesla_client: TeslemetryAPIClient instance
         site_id: Energy site ID
+        wait_seconds: Seconds to wait in self_consumption mode (default: 30)
+                     Use 60 for restore operations, 30 for spike activation
 
     Returns:
         bool: True if successful, False otherwise
@@ -547,10 +550,10 @@ def force_tariff_refresh(tesla_client, site_id):
             logger.warning("Failed to switch to self_consumption mode")
             return False
 
-        # Step 2: Wait 30 seconds for Tesla to detect the mode change
+        # Step 2: Wait for Tesla to detect the mode change
         # Tesla needs time to recognize and process the mode change
-        logger.info("Waiting 30 seconds for Tesla to detect mode change...")
-        time.sleep(30)
+        logger.info(f"Waiting {wait_seconds} seconds for Tesla to detect mode change...")
+        time.sleep(wait_seconds)
 
         # Step 3: Switch back to autonomous mode (TOU optimization)
         logger.info("Switching back to autonomous mode...")
