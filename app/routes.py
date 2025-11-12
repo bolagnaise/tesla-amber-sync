@@ -1620,12 +1620,63 @@ def test_aemo_spike():
         return redirect(url_for('main.settings'))
 
 
+def _test_aemo_restore_background(app, user_id, backup_profile_id, site_id, tariff_data):
+    """Background task to restore from AEMO spike mode"""
+    import json
+
+    with app.app_context():
+        try:
+            from app.models import User, SavedTOUProfile
+            from app import db
+
+            logger.info(f"Background spike restore: Starting restore for user {user_id}")
+
+            # Get fresh user and profile objects in this thread's context
+            user = User.query.get(user_id)
+            backup_profile = SavedTOUProfile.query.get(backup_profile_id)
+
+            if not user or not backup_profile:
+                logger.error(f"Background spike restore: User or profile not found")
+                return
+
+            # Get Tesla client
+            tesla_client = get_tesla_client(user)
+            if not tesla_client:
+                logger.error(f"Background spike restore: Failed to get Tesla client")
+                return
+
+            # Restore to Tesla
+            result = tesla_client.set_tariff_rate(site_id, tariff_data)
+
+            if result:
+                user.aemo_in_spike_mode = False
+                user.aemo_spike_test_mode = False  # Clear test mode
+                user.aemo_spike_start_time = None
+                backup_profile.last_restored_at = datetime.utcnow()
+                db.session.commit()
+
+                logger.info(f"✅ Background spike restore completed for user {user_id}")
+
+                # Force Powerwall to immediately apply the restored tariff
+                from app.tasks import force_tariff_refresh
+                logger.info(f"Forcing Powerwall to apply restored tariff")
+                force_tariff_refresh(tesla_client, site_id)
+            else:
+                logger.error(f"❌ Background spike restore failed for user {user_id}")
+
+        except Exception as e:
+            logger.error(f"Error in background spike restore: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+
+
 @bp.route('/test-aemo-restore', methods=['POST'])
 @login_required
 def test_aemo_restore():
-    """Test/simulate restoring from AEMO spike mode"""
+    """Test/simulate restoring from AEMO spike mode (async)"""
     from app.models import SavedTOUProfile
     import json
+    import threading
 
     try:
         logger.info(f"AEMO restore simulation requested by user: {current_user.email}")
@@ -1647,26 +1698,18 @@ def test_aemo_restore():
 
             if backup_profile:
                 tariff = json.loads(backup_profile.tariff_json)
-                result = tesla_client.set_tariff_rate(current_user.tesla_energy_site_id, tariff)
 
-                if result:
-                    current_user.aemo_in_spike_mode = False
-                    current_user.aemo_spike_test_mode = False  # Clear test mode
-                    current_user.aemo_spike_start_time = None
-                    backup_profile.last_restored_at = datetime.utcnow()
-                    db.session.commit()
+                # Start background thread to restore tariff
+                from flask import current_app
+                thread = threading.Thread(
+                    target=_test_aemo_restore_background,
+                    args=(current_app._get_current_object(), current_user.id, backup_profile.id, current_user.tesla_energy_site_id, tariff)
+                )
+                thread.daemon = True
+                thread.start()
 
-                    logger.info(f"✅ Successfully exited test spike mode for {current_user.email}")
-
-                    # Force Powerwall to immediately apply the restored tariff
-                    from app.tasks import force_tariff_refresh
-                    logger.info(f"Forcing Powerwall to apply restored tariff for {current_user.email}")
-                    force_tariff_refresh(tesla_client, current_user.tesla_energy_site_id)
-
-                    flash('✓ Spike mode deactivated. Original tariff restored to Tesla.')
-                else:
-                    logger.error(f"Failed to restore backup tariff for {current_user.email}")
-                    flash('Error restoring tariff to Tesla. Please check logs.')
+                logger.info(f"Spike restore initiated in background for {current_user.email}")
+                flash('⏳ Restoring original tariff from spike mode. This will take ~30 seconds. You can navigate away.')
             else:
                 logger.error(f"Backup tariff ID {current_user.aemo_saved_tariff_id} not found")
                 flash('Backup tariff not found. Exiting spike mode anyway.')
@@ -1801,11 +1844,60 @@ def save_current_tou_rate():
     return redirect(url_for('main.current_tou_rate'))
 
 
+def _restore_tou_rate_background(app, user_id, profile_id, site_id, tariff_data, profile_name):
+    """Background task to restore TOU rate to Tesla"""
+    import json
+
+    with app.app_context():
+        try:
+            from app.models import User, SavedTOUProfile
+            from app import db
+
+            logger.info(f"Background restore: Starting restore for profile {profile_id}")
+
+            # Get fresh user and profile objects in this thread's context
+            user = User.query.get(user_id)
+            profile = SavedTOUProfile.query.get(profile_id)
+
+            if not user or not profile:
+                logger.error(f"Background restore: User or profile not found")
+                return
+
+            # Get Tesla client
+            tesla_client = get_tesla_client(user)
+            if not tesla_client:
+                logger.error(f"Background restore: Failed to get Tesla client")
+                return
+
+            # Restore to Tesla
+            result = tesla_client.set_tariff_rate(site_id, tariff_data)
+
+            if result:
+                # Update the profile's last_restored_at timestamp
+                profile.last_restored_at = datetime.utcnow()
+
+                # Mark this profile as current
+                SavedTOUProfile.query.filter_by(user_id=user_id, is_current=True).update({'is_current': False})
+                profile.is_current = True
+
+                db.session.commit()
+
+                logger.info(f"✅ Background restore completed: {profile_name}")
+            else:
+                logger.error(f"❌ Background restore failed: {profile_name}")
+
+        except Exception as e:
+            logger.error(f"Error in background restore: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+
+
 @bp.route('/current_tou_rate/restore/<int:profile_id>', methods=['POST'])
 @login_required
 def restore_tou_rate(profile_id):
-    """Restore a saved TOU rate profile to Tesla"""
+    """Restore a saved TOU rate profile to Tesla (async)"""
     import json
+    import threading
 
     logger.info(f"User {current_user.email} restoring TOU profile {profile_id}")
 
@@ -1830,26 +1922,20 @@ def restore_tou_rate(profile_id):
         # Parse the saved tariff JSON
         tariff_data = json.loads(profile.tariff_json)
 
-        # Restore to Tesla
-        result = tesla_client.set_tariff_rate(site_id, tariff_data)
+        # Start background thread to restore tariff
+        from flask import current_app
+        thread = threading.Thread(
+            target=_restore_tou_rate_background,
+            args=(current_app._get_current_object(), current_user.id, profile_id, site_id, tariff_data, profile.name)
+        )
+        thread.daemon = True
+        thread.start()
 
-        if result:
-            # Update the profile's last_restored_at timestamp
-            profile.last_restored_at = datetime.utcnow()
-
-            # Mark this profile as current
-            SavedTOUProfile.query.filter_by(user_id=current_user.id, is_current=True).update({'is_current': False})
-            profile.is_current = True
-
-            db.session.commit()
-
-            logger.info(f"Successfully restored TOU profile: {profile.name}")
-            flash(f'✓ Successfully restored TOU rate: {profile.name}')
-        else:
-            flash('Failed to restore TOU rate to Tesla. Check logs for details.')
+        logger.info(f"Restore initiated in background for profile: {profile.name}")
+        flash(f'⏳ Restoring TOU rate: {profile.name}. This will take ~30 seconds. You can navigate away.')
 
     except Exception as e:
-        logger.error(f"Error restoring TOU rate: {e}")
+        logger.error(f"Error initiating TOU rate restore: {e}")
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         flash(f'Error restoring TOU rate: {str(e)}')
