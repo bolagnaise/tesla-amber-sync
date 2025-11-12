@@ -223,6 +223,7 @@ class SavedTOUProfile(db.Model):
 
     # Metadata
     is_current = db.Column(db.Boolean, default=False)  # Is this the current tariff on Tesla?
+    is_default = db.Column(db.Boolean, default=False)  # Is this the default tariff to restore to?
 
     def __repr__(self):
         return f'<SavedTOUProfile {self.name} - {self.tariff_name}>'

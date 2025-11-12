@@ -187,7 +187,11 @@
                                     <td>
                                         {% if profile.is_current %}
                                         <span class="badge bg-success">Current</span>
-                                        {% else %}
+                                        {% endif %}
+                                        {% if profile.is_default %}
+                                        <span class="badge bg-primary">Default</span>
+                                        {% endif %}
+                                        {% if not profile.is_current and not profile.is_default %}
                                         <span class="badge bg-secondary">Saved</span>
                                         {% endif %}
                                     </td>
@@ -199,6 +203,14 @@
                                                     Restore
                                                 </button>
                                             </form>
+                                            {% if not profile.is_default %}
+                                            <form method="POST" action="{{ url_for('main.set_default_tou_profile', profile_id=profile.id) }}" class="d-inline" style="margin-right: 0.5em;">
+                                                <button type="submit" class="outline"
+                                                        onclick="return confirm('Set \'{{ profile.name }}\' as default tariff? This will be used for spike mode restores.');">
+                                                    Set as Default
+                                                </button>
+                                            </form>
+                                            {% endif %}
                                             <form method="POST" action="{{ url_for('main.delete_tou_profile', profile_id=profile.id) }}" class="d-inline">
                                                 <button type="submit" class="secondary outline"
                                                         onclick="return confirm('Delete \'{{ profile.name }}\'?');">

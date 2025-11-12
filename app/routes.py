@@ -1558,30 +1558,43 @@ def test_aemo_spike():
 
                 return redirect(url_for('main.settings'))
 
-        # Save current Tesla tariff as backup (if not already in spike mode)
+        # Check for default tariff or save current tariff as backup (if not already in spike mode)
         if not current_user.aemo_in_spike_mode:
-            logger.info(f"Saving current Tesla tariff as backup for {current_user.email}")
-            current_tariff = tesla_client.get_current_tariff(current_user.tesla_energy_site_id)
+            # First check if a default tariff already exists
+            default_profile = SavedTOUProfile.query.filter_by(
+                user_id=current_user.id,
+                is_default=True
+            ).first()
 
-            if current_tariff:
-                backup_profile = SavedTOUProfile(
-                    user_id=current_user.id,
-                    name=f"Test Spike Backup - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
-                    description=f"Manual test backup before simulated spike at ${simulated_price}/MWh",
-                    source_type='aemo_test_backup',
-                    tariff_name=current_tariff.get('name', 'Unknown'),
-                    utility=current_tariff.get('utility', 'Unknown'),
-                    tariff_json=json.dumps(current_tariff),
-                    created_at=datetime.utcnow(),
-                    fetched_from_tesla_at=datetime.utcnow()
-                )
-                db.session.add(backup_profile)
-                db.session.flush()
-                current_user.aemo_saved_tariff_id = backup_profile.id
-                logger.info(f"✅ Saved test backup tariff ID {backup_profile.id}")
+            if default_profile:
+                # Use existing default tariff as backup reference
+                current_user.aemo_saved_tariff_id = default_profile.id
+                logger.info(f"✅ Using existing default tariff ID {default_profile.id} ({default_profile.name}) as backup reference")
             else:
-                flash('Failed to fetch current tariff for backup. Cannot enter spike mode.')
-                return redirect(url_for('main.settings'))
+                # No default exists - save current tariff and mark as default
+                logger.info(f"No default tariff found - saving current Tesla tariff as default for {current_user.email}")
+                current_tariff = tesla_client.get_current_tariff(current_user.tesla_energy_site_id)
+
+                if current_tariff:
+                    backup_profile = SavedTOUProfile(
+                        user_id=current_user.id,
+                        name=f"Default Tariff (Saved {datetime.utcnow().strftime('%Y-%m-%d %H:%M')})",
+                        description=f"Automatically saved as default before first spike test at ${simulated_price}/MWh",
+                        source_type='tesla',
+                        tariff_name=current_tariff.get('name', 'Unknown'),
+                        utility=current_tariff.get('utility', 'Unknown'),
+                        tariff_json=json.dumps(current_tariff),
+                        created_at=datetime.utcnow(),
+                        fetched_from_tesla_at=datetime.utcnow(),
+                        is_default=True  # Mark as default
+                    )
+                    db.session.add(backup_profile)
+                    db.session.flush()
+                    current_user.aemo_saved_tariff_id = backup_profile.id
+                    logger.info(f"✅ Saved current tariff as default with ID {backup_profile.id}")
+                else:
+                    flash('Failed to fetch current tariff for backup. Cannot enter spike mode.')
+                    return redirect(url_for('main.settings'))
 
         # Create and upload spike tariff
         logger.info(f"Creating test spike tariff with price ${simulated_price}/MWh")
@@ -2005,6 +2018,37 @@ def delete_tou_profile(profile_id):
     except Exception as e:
         logger.error(f"Error deleting TOU profile: {e}")
         flash(f'Error deleting TOU profile: {str(e)}')
+        db.session.rollback()
+
+    return redirect(url_for('main.current_tou_rate'))
+
+
+@bp.route('/current_tou_rate/set_default/<int:profile_id>', methods=['POST'])
+@login_required
+def set_default_tou_profile(profile_id):
+    """Set a TOU profile as the default tariff to restore to"""
+    logger.info(f"User {current_user.email} setting TOU profile {profile_id} as default")
+
+    # Get the profile
+    profile = SavedTOUProfile.query.filter_by(id=profile_id, user_id=current_user.id).first()
+    if not profile:
+        flash('Profile not found.')
+        return redirect(url_for('main.current_tou_rate'))
+
+    try:
+        # Clear any existing default
+        SavedTOUProfile.query.filter_by(user_id=current_user.id, is_default=True).update({'is_default': False})
+
+        # Set this profile as default
+        profile.is_default = True
+        db.session.commit()
+
+        logger.info(f"Set TOU profile as default: {profile.name}")
+        flash(f'✓ Set as default tariff: {profile.name}. This will be restored after spike events.')
+
+    except Exception as e:
+        logger.error(f"Error setting default TOU profile: {e}")
+        flash(f'Error setting default: {str(e)}')
         db.session.rollback()
 
     return redirect(url_for('main.current_tou_rate'))
