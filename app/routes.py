@@ -424,6 +424,26 @@ def amber_5min_forecast():
         logger.error("Failed to fetch 5-minute forecast")
         return jsonify({'error': 'Failed to fetch 5-minute forecast'}), 500
 
+    # Convert nemTime to user's local timezone for each interval
+    user_tz = ZoneInfo(current_user.timezone) if current_user.timezone else ZoneInfo('Australia/Brisbane')
+
+    for interval in forecast:
+        if 'nemTime' in interval:
+            try:
+                # Parse nemTime (already in Australian Eastern Time with timezone)
+                # Example: "2025-11-12T17:05:00+10:00"
+                nem_dt = datetime.fromisoformat(interval['nemTime'])
+
+                # Convert to user's timezone
+                local_dt = nem_dt.astimezone(user_tz)
+
+                # Add localTime field (naive datetime string in user's timezone)
+                interval['localTime'] = local_dt.strftime('%Y-%m-%dT%H:%M:%S')
+                interval['localHour'] = local_dt.hour
+                interval['localMinute'] = local_dt.minute
+            except Exception as e:
+                logger.error(f"Error converting nemTime to local timezone: {e}")
+
     # Group by channel type and return
     general_intervals = [i for i in forecast if i.get('channelType') == 'general']
     feedin_intervals = [i for i in forecast if i.get('channelType') == 'feedIn']
