@@ -741,18 +741,30 @@ def tou_schedule():
     energy_rates = tariff.get('energy_charges', {}).get('Summer', {}).get('rates', {})
     feedin_rates = tariff.get('sell_tariff', {}).get('energy_charges', {}).get('Summer', {}).get('rates', {})
 
+    # Get current time in user's timezone to mark current period
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    user_tz = ZoneInfo(current_user.timezone or 'Australia/Brisbane')
+    now = datetime.now(user_tz)
+    current_hour = now.hour
+    current_minute_bucket = 0 if now.minute < 30 else 30
+
     # Build periods for display
     periods = []
     for hour in range(24):
         for minute in [0, 30]:
             period_key = f"PERIOD_{hour:02d}_{minute:02d}"
             if period_key in energy_rates:
+                # Check if this is the current period
+                is_current = (hour == current_hour and minute == current_minute_bucket)
+
                 periods.append({
                     'time': f"{hour:02d}:{minute:02d}",
                     'hour': hour,
                     'minute': minute,
                     'buy_price': energy_rates[period_key] * 100,  # Convert back to cents
-                    'sell_price': feedin_rates.get(period_key, 0) * 100
+                    'sell_price': feedin_rates.get(period_key, 0) * 100,
+                    'is_current': is_current
                 })
 
     # Calculate stats
