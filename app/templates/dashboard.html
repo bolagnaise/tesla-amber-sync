@@ -479,7 +479,10 @@
 
                 // Filter intervals: from current interval to end of next 30-min period
                 const filteredIntervals = sourceIntervals.filter(interval => {
-                    const startTime = new Date(interval.startTime);
+                    // Use nemTime (Australian timezone) and strip timezone to prevent browser conversion
+                    const timeSource = interval.nemTime || interval.startTime;
+                    const timestampStr = timeSource.replace(/[+-]\d{2}:\d{2}|Z$/, '');
+                    const startTime = new Date(timestampStr);
                     const hour = startTime.getHours();
                     const minute = startTime.getMinutes();
 
@@ -506,7 +509,10 @@
                 let html = '<div style="display: flex; gap: 0.5em; overflow-x: auto; padding: 0.5em 0;">';
 
                 filteredIntervals.forEach((interval, idx) => {
-                    const startTime = new Date(interval.startTime);
+                    // Use nemTime (Australian timezone) and strip timezone to prevent browser conversion
+                    const timeSource = interval.nemTime || interval.startTime;
+                    const timestampStr = timeSource.replace(/[+-]\d{2}:\d{2}|Z$/, '');
+                    const startTime = new Date(timestampStr);
                     const hour = startTime.getHours();
                     const minute = startTime.getMinutes();
                     const timeLabel = `${hour}:${String(minute).padStart(2, '0')}`;
