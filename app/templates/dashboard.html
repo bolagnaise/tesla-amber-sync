@@ -439,12 +439,12 @@
             }
 
             // Fetch and display 5-minute forecast (separate API call)
-            generate5MinForecast();
+            generate5MinForecast(generalPrice);
         }
 
         // Fetch and display real 5-minute interval forecast from Amber API
         // Shows current 30-min period (from now) + next 30-min period
-        async function generate5MinForecast() {
+        async function generate5MinForecast(generalPrice) {
             const forecastDiv = document.getElementById('five-min-forecast');
 
             try {
@@ -467,11 +467,20 @@
                     return;
                 }
 
-                // Get current 5-minute interval and 30-minute period
-                const now = new Date();
-                const currentHour = now.getHours();
-                const currentMinute = Math.floor(now.getMinutes() / 5) * 5;
-                const current30MinPeriod = Math.floor(now.getMinutes() / 30) * 30; // 0 or 30
+                // Get current 5-minute interval and 30-minute period from backend-provided time (user's timezone)
+                let currentHour, currentMinute;
+                if (generalPrice && generalPrice.displayIntervalStart) {
+                    // Parse "HH:MM" format from backend
+                    const [hour, minute] = generalPrice.displayIntervalStart.split(':').map(Number);
+                    currentHour = hour;
+                    currentMinute = minute;
+                } else {
+                    // Fallback to browser time (less accurate due to timezone differences)
+                    const now = new Date();
+                    currentHour = now.getHours();
+                    currentMinute = Math.floor(now.getMinutes() / 5) * 5;
+                }
+                const current30MinPeriod = Math.floor(currentMinute / 30) * 30; // 0 or 30
 
                 // Calculate end of current 30-min period and end of next 30-min period
                 const currentPeriodEnd = current30MinPeriod + 30;
