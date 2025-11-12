@@ -415,20 +415,26 @@
             const feedinPrice = prices.find(p => p.channelType === 'feedIn');
 
             if (generalPrice) {
-                // Use start/end time from API (in user's timezone) instead of browser time
-                if (generalPrice.startTime && generalPrice.endTime) {
-                    // Parse time directly from ISO string to avoid timezone conversion
-                    // Format: "2025-11-12T16:05:00+10:00" -> extract "16:05"
-                    const startMatch = generalPrice.startTime.match(/T(\d{2}):(\d{2})/);
-                    const endMatch = generalPrice.endTime.match(/T(\d{2}):(\d{2})/);
+                // Use nemTime which is already in Australian Eastern Time
+                if (generalPrice.nemTime) {
+                    // nemTime format: "2025-11-12T17:15:00+10:00"
+                    // Extract time portion directly from ISO string
+                    const timeMatch = generalPrice.nemTime.match(/T(\d{2}):(\d{2})/);
 
-                    if (startMatch && endMatch) {
-                        const startTime = `${startMatch[1]}:${startMatch[2]}`;
-                        const endTime = `${endMatch[1]}:${endMatch[2]}`;
+                    if (timeMatch) {
+                        const hour = parseInt(timeMatch[1]);
+                        const minute = parseInt(timeMatch[2]);
+
+                        // Calculate 5-minute interval boundaries
+                        const intervalStart = Math.floor(minute / 5) * 5;
+                        const intervalEnd = intervalStart + 5;
+
+                        const startTime = `${String(hour).padStart(2, '0')}:${String(intervalStart).padStart(2, '0')}`;
+                        const endTime = `${String(hour).padStart(2, '0')}:${String(intervalEnd).padStart(2, '0')}`;
                         document.getElementById('current-interval-time').textContent = `${startTime} - ${endTime}`;
                     }
                 } else {
-                    // Fallback: calculate from current browser time (if API doesn't provide times)
+                    // Fallback: calculate from current browser time (if API doesn't provide nemTime)
                     const now = new Date();
                     const currentMinute = now.getMinutes();
                     const intervalStart = Math.floor(currentMinute / 5) * 5;
