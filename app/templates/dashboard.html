@@ -1054,12 +1054,16 @@
                 }
                 const history = await response.json();
 
-                if (history.length === 0) {
+                // Handle both old format (array) and new format (object with records)
+                const records = Array.isArray(history) ? history : history.records || [];
+                const metadata = history.metadata || null;
+
+                if (records.length === 0) {
                     return;
                 }
 
                 // Prepare data with timestamps for proper time-based plotting
-                let dataPoints = history.map(record => ({
+                let dataPoints = records.map(record => ({
                     timestamp: new Date(record.timestamp),
                     solar: record.solar_power / 1000,
                     grid: record.grid_power / 1000,
@@ -1074,22 +1078,12 @@
                     return minutes % 5 === 0;
                 });
 
-                // For 'day' timeframe, we want a fixed 24-hour axis from midnight to midnight with 12 PM centered
+                // For 'day' timeframe, use backend-provided date range (in user's configured timezone)
                 let xAxisConfig = null;
-                if (timeframe === 'day') {
-                    // Get today's date range (midnight to midnight)
-                    const now = new Date();
-                    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-                    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
-
-                    // Create specific tick positions for 12 AM, 6 AM, 12 PM, 6 PM, 12 AM
-                    const tickPositions = [
-                        startOfDay.getTime(), // 12 AM start
-                        new Date(now.getFullYear(), now.getMonth(), now.getDate(), 6, 0, 0).getTime(), // 6 AM
-                        new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0).getTime(), // 12 PM
-                        new Date(now.getFullYear(), now.getMonth(), now.getDate(), 18, 0, 0).getTime(), // 6 PM
-                        endOfDay.getTime() // 12 AM end
-                    ];
+                if (timeframe === 'day' && metadata) {
+                    // Use start/end of day from backend (calculated in user's timezone)
+                    const startOfDay = new Date(metadata.start_of_day);
+                    const endOfDay = new Date(metadata.end_of_day);
 
                     xAxisConfig = {
                         type: 'time',
@@ -1131,8 +1125,8 @@
 
                 // Update current real-time values (most recent reading)
                 try {
-                    if (history && history.length > 0) {
-                        const latest = history[history.length - 1];
+                    if (records && records.length > 0) {
+                        const latest = records[records.length - 1];
 
                         // Helper function to format power with appropriate units
                         function formatPower(watts) {

@@ -645,7 +645,26 @@ def energy_history():
         })
 
     logger.info(f"Returning {len(data)} energy history records for timeframe: {timeframe}")
-    return jsonify(data)
+
+    # For 'day' timeframe, include date range metadata for frontend chart configuration
+    response_data = {
+        'records': data,
+        'timeframe': timeframe
+    }
+
+    if timeframe == 'day':
+        # Send start/end of day in user's timezone for chart x-axis configuration
+        now_local = datetime.now(user_tz)
+        start_of_day = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_day = now_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        response_data['metadata'] = {
+            'start_of_day': start_of_day.isoformat(),
+            'end_of_day': end_of_day.isoformat(),
+            'timezone': str(user_tz)
+        }
+
+    return jsonify(response_data)
 
 
 @bp.route('/api/energy-calendar-history')
