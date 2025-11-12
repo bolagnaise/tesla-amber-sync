@@ -101,35 +101,56 @@ class AmberTariffConverter:
                 interval_type = point.get('type', 'unknown')
                 duration = point.get('duration', 30)  # Get actual interval duration (usually 5 or 30 minutes)
 
-                # Use advancedPrice with user-selected forecast type
-                # advancedPrice is Amber's forecasted price prediction that includes:
+                # Price extraction logic:
+                # - ActualInterval (past): Use perKwh (actual settled price)
+                # - CurrentInterval (now): Use perKwh (current actual price)
+                # - ForecastInterval (future): Use advancedPrice (forecast with user-selected type)
+                #
+                # advancedPrice includes complete forecast:
                 # - Wholesale price forecast
                 # - Network fees
                 # - Market fees
+                # - Renewable energy certificates
                 #
                 # User can select: 'predicted' (default), 'low' (conservative), 'high' (optimistic)
-                # Forecast type from user settings (default: 'predicted')
                 forecast_type = 'predicted'
                 if user and hasattr(user, 'amber_forecast_type') and user.amber_forecast_type:
                     forecast_type = user.amber_forecast_type
 
                 advanced_price = point.get('advancedPrice')
 
-                if advanced_price and isinstance(advanced_price, dict) and forecast_type in advanced_price:
-                    # Use user's selected forecast type (predicted/low/high)
-                    per_kwh_cents = advanced_price[forecast_type]
-                    logger.debug(f"{nem_time}: Using advancedPrice.{forecast_type}={per_kwh_cents:.2f}c/kWh (user setting)")
-                elif advanced_price and isinstance(advanced_price, (int, float)):
-                    # advancedPrice is a simple number (legacy format)
-                    per_kwh_cents = advanced_price
-                    logger.debug(f"{nem_time}: Using advancedPrice={per_kwh_cents:.2f}c/kWh (simple value)")
-                else:
-                    # Fallback to perKwh for actual/current intervals
-                    per_kwh_cents = point.get('perKwh', 0)
-                    if interval_type == 'ForecastInterval' and not advanced_price:
-                        logger.warning(f"ForecastInterval at {nem_time} missing advancedPrice, using perKwh={per_kwh_cents:.2f}c/kWh")
+                # For ForecastInterval: REQUIRE advancedPrice (no fallback)
+                if interval_type == 'ForecastInterval':
+                    if not advanced_price:
+                        error_msg = f"Missing advancedPrice for ForecastInterval at {nem_time}. Amber API may be incomplete."
+                        logger.error(error_msg)
+                        raise ValueError(error_msg)
+
+                    # Handle dict format (standard: {predicted, low, high})
+                    if isinstance(advanced_price, dict):
+                        if forecast_type not in advanced_price:
+                            available = list(advanced_price.keys())
+                            error_msg = f"Forecast type '{forecast_type}' not found in advancedPrice. Available: {available}"
+                            logger.error(f"{nem_time}: {error_msg}")
+                            raise ValueError(error_msg)
+
+                        per_kwh_cents = advanced_price[forecast_type]
+                        logger.debug(f"{nem_time} [ForecastInterval]: advancedPrice.{forecast_type}={per_kwh_cents:.2f}c/kWh")
+
+                    # Handle simple number format (legacy)
+                    elif isinstance(advanced_price, (int, float)):
+                        per_kwh_cents = advanced_price
+                        logger.debug(f"{nem_time} [ForecastInterval]: advancedPrice={per_kwh_cents:.2f}c/kWh (numeric)")
+
                     else:
-                        logger.debug(f"{nem_time}: Using perKwh={per_kwh_cents:.2f}c/kWh (fallback)")
+                        error_msg = f"Invalid advancedPrice format at {nem_time}: {type(advanced_price).__name__}"
+                        logger.error(error_msg)
+                        raise ValueError(error_msg)
+
+                # For ActualInterval/CurrentInterval: Use perKwh (actual settled prices)
+                else:
+                    per_kwh_cents = point.get('perKwh', 0)
+                    logger.debug(f"{nem_time} [{interval_type}]: perKwh={per_kwh_cents:.2f}c/kWh (actual)")
 
                 # Amber API convention: feedIn (sell) prices are negative when you get paid
                 # Tesla convention: sell prices are positive when you get paid

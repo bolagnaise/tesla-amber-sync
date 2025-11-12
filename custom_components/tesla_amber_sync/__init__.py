@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import aiohttp
+import asyncio
 import logging
 from typing import Any
 
@@ -39,8 +40,22 @@ async def send_tariff_to_tesla(
     site_id: str,
     tariff_data: dict[str, Any],
     api_token: str,
+    max_retries: int = 3,
+    timeout_seconds: int = 60,
 ) -> bool:
-    """Send tariff data to Tesla via Teslemetry API."""
+    """Send tariff data to Tesla via Teslemetry API with retry logic.
+
+    Args:
+        hass: HomeAssistant instance
+        site_id: Tesla energy site ID
+        tariff_data: Tariff data to send
+        api_token: Teslemetry API token
+        max_retries: Maximum number of retry attempts (default: 3)
+        timeout_seconds: Request timeout in seconds (default: 60)
+
+    Returns:
+        True if successful, False otherwise
+    """
     session = async_get_clientsession(hass)
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -53,36 +68,106 @@ async def send_tariff_to_tesla(
         }
     }
 
-    try:
-        _LOGGER.debug("Sending TOU schedule to Teslemetry API for site %s", site_id)
-        _LOGGER.debug("Tariff data: %s", tariff_data)
+    url = f"{TESLEMETRY_API_BASE_URL}/api/1/energy_sites/{site_id}/time_of_use_settings"
+    last_error = None
 
-        async with session.post(
-            f"{TESLEMETRY_API_BASE_URL}/api/1/energy_sites/{site_id}/time_of_use_settings",
-            headers=headers,
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=30),
-        ) as response:
-            if response.status == 200:
-                result = await response.json()
-                _LOGGER.info("Successfully synced TOU schedule to Tesla")
-                _LOGGER.debug("Tesla API response: %s", result)
-                return True
-            else:
-                error_text = await response.text()
-                _LOGGER.error(
-                    "Failed to sync TOU schedule: %s - %s",
-                    response.status,
-                    error_text
+    for attempt in range(max_retries):
+        try:
+            # Exponential backoff: 2^attempt seconds (1s, 2s, 4s)
+            if attempt > 0:
+                wait_time = 2 ** attempt
+                _LOGGER.info(
+                    "TOU sync retry attempt %d/%d after %ds delay",
+                    attempt + 1,
+                    max_retries,
+                    wait_time
                 )
-                return False
+                await asyncio.sleep(wait_time)
 
-    except aiohttp.ClientError as err:
-        _LOGGER.error("Error communicating with Teslemetry API: %s", err)
-        return False
-    except Exception as err:
-        _LOGGER.exception("Unexpected error syncing TOU schedule: %s", err)
-        return False
+            _LOGGER.debug(
+                "Sending TOU schedule to Teslemetry API for site %s (attempt %d/%d)",
+                site_id,
+                attempt + 1,
+                max_retries
+            )
+
+            async with session.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=timeout_seconds),
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    _LOGGER.info(
+                        "Successfully synced TOU schedule to Tesla (attempt %d/%d)",
+                        attempt + 1,
+                        max_retries
+                    )
+                    _LOGGER.debug("Tesla API response: %s", result)
+                    return True
+
+                # Log error and potentially retry
+                error_text = await response.text()
+
+                if response.status >= 500:
+                    # Server error - retry
+                    _LOGGER.warning(
+                        "Failed to sync TOU schedule: %s - %s (attempt %d/%d, will retry)",
+                        response.status,
+                        error_text[:200],
+                        attempt + 1,
+                        max_retries
+                    )
+                    last_error = f"Server error {response.status}"
+                    continue  # Retry on 5xx errors
+                else:
+                    # Client error - don't retry
+                    _LOGGER.error(
+                        "Failed to sync TOU schedule: %s - %s (client error, not retrying)",
+                        response.status,
+                        error_text
+                    )
+                    return False
+
+        except aiohttp.ClientError as err:
+            _LOGGER.warning(
+                "Error communicating with Teslemetry API (attempt %d/%d): %s",
+                attempt + 1,
+                max_retries,
+                err
+            )
+            last_error = f"Network error: {err}"
+            continue  # Retry on network errors
+
+        except asyncio.TimeoutError:
+            _LOGGER.warning(
+                "Teslemetry API timeout after %ds (attempt %d/%d)",
+                timeout_seconds,
+                attempt + 1,
+                max_retries
+            )
+            last_error = f"Timeout after {timeout_seconds}s"
+            continue  # Retry on timeout
+
+        except Exception as err:
+            _LOGGER.exception(
+                "Unexpected error syncing TOU schedule (attempt %d/%d): %s",
+                attempt + 1,
+                max_retries,
+                err
+            )
+            last_error = f"Unexpected error: {err}"
+            # Don't continue - unexpected errors might indicate a bug
+            return False
+
+    # All retries failed
+    _LOGGER.error(
+        "Failed to sync TOU schedule after %d attempts. Last error: %s",
+        max_retries,
+        last_error
+    )
+    return False
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

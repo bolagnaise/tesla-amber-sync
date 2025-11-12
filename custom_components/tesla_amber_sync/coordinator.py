@@ -1,9 +1,10 @@
-"""Data update coordinators for Tesla Sync."""
+"""Data update coordinators for Tesla Sync with improved error handling."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
 from typing import Any
+import asyncio
 
 import aiohttp
 
@@ -21,6 +22,80 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def _fetch_with_retry(
+    session: aiohttp.ClientSession,
+    url: str,
+    headers: dict,
+    max_retries: int = 3,
+    timeout_seconds: int = 60,
+    **kwargs
+) -> dict[str, Any]:
+    """Fetch data with exponential backoff retry logic.
+
+    Args:
+        session: aiohttp client session
+        url: URL to fetch
+        headers: Request headers
+        max_retries: Maximum number of retry attempts (default: 3)
+        timeout_seconds: Request timeout in seconds (default: 60)
+        **kwargs: Additional arguments to pass to session.get()
+
+    Returns:
+        JSON response data
+
+    Raises:
+        UpdateFailed: If all retries fail
+    """
+    last_error = None
+
+    for attempt in range(max_retries):
+        try:
+            # Exponential backoff: 2^attempt seconds (1s, 2s, 4s)
+            if attempt > 0:
+                wait_time = 2 ** attempt
+                _LOGGER.info(f"Retry attempt {attempt + 1}/{max_retries} after {wait_time}s delay")
+                await asyncio.sleep(wait_time)
+
+            async with session.get(
+                url,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=timeout_seconds),
+                **kwargs
+            ) as response:
+                if response.status == 200:
+                    return await response.json()
+
+                # Log the error but continue retrying on 5xx errors
+                error_text = await response.text()
+
+                if response.status >= 500:
+                    _LOGGER.warning(
+                        f"Server error (attempt {attempt + 1}/{max_retries}): {response.status} - {error_text[:200]}"
+                    )
+                    last_error = UpdateFailed(f"Server error: {response.status}")
+                    continue  # Retry on 5xx errors
+                else:
+                    # Don't retry on 4xx client errors
+                    raise UpdateFailed(f"Client error {response.status}: {error_text}")
+
+        except aiohttp.ClientError as err:
+            _LOGGER.warning(
+                f"Network error (attempt {attempt + 1}/{max_retries}): {err}"
+            )
+            last_error = UpdateFailed(f"Network error: {err}")
+            continue  # Retry on network errors
+
+        except asyncio.TimeoutError:
+            _LOGGER.warning(
+                f"Timeout error (attempt {attempt + 1}/{max_retries}): Request exceeded {timeout_seconds}s"
+            )
+            last_error = UpdateFailed(f"Timeout after {timeout_seconds}s")
+            continue  # Retry on timeout
+
+    # All retries failed
+    raise last_error or UpdateFailed("All retry attempts failed")
 
 
 class AmberPriceCoordinator(DataUpdateCoordinator):
@@ -49,26 +124,24 @@ class AmberPriceCoordinator(DataUpdateCoordinator):
         headers = {"Authorization": f"Bearer {self.api_token}"}
 
         try:
-            # Get current prices
-            async with self.session.get(
+            # Get current prices with retry logic
+            current_prices = await _fetch_with_retry(
+                self.session,
                 f"{AMBER_API_BASE_URL}/sites/{self.site_id}/prices/current",
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as response:
-                if response.status != 200:
-                    raise UpdateFailed(f"Error fetching current prices: {response.status}")
-                current_prices = await response.json()
+                headers,
+                max_retries=2,  # Less retries for Amber (usually more reliable)
+                timeout_seconds=30,
+            )
 
-            # Get price forecast (next 48 hours)
-            async with self.session.get(
+            # Get price forecast (next 48 hours) with retry logic
+            forecast_prices = await _fetch_with_retry(
+                self.session,
                 f"{AMBER_API_BASE_URL}/sites/{self.site_id}/prices",
-                headers=headers,
+                headers,
                 params={"next": 48},
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as response:
-                if response.status != 200:
-                    raise UpdateFailed(f"Error fetching price forecast: {response.status}")
-                forecast_prices = await response.json()
+                max_retries=2,
+                timeout_seconds=30,
+            )
 
             return {
                 "current": current_prices,
@@ -76,8 +149,8 @@ class AmberPriceCoordinator(DataUpdateCoordinator):
                 "last_update": dt_util.utcnow(),
             }
 
-        except aiohttp.ClientError as err:
-            raise UpdateFailed(f"Error communicating with Amber API: {err}") from err
+        except UpdateFailed:
+            raise  # Re-raise UpdateFailed exceptions
         except Exception as err:
             raise UpdateFailed(f"Unexpected error fetching Amber data: {err}") from err
 
@@ -111,36 +184,32 @@ class TeslaEnergyCoordinator(DataUpdateCoordinator):
         }
 
         try:
-            # Get live status from Teslemetry API
-            async with self.session.get(
+            # Get live status from Teslemetry API with retry logic
+            # Teslemetry can be slow, so we use more retries and longer timeout
+            data = await _fetch_with_retry(
+                self.session,
                 f"{TESLEMETRY_API_BASE_URL}/api/1/energy_sites/{self.site_id}/live_status",
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as response:
-                if response.status != 200:
-                    error_text = await response.text()
-                    raise UpdateFailed(
-                        f"Error fetching Tesla energy data: {response.status} - {error_text}"
-                    )
+                headers,
+                max_retries=3,  # More retries for Teslemetry (can be unreliable)
+                timeout_seconds=60,  # Longer timeout (was 30s)
+            )
 
-                data = await response.json()
-                live_status = data.get("response", {})
+            live_status = data.get("response", {})
+            _LOGGER.debug("Teslemetry live_status response: %s", live_status)
 
-                _LOGGER.debug("Teslemetry live_status response: %s", live_status)
+            # Map Teslemetry API response to our data structure
+            energy_data = {
+                "solar_power": live_status.get("solar_power", 0) / 1000,  # Convert W to kW
+                "grid_power": live_status.get("grid_power", 0) / 1000,
+                "battery_power": live_status.get("battery_power", 0) / 1000,
+                "load_power": live_status.get("load_power", 0) / 1000,
+                "battery_level": live_status.get("percentage_charged", 0),
+                "last_update": dt_util.utcnow(),
+            }
 
-                # Map Teslemetry API response to our data structure
-                energy_data = {
-                    "solar_power": live_status.get("solar_power", 0) / 1000,  # Convert W to kW
-                    "grid_power": live_status.get("grid_power", 0) / 1000,
-                    "battery_power": live_status.get("battery_power", 0) / 1000,
-                    "load_power": live_status.get("load_power", 0) / 1000,
-                    "battery_level": live_status.get("percentage_charged", 0),
-                    "last_update": dt_util.utcnow(),
-                }
+            return energy_data
 
-                return energy_data
-
-        except aiohttp.ClientError as err:
-            raise UpdateFailed(f"Error communicating with Teslemetry API: {err}") from err
+        except UpdateFailed:
+            raise  # Re-raise UpdateFailed exceptions
         except Exception as err:
             raise UpdateFailed(f"Unexpected error fetching Tesla energy data: {err}") from err
