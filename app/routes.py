@@ -1518,9 +1518,9 @@ def test_aemo_spike():
             flash('Tesla API not configured. Please configure Teslemetry in settings first.')
             return redirect(url_for('main.settings'))
 
-        # Simulate spike with $500/MWh price
-        simulated_price = 500.0
-        logger.info(f"Simulating spike with price: ${simulated_price}/MWh for user {current_user.email}")
+        # Use the user's configured spike threshold for simulation
+        simulated_price = current_user.aemo_spike_threshold or 300.0
+        logger.info(f"Simulating spike with user's threshold: ${simulated_price}/MWh for user {current_user.email}")
 
         # Check if battery is already exporting - if so, don't interfere
         logger.info(f"Checking battery status to avoid disrupting existing export for {current_user.email}")

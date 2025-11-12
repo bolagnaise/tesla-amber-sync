@@ -212,7 +212,7 @@
         <form method="POST" action="{{ url_for('main.test_aemo_spike') }}" style="display: inline; margin-right: 0.5em;">
             <input type="hidden" name="csrf_token" value="{{ form.csrf_token._value() }}">
             <button type="submit" class="outline"
-                    onclick="return confirm('This will trigger spike mode using a simulated $500/MWh price. Your current tariff will be backed up and a spike tariff will be uploaded to Tesla. Continue?');">
+                    onclick="return confirm('This will trigger spike mode using your configured threshold of ${{ current_user.aemo_spike_threshold }}/MWh. Your current tariff will be backed up and a spike tariff will be uploaded to Tesla. Continue?');">
                 🚨 Simulate Spike
             </button>
         </form>
