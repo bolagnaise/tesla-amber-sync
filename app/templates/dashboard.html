@@ -814,22 +814,11 @@
             const buyPrices = periods.map(period => period.buy_price);
             const sellPrices = periods.map(period => period.sell_price);
 
-            // Find current period index for vertical line
-            const now = new Date();
-            const currentHour = now.getHours();
-            const currentMinute = now.getMinutes();
+            // Find current period index for vertical line using backend-calculated flag
             let currentPeriodIndex = -1;
-
             periods.forEach((period, i) => {
-                const timeMatch = period.time.match(/(\d{1,2}):(\d{2})/);
-                if (timeMatch) {
-                    const periodHour = parseInt(timeMatch[1]);
-                    const periodMinute = parseInt(timeMatch[2]);
-
-                    if (periodHour === currentHour &&
-                        Math.floor(currentMinute / 30) === Math.floor(periodMinute / 30)) {
-                        currentPeriodIndex = i;
-                    }
+                if (period.is_current) {
+                    currentPeriodIndex = i;
                 }
             });
 
