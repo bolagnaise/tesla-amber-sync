@@ -403,6 +403,19 @@ def monitor_aemo_prices():
                     if battery_export > 100:
                         logger.info(f"⚡ Battery already exporting {battery_export}W to grid - skipping spike tariff upload to avoid disruption")
                         logger.info(f"Powerwall is already optimizing correctly during spike event")
+
+                        # Reference default tariff as restore point (in case tariff changes during spike)
+                        default_profile = SavedTOUProfile.query.filter_by(
+                            user_id=user.id,
+                            is_default=True
+                        ).first()
+
+                        if default_profile:
+                            user.aemo_saved_tariff_id = default_profile.id
+                            logger.info(f"Referenced default tariff ID {default_profile.id} ({default_profile.name}) as restore point")
+                        else:
+                            logger.warning(f"No default tariff found for {user.email} - no restore point set")
+
                         # Still mark as in spike mode so we don't keep checking
                         user.aemo_in_spike_mode = True
                         user.aemo_spike_start_time = datetime.now(timezone.utc)
@@ -410,30 +423,41 @@ def monitor_aemo_prices():
                         success_count += 1
                         continue  # Skip to next user
 
-                # Step 1: Save current Tesla tariff as backup
-                logger.info(f"Saving current Tesla tariff as backup for {user.email}")
-                current_tariff = tesla_client.get_current_tariff(user.tesla_energy_site_id)
+                # Step 1: Check for default tariff or save current tariff as backup
+                # First check if a default tariff already exists
+                default_profile = SavedTOUProfile.query.filter_by(
+                    user_id=user.id,
+                    is_default=True
+                ).first()
 
-                if current_tariff:
-                    # Save to database
-                    backup_profile = SavedTOUProfile(
-                        user_id=user.id,
-                        name=f"Pre-Spike Backup - {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}",
-                        description=f"Automatic backup before AEMO spike at ${current_price}/MWh",
-                        source_type='aemo_backup',
-                        tariff_name=current_tariff.get('name', 'Unknown'),
-                        utility=current_tariff.get('utility', 'Unknown'),
-                        tariff_json=json.dumps(current_tariff),
-                        created_at=datetime.now(timezone.utc),
-                        fetched_from_tesla_at=datetime.now(timezone.utc)
-                    )
-                    db.session.add(backup_profile)
-                    db.session.flush()  # Get the ID
-
-                    user.aemo_saved_tariff_id = backup_profile.id
-                    logger.info(f"✅ Saved backup tariff ID {backup_profile.id} for {user.email}")
+                if default_profile:
+                    # Use existing default tariff as backup reference
+                    user.aemo_saved_tariff_id = default_profile.id
+                    logger.info(f"✅ Using existing default tariff ID {default_profile.id} ({default_profile.name}) as backup reference")
                 else:
-                    logger.error(f"Failed to fetch current tariff for backup - {user.email}")
+                    # No default exists - save current tariff and mark as default
+                    logger.info(f"No default tariff found - saving current Tesla tariff as default for {user.email}")
+                    current_tariff = tesla_client.get_current_tariff(user.tesla_energy_site_id)
+
+                    if current_tariff:
+                        backup_profile = SavedTOUProfile(
+                            user_id=user.id,
+                            name=f"Default Tariff (Saved {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')})",
+                            description=f"Automatically saved as default before AEMO spike at ${current_price}/MWh",
+                            source_type='tesla',
+                            tariff_name=current_tariff.get('name', 'Unknown'),
+                            utility=current_tariff.get('utility', 'Unknown'),
+                            tariff_json=json.dumps(current_tariff),
+                            created_at=datetime.now(timezone.utc),
+                            fetched_from_tesla_at=datetime.now(timezone.utc),
+                            is_default=True  # Mark as default
+                        )
+                        db.session.add(backup_profile)
+                        db.session.flush()
+                        user.aemo_saved_tariff_id = backup_profile.id
+                        logger.info(f"✅ Saved current tariff as default with ID {backup_profile.id}")
+                    else:
+                        logger.error(f"Failed to fetch current tariff for backup - {user.email}")
 
                 # Step 2: Create and upload spike tariff
                 logger.info(f"Creating spike tariff for {user.email}")
