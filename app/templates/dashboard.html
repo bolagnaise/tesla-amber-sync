@@ -410,22 +410,33 @@
 
         // Update 5-minute billing window
         function update5MinWindow(prices) {
-            const now = new Date();
-
             // Find current general and feedin prices
             const generalPrice = prices.find(p => p.channelType === 'general');
             const feedinPrice = prices.find(p => p.channelType === 'feedIn');
 
             if (generalPrice) {
-                // Calculate current 5-minute interval
-                const currentMinute = now.getMinutes();
-                const intervalStart = Math.floor(currentMinute / 5) * 5;
-                const intervalEnd = intervalStart + 5;
+                // Use start/end time from API (in user's timezone) instead of browser time
+                if (generalPrice.startTime && generalPrice.endTime) {
+                    // Strip timezone and parse as naive datetime
+                    const startStr = generalPrice.startTime.replace(/[+-]\d{2}:\d{2}|Z$/, '');
+                    const endStr = generalPrice.endTime.replace(/[+-]\d{2}:\d{2}|Z$/, '');
+                    const startDate = new Date(startStr);
+                    const endDate = new Date(endStr);
 
-                const startTime = `${String(now.getHours()).padStart(2, '0')}:${String(intervalStart).padStart(2, '0')}`;
-                const endTime = `${String(now.getHours()).padStart(2, '0')}:${String(intervalEnd).padStart(2, '0')}`;
+                    const startTime = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
+                    const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+                    document.getElementById('current-interval-time').textContent = `${startTime} - ${endTime}`;
+                } else {
+                    // Fallback: calculate from current browser time (if API doesn't provide times)
+                    const now = new Date();
+                    const currentMinute = now.getMinutes();
+                    const intervalStart = Math.floor(currentMinute / 5) * 5;
+                    const intervalEnd = intervalStart + 5;
+                    const startTime = `${String(now.getHours()).padStart(2, '0')}:${String(intervalStart).padStart(2, '0')}`;
+                    const endTime = `${String(now.getHours()).padStart(2, '0')}:${String(intervalEnd).padStart(2, '0')}`;
+                    document.getElementById('current-interval-time').textContent = `${startTime} - ${endTime}`;
+                }
 
-                document.getElementById('current-interval-time').textContent = `${startTime} - ${endTime}`;
                 document.getElementById('current-general-price').textContent = `${Math.abs(generalPrice.perKwh).toFixed(0)}¢`;
                 document.getElementById('current-renewables').textContent = `${Math.round(generalPrice.renewables || 0)}% renewables`;
             }
@@ -646,7 +657,9 @@
                 }
 
                 const labels = history.map(record => {
-                    const date = new Date(record.timestamp);
+                    // Strip timezone to prevent browser timezone conversion
+                    const timestampStr = record.timestamp.replace(/[+-]\d{2}:\d{2}|Z$/, '');
+                    const date = new Date(timestampStr);
                     return date.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
                 });
 
@@ -1063,13 +1076,18 @@
                 }
 
                 // Prepare data with timestamps for proper time-based plotting
-                let dataPoints = records.map(record => ({
-                    timestamp: new Date(record.timestamp),
-                    solar: record.solar_power / 1000,
-                    grid: record.grid_power / 1000,
-                    battery: record.battery_power / 1000,
-                    load: record.load_power / 1000
-                }));
+                // Strip timezone info to prevent Chart.js from converting to browser timezone
+                let dataPoints = records.map(record => {
+                    // Strip timezone offset (everything after +/- or Z) to get naive datetime
+                    const timestampStr = record.timestamp.replace(/[+-]\d{2}:\d{2}|Z$/, '');
+                    return {
+                        timestamp: new Date(timestampStr),
+                        solar: record.solar_power / 1000,
+                        grid: record.grid_power / 1000,
+                        battery: record.battery_power / 1000,
+                        load: record.load_power / 1000
+                    };
+                });
 
                 // Filter to only show readings at 5-minute intervals for cleaner visualization
                 dataPoints = dataPoints.filter(point => {
@@ -1081,9 +1099,11 @@
                 // For 'day' timeframe, use backend-provided date range (in user's configured timezone)
                 let xAxisConfig = null;
                 if (timeframe === 'day' && metadata) {
-                    // Use start/end of day from backend (calculated in user's timezone)
-                    const startOfDay = new Date(metadata.start_of_day);
-                    const endOfDay = new Date(metadata.end_of_day);
+                    // Strip timezone from metadata dates to prevent browser timezone conversion
+                    const startStr = metadata.start_of_day.replace(/[+-]\d{2}:\d{2}|Z$/, '');
+                    const endStr = metadata.end_of_day.replace(/[+-]\d{2}:\d{2}|Z$/, '');
+                    const startOfDay = new Date(startStr);
+                    const endOfDay = new Date(endStr);
 
                     xAxisConfig = {
                         type: 'time',
