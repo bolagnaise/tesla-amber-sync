@@ -457,6 +457,12 @@ def monitor_aemo_prices():
 
             # NO SPIKE - Exit spike mode if currently in it
             elif not is_spike and user.aemo_in_spike_mode:
+                # Skip automatic restore during manual test mode
+                if user.aemo_spike_test_mode:
+                    logger.info(f"⏭️ Skipping automatic restore for {user.email} - in manual test mode")
+                    success_count += 1
+                    continue
+
                 logger.info(f"✅ Price normalized for {user.email}: ${current_price}/MWh < ${user.aemo_spike_threshold}/MWh")
 
                 # Restore saved tariff

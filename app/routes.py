@@ -1550,6 +1550,7 @@ def test_aemo_spike():
                 # Still mark as in spike mode for tracking
                 if not current_user.aemo_in_spike_mode:
                     current_user.aemo_in_spike_mode = True
+                    current_user.aemo_spike_test_mode = True  # Prevent automatic restore during manual test
                     current_user.aemo_spike_start_time = datetime.utcnow()
                     current_user.aemo_last_price = simulated_price
                     current_user.aemo_last_check = datetime.utcnow()
@@ -1590,6 +1591,7 @@ def test_aemo_spike():
 
         if result:
             current_user.aemo_in_spike_mode = True
+            current_user.aemo_spike_test_mode = True  # Prevent automatic restore during manual test
             current_user.aemo_spike_start_time = datetime.utcnow()
             current_user.aemo_last_price = simulated_price
             current_user.aemo_last_check = datetime.utcnow()
@@ -1649,6 +1651,7 @@ def test_aemo_restore():
 
                 if result:
                     current_user.aemo_in_spike_mode = False
+                    current_user.aemo_spike_test_mode = False  # Clear test mode
                     current_user.aemo_spike_start_time = None
                     backup_profile.last_restored_at = datetime.utcnow()
                     db.session.commit()
@@ -1668,11 +1671,13 @@ def test_aemo_restore():
                 logger.error(f"Backup tariff ID {current_user.aemo_saved_tariff_id} not found")
                 flash('Backup tariff not found. Exiting spike mode anyway.')
                 current_user.aemo_in_spike_mode = False
+                current_user.aemo_spike_test_mode = False  # Clear test mode
                 db.session.commit()
         else:
             logger.warning(f"No backup tariff saved for {current_user.email}")
             flash('No backup tariff found. Exiting spike mode anyway.')
             current_user.aemo_in_spike_mode = False
+            current_user.aemo_spike_test_mode = False  # Clear test mode
             db.session.commit()
 
         return redirect(url_for('main.settings'))

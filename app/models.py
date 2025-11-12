@@ -49,6 +49,7 @@ class User(UserMixin, db.Model):
     aemo_spike_threshold = db.Column(db.Float, default=300.0)  # Spike threshold in $/MWh
     aemo_spike_detection_enabled = db.Column(db.Boolean, default=False)  # Enable spike monitoring
     aemo_in_spike_mode = db.Column(db.Boolean, default=False)  # Currently in spike mode
+    aemo_spike_test_mode = db.Column(db.Boolean, default=False)  # Manual test mode - prevents auto-restore
     aemo_last_check = db.Column(db.DateTime)  # Last time AEMO was checked
     aemo_last_price = db.Column(db.Float)  # Last observed price in $/MWh
     aemo_spike_start_time = db.Column(db.DateTime)  # When current spike started
