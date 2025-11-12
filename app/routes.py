@@ -1645,7 +1645,15 @@ def _test_aemo_restore_background(app, user_id, backup_profile_id, site_id, tari
                 logger.error(f"Background spike restore: Failed to get Tesla client")
                 return
 
-            # Restore to Tesla
+            # Step 1: Switch to self_consumption mode FIRST
+            logger.info(f"Background spike restore: Switching to self_consumption mode before tariff upload")
+            mode_result = tesla_client.set_operation_mode(site_id, 'self_consumption')
+            if not mode_result:
+                logger.error(f"Background spike restore: Failed to switch to self_consumption mode")
+                return
+
+            # Step 2: Upload tariff while in self_consumption mode
+            logger.info(f"Background spike restore: Uploading tariff while in self_consumption mode")
             result = tesla_client.set_tariff_rate(site_id, tariff_data)
 
             if result:
@@ -1655,13 +1663,21 @@ def _test_aemo_restore_background(app, user_id, backup_profile_id, site_id, tari
                 backup_profile.last_restored_at = datetime.utcnow()
                 db.session.commit()
 
-                logger.info(f"✅ Background spike restore completed for user {user_id}")
+                logger.info(f"✅ Background spike restore: Tariff uploaded for user {user_id}")
 
-                # Force Powerwall to immediately apply the restored tariff
-                # Use 60s wait time for restore (vs 30s for spike activation)
-                from app.tasks import force_tariff_refresh
-                logger.info(f"Forcing Powerwall to apply restored tariff (60s wait)")
-                force_tariff_refresh(tesla_client, site_id, wait_seconds=60)
+                # Step 3: Wait 60 seconds for Tesla to process
+                import time
+                logger.info(f"Background spike restore: Waiting 60 seconds for Tesla to process tariff change...")
+                time.sleep(60)
+
+                # Step 4: Switch back to autonomous mode
+                logger.info(f"Background spike restore: Switching back to autonomous mode")
+                autonomous_result = tesla_client.set_operation_mode(site_id, 'autonomous')
+
+                if autonomous_result:
+                    logger.info(f"✅ Background spike restore completed for user {user_id} - Powerwall should apply tariff immediately")
+                else:
+                    logger.error(f"❌ Failed to switch back to autonomous mode for user {user_id}")
             else:
                 logger.error(f"❌ Background spike restore failed for user {user_id}")
 
@@ -1870,7 +1886,15 @@ def _restore_tou_rate_background(app, user_id, profile_id, site_id, tariff_data,
                 logger.error(f"Background restore: Failed to get Tesla client")
                 return
 
-            # Restore to Tesla
+            # Step 1: Switch to self_consumption mode FIRST
+            logger.info(f"Background restore: Switching to self_consumption mode before tariff upload")
+            mode_result = tesla_client.set_operation_mode(site_id, 'self_consumption')
+            if not mode_result:
+                logger.error(f"Background restore: Failed to switch to self_consumption mode")
+                return
+
+            # Step 2: Upload tariff while in self_consumption mode
+            logger.info(f"Background restore: Uploading tariff while in self_consumption mode")
             result = tesla_client.set_tariff_rate(site_id, tariff_data)
 
             if result:
@@ -1883,13 +1907,21 @@ def _restore_tou_rate_background(app, user_id, profile_id, site_id, tariff_data,
 
                 db.session.commit()
 
-                logger.info(f"✅ Background restore completed: {profile_name}")
+                logger.info(f"✅ Background restore: Tariff uploaded: {profile_name}")
 
-                # Force Powerwall to immediately apply the restored tariff
-                # Use 60s wait time for restore (vs 30s for spike activation)
-                from app.tasks import force_tariff_refresh
-                logger.info(f"Forcing Powerwall to apply restored tariff by toggling operation mode (60s wait)")
-                force_tariff_refresh(tesla_client, site_id, wait_seconds=60)
+                # Step 3: Wait 60 seconds for Tesla to process
+                import time
+                logger.info(f"Background restore: Waiting 60 seconds for Tesla to process tariff change...")
+                time.sleep(60)
+
+                # Step 4: Switch back to autonomous mode
+                logger.info(f"Background restore: Switching back to autonomous mode")
+                autonomous_result = tesla_client.set_operation_mode(site_id, 'autonomous')
+
+                if autonomous_result:
+                    logger.info(f"✅ Background restore completed: {profile_name} - Powerwall should apply tariff immediately")
+                else:
+                    logger.error(f"❌ Failed to switch back to autonomous mode for {profile_name}")
             else:
                 logger.error(f"❌ Background restore failed: {profile_name}")
 

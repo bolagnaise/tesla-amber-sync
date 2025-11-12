@@ -472,20 +472,40 @@ def monitor_aemo_prices():
 
                     if backup_profile:
                         tariff = json.loads(backup_profile.tariff_json)
+
+                        # Step 1: Switch to self_consumption mode FIRST
+                        logger.info(f"Automatic restore: Switching {user.email} to self_consumption mode before tariff upload")
+                        mode_result = tesla_client.set_operation_mode(user.tesla_energy_site_id, 'self_consumption')
+                        if not mode_result:
+                            logger.error(f"Automatic restore: Failed to switch {user.email} to self_consumption mode")
+                            error_count += 1
+                            continue
+
+                        # Step 2: Upload tariff while in self_consumption mode
+                        logger.info(f"Automatic restore: Uploading tariff for {user.email} while in self_consumption mode")
                         result = tesla_client.set_tariff_rate(user.tesla_energy_site_id, tariff)
 
                         if result:
                             user.aemo_in_spike_mode = False
                             user.aemo_spike_start_time = None
                             backup_profile.last_restored_at = datetime.now(timezone.utc)
-                            logger.info(f"✅ Exited spike mode for {user.email} - restored backup tariff")
+                            logger.info(f"✅ Automatic restore: Tariff uploaded for {user.email}")
 
-                            # Force Powerwall to immediately apply the restored tariff
-                            # Use 60s wait time for restore (vs 30s for spike activation)
-                            logger.info(f"Forcing Powerwall to apply restored tariff for {user.email} (60s wait)")
-                            force_tariff_refresh(tesla_client, user.tesla_energy_site_id, wait_seconds=60)
+                            # Step 3: Wait 60 seconds for Tesla to process
+                            import time
+                            logger.info(f"Automatic restore: Waiting 60 seconds for {user.email} to process tariff change...")
+                            time.sleep(60)
 
-                            success_count += 1
+                            # Step 4: Switch back to autonomous mode
+                            logger.info(f"Automatic restore: Switching {user.email} back to autonomous mode")
+                            autonomous_result = tesla_client.set_operation_mode(user.tesla_energy_site_id, 'autonomous')
+
+                            if autonomous_result:
+                                logger.info(f"✅ Automatic restore completed for {user.email} - Powerwall should apply tariff immediately")
+                                success_count += 1
+                            else:
+                                logger.error(f"❌ Failed to switch {user.email} back to autonomous mode")
+                                error_count += 1
                         else:
                             logger.error(f"Failed to restore backup tariff for {user.email}")
                             error_count += 1
