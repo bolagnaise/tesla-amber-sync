@@ -12,6 +12,7 @@ import requests
 import time
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 # Set up logging
@@ -377,14 +378,25 @@ def amber_current_price():
             )
             db.session.add(record)
 
-            # Add display time for 5-minute interval in nemTime (already in Australian timezone)
-            # Calculate 5-minute interval boundaries from nemTime minute value
-            minute = nem_time.minute
+            # Add display time for current 5-minute interval using server time in user's timezone
+            # (nemTime is the start of the 30-minute pricing period, not the current 5-min interval)
+            user_tz = ZoneInfo(current_user.timezone) if current_user.timezone else ZoneInfo('Australia/Brisbane')
+            current_time = datetime.now(user_tz)
+
+            minute = current_time.minute
+            hour = current_time.hour
             interval_start = (minute // 5) * 5
             interval_end = interval_start + 5
 
-            price_data['displayIntervalStart'] = f"{nem_time.hour:02d}:{interval_start:02d}"
-            price_data['displayIntervalEnd'] = f"{nem_time.hour:02d}:{interval_end:02d}"
+            # Handle interval crossing hour boundary (e.g., 17:55 - 18:00)
+            if interval_end >= 60:
+                end_hour = (hour + 1) % 24
+                end_minute = interval_end - 60
+                price_data['displayIntervalStart'] = f"{hour:02d}:{interval_start:02d}"
+                price_data['displayIntervalEnd'] = f"{end_hour:02d}:{end_minute:02d}"
+            else:
+                price_data['displayIntervalStart'] = f"{hour:02d}:{interval_start:02d}"
+                price_data['displayIntervalEnd'] = f"{hour:02d}:{interval_end:02d}"
 
         db.session.commit()
         logger.info(f"Saved {len(prices)} price records to database")
