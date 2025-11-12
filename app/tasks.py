@@ -336,6 +336,11 @@ def monitor_aemo_prices():
 
     for user in users:
         try:
+            # Skip users with Amber auto sync enabled to avoid conflicts
+            if user.sync_enabled:
+                logger.debug(f"Skipping AEMO spike detection for {user.email} - Amber auto sync is enabled")
+                continue
+
             # Validate user configuration
             if not user.aemo_region:
                 logger.warning(f"User {user.email} has AEMO enabled but no region configured")

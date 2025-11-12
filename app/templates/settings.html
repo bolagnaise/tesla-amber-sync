@@ -118,6 +118,15 @@
                     encourages battery export. When prices return to normal, your original tariff is restored.
                 </p>
 
+                {% if current_user.sync_enabled %}
+                <article style="background: rgba(255, 165, 0, 0.15); padding: 1em; border-radius: 0.5em; margin-bottom: 1em; border-left: 4px solid orange;">
+                    <p style="margin: 0; font-size: 0.85em;">
+                        ⚠️ <strong>Note:</strong> AEMO spike detection is automatically disabled when Amber auto sync is enabled.
+                        To use spike detection, disable auto sync from the Dashboard first.
+                    </p>
+                </article>
+                {% endif %}
+
                 <label for="aemo_spike_detection_enabled">
                     <input type="checkbox" id="aemo_spike_detection_enabled" name="aemo_spike_detection_enabled"
                            {% if form.aemo_spike_detection_enabled.data %}checked{% endif %}
