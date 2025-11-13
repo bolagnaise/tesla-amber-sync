@@ -825,8 +825,8 @@ def tou_schedule():
     # This ensures correct timezone handling for TOU schedule alignment
     powerwall_timezone = None
     tesla_client = get_tesla_client(current_user)
-    if tesla_client and current_user.tesla_site_id:
-        site_info = tesla_client.get_site_info(current_user.tesla_site_id)
+    if tesla_client and current_user.tesla_energy_site_id:
+        site_info = tesla_client.get_site_info(current_user.tesla_energy_site_id)
         if site_info:
             powerwall_timezone = site_info.get('installation_time_zone')
             if powerwall_timezone:
