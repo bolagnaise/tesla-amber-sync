@@ -165,11 +165,19 @@ def convert_amber_to_tesla_tariff(
             #   Result: Clean alignment with no shifting needed
             interval_start = timestamp - timedelta(minutes=duration)
 
-            # Round interval start time to nearest 30-minute bucket
-            start_minute_bucket = 0 if interval_start.minute < 30 else 30
+            # CRITICAL: Convert to local Powerwall timezone to handle DST correctly
+            # Amber may provide timestamps with fixed offsets (e.g., +10:00 during AEDT when it should be +11:00)
+            # Converting to the Powerwall's timezone ensures we get the correct local time
+            if detected_tz:
+                interval_start_local = interval_start.astimezone(detected_tz)
+            else:
+                interval_start_local = interval_start
 
-            date_str = interval_start.date().isoformat()
-            lookup_key = (date_str, interval_start.hour, start_minute_bucket)
+            # Round interval start time to nearest 30-minute bucket
+            start_minute_bucket = 0 if interval_start_local.minute < 30 else 30
+
+            date_str = interval_start_local.date().isoformat()
+            lookup_key = (date_str, interval_start_local.hour, start_minute_bucket)
 
             if channel_type == "general":
                 if lookup_key not in general_lookup:
