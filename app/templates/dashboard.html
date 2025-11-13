@@ -543,19 +543,19 @@
                             circleColor = '#ef4444'; // red (≥50¢)
                         }
                     } else {
-                        // Export prices - green scale
-                        circleColor = '#22c55e'; // green (default)
+                        // Export prices - yellow scale (all yellow dots)
+                        circleColor = '#fbbf24'; // yellow (default)
                         if (absPrice < 5) {
-                            circleColor = '#86efac'; // light green (very low)
+                            circleColor = '#fde047'; // lighter yellow (very low)
                         } else if (absPrice >= 10) {
-                            circleColor = '#16a34a'; // darker green (high)
+                            circleColor = '#f59e0b'; // darker yellow/amber (high)
                         }
                     }
 
                     // Border style: colored for current, subtle for others
-                    const borderColor = selectedChannel === 'general' ? '#f97316' : '#22c55e';
+                    const borderColor = selectedChannel === 'general' ? '#f97316' : '#fbbf24';
                     const borderStyle = isCurrent ? `3px solid ${borderColor}` : '1px solid rgba(255,255,255,0.15)';
-                    const bgStyle = isCurrent ? (selectedChannel === 'general' ? 'rgba(249, 115, 22, 0.1)' : 'rgba(34, 197, 94, 0.1)') : 'rgba(255,255,255,0.03)';
+                    const bgStyle = isCurrent ? (selectedChannel === 'general' ? 'rgba(249, 115, 22, 0.1)' : 'rgba(251, 191, 36, 0.1)') : 'rgba(255,255,255,0.03)';
 
                     html += `
                         <div style="border: ${borderStyle}; border-radius: 12px; padding: 0.7em; min-width: 70px; background: ${bgStyle}; text-align: center;">
