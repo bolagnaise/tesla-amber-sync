@@ -62,19 +62,19 @@
         </header>
         <div style="display: flex; justify-content: center; gap: 2em; margin-bottom: 1.5em;">
             <div id="import-selector" onclick="selectPriceChannel('general')" style="text-align: center; cursor: pointer; transition: transform 0.2s;">
-                <div id="import-circle" style="background: rgba(253, 224, 71, 0.95); color: #1e3a8a; border-radius: 50%; width: 180px; height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
+                <div id="import-circle" style="background: rgba(253, 224, 71, 0.95); color: #1e3a8a; border-radius: 50%; width: 180px; height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.2); padding: 0 0.5em;">
                     <div id="current-general-price" style="font-size: 3.5em; font-weight: bold; line-height: 1;">--¢</div>
                     <div style="font-size: 0.9em; margin-top: 0.2em;">/kWh</div>
-                    <div id="current-renewables" style="font-size: 1em; margin-top: 0.5em; opacity: 0.8;">--% renewables</div>
+                    <div id="current-renewables" style="font-size: 0.8em; margin-top: 0.5em; opacity: 0.8;">--% renewable</div>
                 </div>
-                <div style="margin-top: 0.5em; font-size: 0.85em; opacity: 0.9;">IMPORT (BUY) ✓</div>
+                <div style="margin-top: 0.5em; font-size: 0.85em; opacity: 0.9;">IMPORT</div>
             </div>
             <div id="export-selector" onclick="selectPriceChannel('feedIn')" style="text-align: center; cursor: pointer; transition: transform 0.2s;">
                 <div style="background: #fbbf24; color: #1e3a8a; border-radius: 50%; width: 180px; height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.2);">
                     <div id="current-feedin-price" style="font-size: 3.5em; font-weight: bold; line-height: 1;">--¢</div>
                     <div style="font-size: 0.9em; margin-top: 0.2em;">/kWh</div>
                 </div>
-                <div style="margin-top: 0.5em; font-size: 0.85em; opacity: 0.9;">FEED-IN (SELL)</div>
+                <div style="margin-top: 0.5em; font-size: 0.85em; opacity: 0.9;">FEED-IN</div>
             </div>
         </div>
         <div style="margin-top: 1.5em;">
@@ -432,7 +432,7 @@
                 }
 
                 document.getElementById('current-general-price').textContent = `${Math.abs(generalPrice.perKwh).toFixed(0)}¢`;
-                document.getElementById('current-renewables').textContent = `${Math.round(generalPrice.renewables || 0)}% renewables`;
+                document.getElementById('current-renewables').textContent = `${Math.round(generalPrice.renewables || 0)}% renewable`;
 
                 // Update import circle color to match current tile color
                 const absPrice = Math.abs(generalPrice.perKwh);
