@@ -80,8 +80,10 @@
         </div>
         <div style="margin-top: 1.5em;">
             <div style="font-size: 0.95em; font-weight: bold; padding: 0.5em; background: rgba(255,255,255,0.1); border-radius: 8px; text-align: center; margin-bottom: 1em;">📊 30 Min Forecast - 5 Min Intervals</div>
-            <div id="five-min-forecast" style="display: flex; justify-content: center; gap: 0.5em; overflow-x: auto; padding: 0.5em 0;">
-                <p style="color: rgba(255,255,255,0.7);">Loading forecast...</p>
+            <div style="overflow-x: auto; padding: 0.5em 0;">
+                <div id="five-min-forecast" style="display: flex; justify-content: center; gap: 0.5em; min-width: min-content;">
+                    <p style="color: rgba(255,255,255,0.7);">Loading forecast...</p>
+                </div>
             </div>
         </div>
     </article>
