@@ -25,11 +25,8 @@ services:
       # Set this only if you want to use a specific key (e.g., for migrating from another instance)
       - FERNET_ENCRYPTION_KEY=${FERNET_ENCRYPTION_KEY:-}
 
-      # Tesla API Credentials (Optional - can be configured via web UI)
-      - TESLA_CLIENT_ID=${TESLA_CLIENT_ID:-}
-      - TESLA_CLIENT_SECRET=${TESLA_CLIENT_SECRET:-}
-      - TESLA_REDIRECT_URI=${TESLA_REDIRECT_URI:-}
-      - APP_DOMAIN=${APP_DOMAIN:-}
+      # API Credentials are configured via the web UI at Settings > API Configuration
+      # No environment variables needed
 
     volumes:
       # Persist database and user data
