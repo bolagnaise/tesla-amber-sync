@@ -512,7 +512,8 @@
                 });
 
                 // Generate HTML for individual 5-minute slots (matching Amber app)
-                let html = '<div style="display: flex; gap: 0.5em; overflow-x: auto; padding: 0.5em 0; justify-content: center;">';
+                // Outer wrapper for centering, inner flex for layout
+                let html = '<div style="display: flex; justify-content: center; overflow-x: auto; padding: 0.5em 0;"><div style="display: flex; gap: 0.5em;">';
 
                 filteredIntervals.forEach((interval, idx) => {
                     // Use backend-provided localHour and localMinute (already converted to user's timezone)
@@ -565,7 +566,7 @@
                     `;
                 });
 
-                html += '</div>';
+                html += '</div></div>';
                 forecastDiv.innerHTML = html;
 
             } catch (error) {
