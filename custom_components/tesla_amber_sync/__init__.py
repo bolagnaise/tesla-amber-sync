@@ -264,7 +264,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Convert prices to Tesla tariff format
         tariff = convert_amber_to_tesla_tariff(
             amber_coordinator.data.get("forecast", []),
-            tesla_site_id=entry.data[CONF_TESLA_ENERGY_SITE_ID],
+            tesla_energy_site_id=entry.data[CONF_TESLA_ENERGY_SITE_ID],
             forecast_type=forecast_type,
             powerwall_timezone=powerwall_timezone,
         )
