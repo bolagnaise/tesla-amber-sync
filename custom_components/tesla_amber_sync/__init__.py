@@ -20,7 +20,7 @@ from .const import (
     CONF_AMBER_FORECAST_TYPE,
     CONF_AUTO_SYNC_ENABLED,
     CONF_TESLEMETRY_API_TOKEN,
-    CONF_TESLA_SITE_ID,
+    CONF_TESLA_ENERGY_SITE_ID,
     SERVICE_SYNC_TOU,
     SERVICE_SYNC_NOW,
     TESLEMETRY_API_BASE_URL,
@@ -33,6 +33,29 @@ from .coordinator import (
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH]
+
+
+async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
+    """Migrate old entry to new format."""
+    _LOGGER.info("Migrating Tesla Sync config entry from version %s", config_entry.version)
+
+    if config_entry.version == 1:
+        # Migrate from version 1 to version 2
+        # Changes: tesla_site_id -> tesla_energy_site_id
+        new_data = {**config_entry.data}
+
+        if "tesla_site_id" in new_data:
+            new_data["tesla_energy_site_id"] = new_data.pop("tesla_site_id")
+            _LOGGER.info("Migrated tesla_site_id to tesla_energy_site_id")
+
+        # Update the config entry with new data and version
+        hass.config_entries.async_update_entry(
+            config_entry, data=new_data, version=2
+        )
+
+        _LOGGER.info("Migration to version 2 complete")
+
+    return True
 
 
 async def send_tariff_to_tesla(
@@ -183,7 +206,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     tesla_coordinator = TeslaEnergyCoordinator(
         hass,
-        entry.data[CONF_TESLA_SITE_ID],
+        entry.data[CONF_TESLA_ENERGY_SITE_ID],
         entry.data[CONF_TESLEMETRY_API_TOKEN],
     )
 
@@ -241,7 +264,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Convert prices to Tesla tariff format
         tariff = convert_amber_to_tesla_tariff(
             amber_coordinator.data.get("forecast", []),
-            tesla_site_id=entry.data[CONF_TESLA_SITE_ID],
+            tesla_site_id=entry.data[CONF_TESLA_ENERGY_SITE_ID],
             forecast_type=forecast_type,
             powerwall_timezone=powerwall_timezone,
         )
@@ -253,7 +276,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Send tariff to Tesla via Teslemetry API
         success = await send_tariff_to_tesla(
             hass,
-            entry.data[CONF_TESLA_SITE_ID],
+            entry.data[CONF_TESLA_ENERGY_SITE_ID],
             tariff,
             entry.data[CONF_TESLEMETRY_API_TOKEN],
         )

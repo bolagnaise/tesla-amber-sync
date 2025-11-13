@@ -23,7 +23,7 @@
         "title": "Site Selection",
         "description": "Select your Tesla energy site and Amber site (if you have multiple), and configure auto-sync.",
         "data": {
-          "tesla_site_id": "Tesla Energy Site",
+          "tesla_energy_site_id": "Tesla Energy Site",
           "amber_site_id": "Amber Site (if you have multiple)",
           "auto_sync_enabled": "Enable automatic TOU schedule syncing"
         }

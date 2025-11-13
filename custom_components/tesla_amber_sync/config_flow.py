@@ -18,7 +18,7 @@ from .const import (
     CONF_AMBER_SITE_ID,
     CONF_AMBER_FORECAST_TYPE,
     CONF_TESLEMETRY_API_TOKEN,
-    CONF_TESLA_SITE_ID,
+    CONF_TESLA_ENERGY_SITE_ID,
     CONF_AUTO_SYNC_ENABLED,
     CONF_DEMAND_CHARGE_ENABLED,
     CONF_DEMAND_CHARGE_RATE,
@@ -114,7 +114,7 @@ async def validate_teslemetry_token(
 class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Tesla Sync."""
 
-    VERSION = 1
+    VERSION = 2
 
     def __init__(self) -> None:
         """Initialize the config flow."""
@@ -218,7 +218,7 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Store site selection data
             self._site_data = {
                 CONF_AMBER_SITE_ID: amber_site_id,
-                CONF_TESLA_SITE_ID: user_input[CONF_TESLA_SITE_ID],
+                CONF_TESLA_ENERGY_SITE_ID: user_input[CONF_TESLA_ENERGY_SITE_ID],
                 CONF_AUTO_SYNC_ENABLED: user_input.get(CONF_AUTO_SYNC_ENABLED, True),
                 CONF_AMBER_FORECAST_TYPE: user_input.get(CONF_AMBER_FORECAST_TYPE, "predicted"),
             }
@@ -242,7 +242,7 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 site_name = site.get("site_name", f"Tesla Energy Site {site_id}")
                 tesla_site_options[site_id] = f"{site_name} ({site_id})"
 
-            data_schema_dict[vol.Required(CONF_TESLA_SITE_ID)] = vol.In(tesla_site_options)
+            data_schema_dict[vol.Required(CONF_TESLA_ENERGY_SITE_ID)] = vol.In(tesla_site_options)
         else:
             # No sites found - should not happen if validation worked
             _LOGGER.error("No Tesla energy sites found in Teslemetry account")

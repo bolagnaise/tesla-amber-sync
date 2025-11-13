@@ -31,7 +31,7 @@ def _round_price(price: float) -> float:
 
 def convert_amber_to_tesla_tariff(
     forecast_data: list[dict[str, Any]],
-    tesla_site_id: str,
+    tesla_energy_site_id: str,
     forecast_type: str = "predicted",
     powerwall_timezone: str | None = None,
 ) -> dict[str, Any] | None:
@@ -43,7 +43,7 @@ def convert_amber_to_tesla_tariff(
 
     Args:
         forecast_data: List of price forecast points from Amber API
-        tesla_site_id: Tesla energy site ID
+        tesla_energy_site_id: Tesla energy site ID
         forecast_type: Amber forecast type to use ('predicted', 'low', or 'high')
         powerwall_timezone: Powerwall timezone from site_info (optional)
                            If provided, uses this instead of auto-detecting from Amber data
