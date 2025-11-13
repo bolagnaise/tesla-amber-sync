@@ -1,5 +1,5 @@
 # app/routes.py
-from flask import render_template, flash, redirect, url_for, request, Blueprint, jsonify
+from flask import render_template, flash, redirect, url_for, request, Blueprint, jsonify, session
 from flask_login import login_user, logout_user, current_user, login_required
 from app import db
 from app.models import User, PriceRecord, SavedTOUProfile
@@ -18,6 +18,46 @@ from zoneinfo import ZoneInfo
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+
+
+def get_powerwall_timezone(user, default='Australia/Brisbane'):
+    """
+    Get the Powerwall's timezone from Tesla API.
+
+    Caches the timezone in the session to avoid repeated API calls.
+    Falls back to default timezone if Tesla API is unavailable.
+
+    Args:
+        user: Current user object
+        default: Default timezone if Tesla API fails
+
+    Returns:
+        IANA timezone string (e.g., 'Australia/Sydney')
+    """
+    # Check if we have a cached timezone in the session
+    cache_key = f'powerwall_tz_{user.id}'
+    if cache_key in session:
+        return session[cache_key]
+
+    # Try to fetch from Tesla API
+    tesla_client = get_tesla_client(user)
+    if tesla_client and user.tesla_energy_site_id:
+        try:
+            site_info = tesla_client.get_site_info(user.tesla_energy_site_id)
+            if site_info:
+                tz = site_info.get('installation_time_zone')
+                if tz:
+                    logger.info(f"Fetched Powerwall timezone from Tesla API: {tz}")
+                    # Cache in session for this login session
+                    session[cache_key] = tz
+                    return tz
+        except Exception as e:
+            logger.warning(f"Failed to fetch Powerwall timezone from Tesla API: {e}")
+
+    # Fallback to default
+    logger.debug(f"Using default timezone: {default}")
+    return default
+
 
 bp = Blueprint('main', __name__)
 
@@ -163,10 +203,6 @@ def settings():
             logger.info("Clearing Teslemetry API key")
             current_user.teslemetry_api_key_encrypted = None
 
-        if form.timezone.data:
-            logger.info(f"Saving timezone: {form.timezone.data}")
-            current_user.timezone = form.timezone.data
-
         # AEMO Spike Detection settings
         current_user.aemo_spike_detection_enabled = form.aemo_spike_detection_enabled.data
         if form.aemo_region.data:
@@ -205,10 +241,6 @@ def settings():
     except Exception as e:
         logger.error(f"Error decrypting teslemetry api key: {e}")
         form.teslemetry_api_key.data = None
-
-    # Set timezone to user's preference (default to Australia/Brisbane if not set)
-    form.timezone.data = current_user.timezone or 'Australia/Brisbane'
-    logger.debug(f"Timezone: {form.timezone.data}")
 
     # Pre-populate AEMO settings
     form.aemo_spike_detection_enabled.data = current_user.aemo_spike_detection_enabled
@@ -378,9 +410,9 @@ def amber_current_price():
             )
             db.session.add(record)
 
-            # Add display time for current 5-minute interval using server time in user's timezone
+            # Add display time for current 5-minute interval using Powerwall's timezone
             # (nemTime is the start of the 30-minute pricing period, not the current 5-min interval)
-            user_tz = ZoneInfo(current_user.timezone) if current_user.timezone else ZoneInfo('Australia/Brisbane')
+            user_tz = ZoneInfo(get_powerwall_timezone(current_user))
             current_time = datetime.now(user_tz)
 
             minute = current_time.minute
@@ -425,7 +457,7 @@ def amber_5min_forecast():
         return jsonify({'error': 'Failed to fetch 5-minute forecast'}), 500
 
     # Convert nemTime to user's local timezone for each interval
-    user_tz = ZoneInfo(current_user.timezone) if current_user.timezone else ZoneInfo('Australia/Brisbane')
+    user_tz = ZoneInfo(get_powerwall_timezone(current_user))
 
     for interval in forecast:
         if 'nemTime' in interval:
@@ -573,7 +605,7 @@ def price_history():
     logger.info(f"Price history requested by user: {current_user.email}")
 
     # Get user's timezone
-    user_tz = ZoneInfo(current_user.timezone or 'Australia/Brisbane')
+    user_tz = ZoneInfo(get_powerwall_timezone(current_user))
 
     # Calculate 24 hours ago
     now_utc = datetime.now(timezone.utc)
@@ -621,7 +653,7 @@ def energy_history():
     logger.info(f"Energy history requested by user: {current_user.email}")
 
     # Get user's timezone
-    user_tz = ZoneInfo(current_user.timezone or 'Australia/Brisbane')
+    user_tz = ZoneInfo(get_powerwall_timezone(current_user))
 
     # Get timeframe parameter (default to 'day')
     timeframe = request.args.get('timeframe', 'day')
@@ -736,7 +768,7 @@ def energy_calendar_history():
         from zoneinfo import ZoneInfo
         try:
             # Parse YYYY-MM-DD and convert to datetime with user's timezone
-            user_tz = ZoneInfo(current_user.timezone or 'Australia/Brisbane')
+            user_tz = ZoneInfo(get_powerwall_timezone(current_user))
             dt = datetime.strptime(end_date_str, '%Y-%m-%d')
             end_dt = dt.replace(hour=23, minute=59, second=59, tzinfo=user_tz)
             end_date = end_dt.isoformat()
@@ -749,7 +781,7 @@ def energy_calendar_history():
         kind='energy',
         period=period,
         end_date=end_date,
-        timezone=current_user.timezone or 'Australia/Brisbane'
+        timezone=get_powerwall_timezone(current_user)
     )
 
     if not history:
@@ -826,7 +858,7 @@ def tou_schedule():
     # Get current time in user's timezone to mark current period
     from datetime import datetime
     from zoneinfo import ZoneInfo
-    user_tz = ZoneInfo(current_user.timezone or 'Australia/Brisbane')
+    user_tz = ZoneInfo(get_powerwall_timezone(current_user))
     now = datetime.now(user_tz)
     current_hour = now.hour
     current_minute_bucket = 0 if now.minute < 30 else 30

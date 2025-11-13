@@ -26,14 +26,6 @@ class SettingsForm(FlaskForm):
     amber_token = StringField('Amber Electric API Token')
     tesla_site_id = StringField('Tesla Energy Site ID')
     teslemetry_api_key = StringField('Teslemetry API Key (get from teslemetry.com)')
-    timezone = SelectField('Timezone', choices=[
-        ('Australia/Brisbane', 'Brisbane (AEST/AEDT)'),
-        ('Australia/Sydney', 'Sydney (AEST/AEDT)'),
-        ('Australia/Melbourne', 'Melbourne (AEST/AEDT)'),
-        ('Australia/Adelaide', 'Adelaide (ACST/ACDT)'),
-        ('Australia/Perth', 'Perth (AWST)'),
-        ('Australia/Darwin', 'Darwin (ACST)'),
-    ])
 
     # AEMO Spike Detection
     aemo_spike_detection_enabled = BooleanField('Enable AEMO Spike Detection')
