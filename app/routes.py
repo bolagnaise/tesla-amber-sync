@@ -789,10 +789,31 @@ def tou_schedule():
         logger.error("Failed to fetch price forecast")
         return jsonify({'error': 'Failed to fetch price forecast'}), 500
 
+    # Fetch Powerwall timezone from Tesla API (most accurate)
+    # This ensures correct timezone handling for TOU schedule alignment
+    powerwall_timezone = None
+    tesla_client = get_tesla_client(current_user)
+    if tesla_client and current_user.tesla_site_id:
+        site_info = tesla_client.get_site_info(current_user.tesla_site_id)
+        if site_info:
+            powerwall_timezone = site_info.get('installation_time_zone')
+            if powerwall_timezone:
+                logger.info(f"Using Powerwall timezone from Tesla API: {powerwall_timezone}")
+            else:
+                logger.warning("No installation_time_zone in site_info, will auto-detect from Amber data")
+        else:
+            logger.warning("Failed to fetch site_info from Tesla API, will auto-detect timezone from Amber data")
+    else:
+        logger.warning("Tesla API not configured, will auto-detect timezone from Amber data")
+
     # Convert to Tesla tariff format
     from app.tariff_converter import AmberTariffConverter
     converter = AmberTariffConverter()
-    tariff = converter.convert_amber_to_tesla_tariff(forecast, user=current_user)
+    tariff = converter.convert_amber_to_tesla_tariff(
+        forecast,
+        user=current_user,
+        powerwall_timezone=powerwall_timezone
+    )
 
     if not tariff:
         logger.error("Failed to convert tariff")
@@ -887,10 +908,27 @@ def sync_tesla_schedule():
             logger.error("Failed to fetch price forecast for sync")
             return jsonify({'error': 'Failed to fetch price forecast'}), 500
 
+        # Fetch Powerwall timezone from Tesla API (most accurate)
+        # This ensures correct timezone handling for TOU schedule alignment
+        powerwall_timezone = None
+        site_info = tesla_client.get_site_info(site_id)
+        if site_info:
+            powerwall_timezone = site_info.get('installation_time_zone')
+            if powerwall_timezone:
+                logger.info(f"Using Powerwall timezone from Tesla API: {powerwall_timezone}")
+            else:
+                logger.warning("No installation_time_zone in site_info, will auto-detect from Amber data")
+        else:
+            logger.warning("Failed to fetch site_info from Tesla API, will auto-detect timezone from Amber data")
+
         # Convert Amber prices to Tesla tariff format
         from app.tariff_converter import AmberTariffConverter
         converter = AmberTariffConverter()
-        tariff = converter.convert_amber_to_tesla_tariff(forecast, user=current_user)
+        tariff = converter.convert_amber_to_tesla_tariff(
+            forecast,
+            user=current_user,
+            powerwall_timezone=powerwall_timezone
+        )
 
         if not tariff:
             logger.error("Failed to convert tariff")
