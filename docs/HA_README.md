@@ -19,7 +19,7 @@ A Home Assistant custom integration that synchronizes Amber Electric pricing wit
 - 📊 **Intelligent Price Averaging**: Averages 5-minute Amber intervals into 30-minute Tesla periods for maximum accuracy
 - 🎯 **Period Alignment**: Correctly aligns with Amber's forecast labels (e.g., "18:00 forecast" → Tesla PERIOD_17_30)
 - 🔄 **Rolling 24-Hour Window**: Always provides Tesla with 9-24 hours lookahead for optimal battery management
-- 🎚️ **Precision Matching**: 4 decimal place pricing (matching Netzero format) with trailing zeros removed
+- 🎚️ **Precision Matching**: 4 decimal place pricing with trailing zeros removed
 
 ## Prerequisites
 
@@ -165,7 +165,7 @@ Works anywhere in Australia without configuration:
 The system automatically extracts timezone information from Amber's API data, ensuring correct "past vs future" period detection for all locations.
 
 #### 5. **Precision Matching**
-Prices are rounded to **4 decimal places** (matching Netzero's format) with trailing zeros automatically removed:
+Prices are rounded to **4 decimal places** with trailing zeros automatically removed:
 - `0.2014191` → `0.2014` (4 decimals)
 - `0.1990000` → `0.199` (3 decimals, trailing zeros dropped)
 

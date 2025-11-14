@@ -18,7 +18,7 @@ class AmberTariffConverter:
         """
         Round price to 4 decimal places, removing trailing zeros.
 
-        This matches Netzero's behavior:
+        Examples:
         - 0.2014191 → 0.2014 (4 decimals)
         - 0.1990000 → 0.199 (3 decimals, trailing zeros removed)
         - 0.1234500 → 0.1235 (4 decimals, rounded)
@@ -522,7 +522,7 @@ class AmberTariffConverter:
     def _build_tou_periods(self, period_keys) -> Dict:
         """
         Build TOU period definitions for all time slots
-        Matches NetZero's format exactly - omitting fields when they're 0
+        Omits fields when they're 0 for cleaner output
 
         Args:
             period_keys: Set of period keys like "PERIOD_14_30"
@@ -549,7 +549,6 @@ class AmberTariffConverter:
                     to_hour += 1
 
                 # Build period definition, omitting fields when they're 0
-                # This matches NetZero's format exactly
                 period_def = {
                     "toDayOfWeek": 6  # Saturday (covers all days with implicit fromDayOfWeek=0)
                 }

@@ -495,7 +495,7 @@ def amber_5min_forecast():
 @login_required
 def amber_debug_forecast():
     """
-    Debug endpoint to fetch raw Amber forecast data for comparison with Netzero.
+    Debug endpoint to fetch raw Amber forecast data.
     Returns all available price fields from Amber API for the next 48 hours.
     """
     logger.info(f"Debug forecast requested by user: {current_user.email}")
@@ -1206,7 +1206,7 @@ def test_amber_advanced_price_schema():
             'data': forecast,
             'count': len(forecast) if forecast else 0,
             'sample': sample,
-            'description': 'This shows the advanced price structure including ML predictions used by SmartShift and Netzero'
+            'description': 'This shows the advanced price structure including ML predictions used by SmartShift'
         })
     except Exception as e:
         logger.error(f"Error testing advanced price schema: {e}")
@@ -1372,169 +1372,6 @@ def test_find_tesla_sites():
         return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
 
 
-@bp.route('/api/test/netzero-comparison')
-@login_required
-def test_netzero_comparison():
-    """Compare Netzero's TOU schedule (currently on Tesla) vs our implementation"""
-    try:
-        from app.tariff_converter import AmberTariffConverter
-        import traceback
-
-        # Get Tesla client
-        tesla_client = get_tesla_client(current_user)
-        logger.info(f"Tesla client type: {type(tesla_client).__name__ if tesla_client else 'None'}")
-
-        if not tesla_client:
-            return jsonify({
-                'error': 'Tesla API client not configured',
-                'help': 'Please go to Settings and configure your Teslemetry API key',
-                'next_step': 'Use the "Find Tesla Sites" button above to get your Site ID',
-                'debug': {
-                    'has_fleet_token': bool(current_user.tesla_access_token_encrypted),
-                    'has_teslemetry_key': bool(current_user.teslemetry_api_key_encrypted)
-                }
-            }), 400
-
-        # Get Amber client
-        amber_client = get_amber_client(current_user)
-        if not amber_client:
-            return jsonify({'error': 'Amber API client not configured'}), 400
-
-        # Get Tesla site ID
-        if not current_user.tesla_energy_site_id:
-            return jsonify({
-                'error': 'Tesla site ID not configured',
-                'help': 'Use the "Find Tesla Sites" button to discover your site ID'
-            }), 400
-
-        site_id = current_user.tesla_energy_site_id
-        logger.info(f"Using site ID: {site_id} (type: {type(site_id).__name__})")
-
-        # Fetch current TOU settings from Tesla (what Netzero has configured)
-        logger.info(f"Fetching current TOU settings from Tesla site {site_id} using {type(tesla_client).__name__}")
-        netzero_tou = tesla_client.get_time_based_control_settings(site_id)
-        logger.info(f"TOU settings response type: {type(netzero_tou).__name__ if netzero_tou else 'None'}")
-        logger.debug(f"Raw TOU response: {netzero_tou}")
-
-        if not netzero_tou:
-            return jsonify({'error': 'Failed to fetch current TOU settings from Tesla'}), 500
-
-        # Extract Netzero's tariff rates
-        netzero_buy_rates = {}
-        netzero_sell_rates = {}
-
-        if 'tou_settings' in netzero_tou and 'tariff_content_v2' in netzero_tou['tou_settings']:
-            tariff = netzero_tou['tou_settings']['tariff_content_v2']
-
-            # Get buy rates (energy_charges)
-            if 'energy_charges' in tariff and 'Summer' in tariff['energy_charges']:
-                netzero_buy_rates = tariff['energy_charges']['Summer'].get('rates', {})
-
-            # Get sell rates (sell_tariff)
-            if 'sell_tariff' in tariff and 'energy_charges' in tariff['sell_tariff']:
-                if 'Summer' in tariff['sell_tariff']['energy_charges']:
-                    netzero_sell_rates = tariff['sell_tariff']['energy_charges']['Summer'].get('rates', {})
-
-        # Get Amber forecast
-        logger.info("Fetching Amber price forecast")
-        forecast = amber_client.get_price_forecast(
-            site_id=None,
-            next_hours=48,
-            resolution=30
-        )
-
-        if not forecast:
-            return jsonify({'error': 'Failed to fetch Amber forecast data'}), 500
-
-        # Build our tariff using current implementation
-        logger.info("Building our tariff implementation")
-        converter = AmberTariffConverter()
-        our_tariff = converter.convert_amber_to_tesla_tariff(forecast, user=current_user)
-
-        # Extract our rates
-        our_buy_rates = {}
-        our_sell_rates = {}
-
-        if our_tariff and 'energy_charges' in our_tariff:
-            our_buy_rates = our_tariff['energy_charges'].get('Summer', {}).get('rates', {})
-
-        if our_tariff and 'sell_tariff' in our_tariff:
-            our_sell_rates = our_tariff['sell_tariff']['energy_charges'].get('Summer', {}).get('rates', {})
-
-        # Compare all 48 periods
-        comparison_data = []
-        all_periods = sorted(set(list(netzero_buy_rates.keys()) + list(our_buy_rates.keys())))
-
-        for period in all_periods:
-            netzero_buy = netzero_buy_rates.get(period, None)
-            our_buy = our_buy_rates.get(period, None)
-            netzero_sell = netzero_sell_rates.get(period, None)
-            our_sell = our_sell_rates.get(period, None)
-
-            # Calculate differences
-            buy_diff = None
-            sell_diff = None
-            buy_diff_pct = None
-            sell_diff_pct = None
-
-            if netzero_buy is not None and our_buy is not None:
-                buy_diff = our_buy - netzero_buy
-                if netzero_buy != 0:
-                    buy_diff_pct = (buy_diff / netzero_buy) * 100
-
-            if netzero_sell is not None and our_sell is not None:
-                sell_diff = our_sell - netzero_sell
-                if netzero_sell != 0:
-                    sell_diff_pct = (sell_diff / netzero_sell) * 100
-
-            comparison_data.append({
-                'period': period,
-                'netzero_buy': netzero_buy,
-                'our_buy': our_buy,
-                'buy_diff': buy_diff,
-                'buy_diff_pct': buy_diff_pct,
-                'netzero_sell': netzero_sell,
-                'our_sell': our_sell,
-                'sell_diff': sell_diff,
-                'sell_diff_pct': sell_diff_pct
-            })
-
-        # Calculate statistics
-        buy_diffs = [d['buy_diff'] for d in comparison_data if d['buy_diff'] is not None]
-        sell_diffs = [d['sell_diff'] for d in comparison_data if d['sell_diff'] is not None]
-
-        stats = {
-            'total_periods': len(all_periods),
-            'periods_compared': len([d for d in comparison_data if d['buy_diff'] is not None]),
-            'buy_price_stats': {
-                'min_diff': min(buy_diffs) if buy_diffs else None,
-                'max_diff': max(buy_diffs) if buy_diffs else None,
-                'avg_diff': sum(buy_diffs) / len(buy_diffs) if buy_diffs else None,
-                'avg_abs_diff': sum(abs(d) for d in buy_diffs) / len(buy_diffs) if buy_diffs else None
-            },
-            'sell_price_stats': {
-                'min_diff': min(sell_diffs) if sell_diffs else None,
-                'max_diff': max(sell_diffs) if sell_diffs else None,
-                'avg_diff': sum(sell_diffs) / len(sell_diffs) if sell_diffs else None,
-                'avg_abs_diff': sum(abs(d) for d in sell_diffs) / len(sell_diffs) if sell_diffs else None
-            }
-        }
-
-        return jsonify({
-            'success': True,
-            'comparison': comparison_data,
-            'statistics': stats,
-            'netzero_tariff_name': netzero_tou.get('tou_settings', {}).get('tariff_content_v2', {}).get('name', 'Unknown'),
-            'our_tariff_name': our_tariff.get('name', 'Unknown')
-        })
-
-    except Exception as e:
-        logger.error(f"Error in Netzero comparison: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
-
-
 # Teslemetry Routes
 @bp.route('/teslemetry/disconnect', methods=['POST'])
 @login_required
@@ -1556,6 +1393,111 @@ def teslemetry_disconnect():
         logger.error(f"Error disconnecting Teslemetry: {e}")
         flash('Error disconnecting Teslemetry. Please try again.')
         return redirect(url_for('main.dashboard'))
+
+
+# ============================================
+# LOGS API
+# ============================================
+
+@bp.route('/api/logs')
+@login_required
+def get_logs():
+    """
+    Fetch application logs with optional filtering by log level
+    Query params:
+        - level: Filter by log level (DEBUG, INFO, WARNING, ERROR) - can specify multiple comma-separated
+        - limit: Maximum number of log lines to return (default: 1000)
+    """
+    try:
+        # Get query parameters
+        levels_param = request.args.get('level', '')
+        limit = int(request.args.get('limit', 1000))
+
+        # Parse levels filter
+        if levels_param:
+            requested_levels = [level.strip().upper() for level in levels_param.split(',')]
+        else:
+            requested_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+
+        # Read log file
+        log_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'flask.log')
+
+        if not os.path.exists(log_file_path):
+            return jsonify({
+                'success': False,
+                'error': 'Log file not found'
+            }), 404
+
+        logs = []
+        with open(log_file_path, 'r') as f:
+            # Read all lines (most recent last)
+            all_lines = f.readlines()
+
+            # Process lines in reverse to get most recent first
+            for line in reversed(all_lines):
+                if len(logs) >= limit:
+                    break
+
+                # Parse log line format: "2025-11-12 18:16:31 [INFO] app: Creating Flask application"
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Extract log level from line
+                log_level = None
+                for level in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
+                    if f'[{level}]' in line:
+                        log_level = level
+                        break
+
+                # Filter by level if specified
+                if log_level and log_level in requested_levels:
+                    logs.append({
+                        'line': line,
+                        'level': log_level
+                    })
+
+        return jsonify({
+            'success': True,
+            'logs': logs,
+            'total': len(logs),
+            'filters': {
+                'levels': requested_levels,
+                'limit': limit
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching logs: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@bp.route('/api/logs/download')
+@login_required
+def download_logs():
+    """Download the complete log file"""
+    try:
+        from flask import send_file
+        log_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'flask.log')
+
+        if not os.path.exists(log_file_path):
+            flash('Log file not found')
+            return redirect(url_for('main.settings'))
+
+        return send_file(
+            log_file_path,
+            as_attachment=True,
+            download_name=f'tesla-amber-sync-logs-{datetime.now().strftime("%Y%m%d-%H%M%S")}.log',
+            mimetype='text/plain'
+        )
+
+    except Exception as e:
+        logger.error(f"Error downloading logs: {e}")
+        flash(f'Error downloading logs: {str(e)}')
+        return redirect(url_for('main.settings'))
 
 
 # ============================================

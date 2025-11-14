@@ -12,7 +12,7 @@ def _round_price(price: float) -> float:
     """
     Round price to 4 decimal places, removing trailing zeros.
 
-    This matches Netzero's behavior:
+    Examples:
     - 0.2014191 → 0.2014 (4 decimals)
     - 0.1990000 → 0.199 (3 decimals, trailing zeros removed)
     - 0.1234500 → 0.1235 (4 decimals, rounded)

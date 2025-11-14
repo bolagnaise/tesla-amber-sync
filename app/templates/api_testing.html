@@ -36,7 +36,7 @@
 <article style="border: 2px solid var(--primary); background-color: var(--card-background-color);">
     <h3>⭐ Advanced Price Schema (30-min forecast with ML predictions)</h3>
     <p><strong>This endpoint shows the <code>advancedPrice.predicted</code> field used in TOU tariff conversion.</strong></p>
-    <p>The advanced price includes ML-based forecasts that SmartShift and Netzero use for optimal battery control.</p>
+    <p>The advanced price includes ML-based forecasts that SmartShift uses for optimal battery control.</p>
     <button onclick="testAdvancedPriceSchema()" class="contrast">GET Price Forecast with Advanced Schema</button>
     <details id="response-advanced-price">
         <summary>Response (with Advanced Price breakdown)</summary>
@@ -94,37 +94,10 @@
     </details>
 </article>
 
-<!-- Netzero vs Your Implementation Comparison -->
-<article style="border: 2px solid #ff6b35; background-color: var(--card-background-color);">
-    <h3>⚡ LIVE Netzero vs Your Implementation (Side-by-Side)</h3>
-    <p><strong>Compare the ACTUAL Netzero TOU schedule on your Tesla with your implementation.</strong></p>
-    <p>This fetches the current TOU settings from your Tesla Powerwall (what Netzero set) and compares it period-by-period with what your implementation would create using the same Amber data.</p>
-
-    <p><em>Setup Required:</em></p>
-    <ol>
-        <li>Configure your Teslemetry API key in Settings</li>
-        <li>Click "Find Tesla Sites" below to get your Site ID</li>
-        <li>Copy the Site ID and save it in Settings</li>
-    </ol>
-
-    <button onclick="findTeslaSites()" style="background-color: #4CAF50;">1. Find Tesla Sites (Get Site ID)</button>
-    <button onclick="testNetzeroComparison()" style="background-color: #ff6b35;">2. Compare Live Schedules</button>
-
-    <details id="response-find-sites">
-        <summary>Tesla Sites Found</summary>
-        <pre><code id="output-find-sites">Click "Find Tesla Sites" to discover your Site ID</code></pre>
-    </details>
-
-    <details id="response-netzero-comparison">
-        <summary>Netzero vs Yours - Side by Side</summary>
-        <pre><code id="output-netzero-comparison">Complete setup steps above, then click "Compare Live Schedules"</code></pre>
-    </details>
-</article>
-
 <!-- Tariff Implementation Comparison -->
 <article style="border: 2px solid var(--del-color); background-color: var(--card-background-color);">
     <h3>🔍 Tariff Implementation Comparison (Debug Price Differences)</h3>
-    <p><strong>Compare your implementation vs. what Netzero might be doing.</strong></p>
+    <p><strong>Debug and analyze your tariff implementation.</strong></p>
     <p>This shows:</p>
     <ul>
         <li>Your current implementation (with 30-min advance shift)</li>
@@ -276,7 +249,7 @@ async function testAdvancedPriceSchema() {
                 output += JSON.stringify(data.sample.advancedPrice, null, 2);
                 output += `\n\n`;
                 output += `Key Fields Explained:\n`;
-                output += `• predicted: ML-predicted price (used by SmartShift/Netzero)\n`;
+                output += `• predicted: ML-predicted price (used by SmartShift)\n`;
                 output += `• actual: Actual measured price (null for future intervals)\n`;
                 output += `• renewables: Percentage of renewable energy\n`;
                 output += `• channelType: 'general' (import) or 'feedIn' (export)\n`;
@@ -330,99 +303,6 @@ async function findTeslaSites() {
         output += `3. Paste it into "Tesla Site ID" field\n`;
         output += `4. Click Save\n`;
         output += `5. Come back here and click "Compare Live Schedules"\n`;
-
-        outputElement.textContent = output;
-    } catch (error) {
-        outputElement.textContent = `Error: ${error.message}`;
-    }
-}
-
-async function testNetzeroComparison() {
-    const outputElement = document.getElementById('output-netzero-comparison');
-    const detailsElement = document.getElementById('response-netzero-comparison');
-
-    // Show loading state
-    outputElement.textContent = 'Loading... (Fetching from Tesla and Amber)';
-    detailsElement.open = true;
-
-    try {
-        const response = await fetch('/api/test/netzero-comparison');
-        const data = await response.json();
-
-        if (!data.success) {
-            let output = `Error: ${data.error}\n\n`;
-            if (data.help) {
-                output += `Help: ${data.help}\n\n`;
-            }
-            if (data.next_step) {
-                output += `Next Step: ${data.next_step}\n\n`;
-            }
-            if (data.traceback) {
-                output += `Technical Details:\n${data.traceback}`;
-            }
-            outputElement.textContent = output;
-            return;
-        }
-
-        // Format the comparison output
-        let output = `=== LIVE COMPARISON: NETZERO vs YOUR IMPLEMENTATION ===\n\n`;
-        output += `Netzero Tariff Name: ${data.netzero_tariff_name}\n`;
-        output += `Your Tariff Name: ${data.our_tariff_name}\n\n`;
-
-        output += `--- STATISTICS ---\n`;
-        output += `Total Periods: ${data.statistics.total_periods}\n`;
-        output += `Periods Compared: ${data.statistics.periods_compared}\n\n`;
-
-        output += `BUY PRICE DIFFERENCES:\n`;
-        if (data.statistics.buy_price_stats.avg_diff !== null) {
-            output += `  Min Difference: $${data.statistics.buy_price_stats.min_diff.toFixed(4)}\n`;
-            output += `  Max Difference: $${data.statistics.buy_price_stats.max_diff.toFixed(4)}\n`;
-            output += `  Avg Difference: $${data.statistics.buy_price_stats.avg_diff.toFixed(4)}\n`;
-            output += `  Avg Abs Difference: $${data.statistics.buy_price_stats.avg_abs_diff.toFixed(4)}\n\n`;
-        }
-
-        output += `SELL PRICE DIFFERENCES:\n`;
-        if (data.statistics.sell_price_stats.avg_diff !== null) {
-            output += `  Min Difference: $${data.statistics.sell_price_stats.min_diff.toFixed(4)}\n`;
-            output += `  Max Difference: $${data.statistics.sell_price_stats.max_diff.toFixed(4)}\n`;
-            output += `  Avg Difference: $${data.statistics.sell_price_stats.avg_diff.toFixed(4)}\n`;
-            output += `  Avg Abs Difference: $${data.statistics.sell_price_stats.avg_abs_diff.toFixed(4)}\n\n`;
-        }
-
-        output += `--- PERIOD-BY-PERIOD COMPARISON (ALL 48 PERIODS) ---\n\n`;
-        output += `Format: PERIOD | Netzero Buy | Your Buy | Diff | Diff% | Netzero Sell | Your Sell | Diff | Diff%\n`;
-        output += `${'='.repeat(120)}\n`;
-
-        for (const period of data.comparison) {
-            const netBuy = period.netzero_buy !== null ? `$${period.netzero_buy.toFixed(4)}` : 'N/A';
-            const ourBuy = period.our_buy !== null ? `$${period.our_buy.toFixed(4)}` : 'N/A';
-            const buyDiff = period.buy_diff !== null ? `$${period.buy_diff.toFixed(4)}` : 'N/A';
-            const buyDiffPct = period.buy_diff_pct !== null ? `${period.buy_diff_pct.toFixed(2)}%` : 'N/A';
-
-            const netSell = period.netzero_sell !== null ? `$${period.netzero_sell.toFixed(4)}` : 'N/A';
-            const ourSell = period.our_sell !== null ? `$${period.our_sell.toFixed(4)}` : 'N/A';
-            const sellDiff = period.sell_diff !== null ? `$${period.sell_diff.toFixed(4)}` : 'N/A';
-            const sellDiffPct = period.sell_diff_pct !== null ? `${period.sell_diff_pct.toFixed(2)}%` : 'N/A';
-
-            output += `${period.period} | ${netBuy} | ${ourBuy} | ${buyDiff} | ${buyDiffPct} | ${netSell} | ${ourSell} | ${sellDiff} | ${sellDiffPct}\n`;
-        }
-
-        output += `\n--- ANALYSIS ---\n`;
-        if (data.statistics.buy_price_stats.avg_abs_diff !== null) {
-            const avgDiff = Math.abs(data.statistics.buy_price_stats.avg_diff);
-            if (avgDiff < 0.0001) {
-                output += `✅ Prices are NEARLY IDENTICAL (avg diff < $0.0001)\n`;
-            } else if (avgDiff < 0.001) {
-                output += `⚠️  Prices are very close but have small differences (avg diff < $0.001)\n`;
-            } else {
-                output += `❌ Prices have SIGNIFICANT differences (avg diff = $${avgDiff.toFixed(4)})\n`;
-                output += `\nPossible causes:\n`;
-                output += `1. 30-minute advance shift (your implementation uses next slot's price)\n`;
-                output += `2. Different advancedPrice field structure\n`;
-                output += `3. Different Amber API resolution (5min vs 30min)\n`;
-                output += `4. Rolling window logic (past periods use tomorrow's prices)\n`;
-            }
-        }
 
         outputElement.textContent = output;
     } catch (error) {

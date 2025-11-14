@@ -12,10 +12,15 @@ import fcntl
 import os
 
 # Set up logging
+log_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'flask.log')
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    datefmt='%Y-%m-%d %H:%M:%S',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler()  # Also log to console
+    ]
 )
 logger = logging.getLogger(__name__)
 
