@@ -1,98 +1,188 @@
 {% extends "settings_base.html" %}
 
 {% block settings_content %}
-<h1>Amber API Testing</h1>
-<p>Test all available Amber Electric API endpoints and view their raw responses.</p>
+<hgroup>
+    <h1>API Testing & Monitoring</h1>
+    <h2>Test API endpoints, view live data, and debug integrations</h2>
+</hgroup>
+
+<!-- Quick Stats Dashboard -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+    <article style="padding: 1rem; text-align: center;">
+        <h4 style="margin: 0; font-size: 0.85em; color: var(--muted-color);">Current Price</h4>
+        <p id="stat-current-price" style="margin: 0.5em 0; font-size: 1.8em; font-weight: bold;">--</p>
+        <small id="stat-price-trend" style="color: var(--muted-color);">Loading...</small>
+    </article>
+    <article style="padding: 1rem; text-align: center;">
+        <h4 style="margin: 0; font-size: 0.85em; color: var(--muted-color);">Renewables</h4>
+        <p id="stat-renewables" style="margin: 0.5em 0; font-size: 1.8em; font-weight: bold;">--</p>
+        <small style="color: var(--muted-color);">% Green Energy</small>
+    </article>
+    <article style="padding: 1rem; text-align: center;">
+        <h4 style="margin: 0; font-size: 0.85em; color: var(--muted-color);">Next Hour Avg</h4>
+        <p id="stat-next-hour" style="margin: 0.5em 0; font-size: 1.8em; font-weight: bold;">--</p>
+        <small style="color: var(--muted-color);">¢/kWh</small>
+    </article>
+    <article style="padding: 1rem; text-align: center;">
+        <h4 style="margin: 0; font-size: 0.85em; color: var(--muted-color);">24h Range</h4>
+        <p id="stat-price-range" style="margin: 0.5em 0; font-size: 1.8em; font-weight: bold;">--</p>
+        <small style="color: var(--muted-color);">Min - Max</small>
+    </article>
+</div>
 
 <!-- API Connection Status -->
 <article id="connection-status">
-    <h3>Connection Status</h3>
-    <div id="status-display">
-        <p>Checking connection...</p>
+    <header><strong>Connection Status</strong></header>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div id="amber-status" style="padding: 1rem; border-radius: 0.5rem; background: rgba(150, 150, 150, 0.1);">
+            <h4 style="margin: 0 0 0.5em 0;">⚡ Amber Electric</h4>
+            <div id="amber-status-content">
+                <p style="margin: 0;">Checking connection...</p>
+            </div>
+        </div>
+        <div id="tesla-status" style="padding: 1rem; border-radius: 0.5rem; background: rgba(150, 150, 150, 0.1);">
+            <h4 style="margin: 0 0 0.5em 0;">🔋 Tesla Energy</h4>
+            <div id="tesla-status-content">
+                <p style="margin: 0;">Checking connection...</p>
+            </div>
+        </div>
+    </div>
+    <button onclick="refreshStatus()" style="margin-top: 1rem; width: auto;" class="outline">Refresh Status</button>
+</article>
+
+<!-- Quick Actions -->
+<article>
+    <header><strong>Quick Actions</strong></header>
+    <p style="font-size: 0.85em; margin-bottom: 1em;">Common scenarios and diagnostics at a glance</p>
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <button onclick="quickAction('current-situation')" class="contrast">📊 Current Situation</button>
+        <button onclick="quickAction('next-24h-forecast')" class="contrast">📈 Next 24h Forecast</button>
+        <button onclick="quickAction('optimal-times')" class="contrast">⚡ Best Charge/Export Times</button>
+        <button onclick="quickAction('tesla-battery')" class="contrast">🔋 Battery Status</button>
+        <button onclick="quickAction('tesla-tou')" class="contrast">⏰ Current TOU Schedule</button>
+        <button onclick="quickAction('sync-test')" class="contrast">🔄 Test Full Sync</button>
+    </div>
+    <div id="quick-action-result" style="margin-top: 1rem; display: none;">
+        <details open>
+            <summary id="quick-action-title">Results</summary>
+            <div id="quick-action-content" style="padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 0.5rem;">
+                <pre id="quick-action-output" style="margin: 0; white-space: pre-wrap;"></pre>
+            </div>
+        </details>
     </div>
 </article>
 
-<!-- Available Sites -->
-<article>
-    <h3>Sites</h3>
-    <button onclick="testEndpoint('sites')" class="contrast">GET /v1/sites</button>
-    <details id="response-sites">
-        <summary>Response</summary>
-        <pre><code id="output-sites">Click the button to test this endpoint</code></pre>
-    </details>
-</article>
+<!-- Tesla API Testing -->
+<details>
+    <summary><strong>🔋 Tesla Energy API Endpoints</strong></summary>
+    <div style="margin-top: 1rem;">
+        <article>
+            <h4>Site Info</h4>
+            <button onclick="testTeslaEndpoint('site-info')" class="contrast">GET Site Information</button>
+            <details id="response-tesla-site-info">
+                <summary>Response</summary>
+                <pre><code id="output-tesla-site-info">Click the button to test this endpoint</code></pre>
+            </details>
+        </article>
 
-<!-- Current Prices -->
-<article>
-    <h3>Current Prices</h3>
-    <button onclick="testEndpoint('current-prices')" class="contrast">GET /v1/sites/{site_id}/prices/current</button>
-    <details id="response-current-prices">
-        <summary>Response</summary>
-        <pre><code id="output-current-prices">Click the button to test this endpoint</code></pre>
-    </details>
-</article>
+        <article>
+            <h4>Live Status</h4>
+            <button onclick="testTeslaEndpoint('live-status')" class="contrast">GET Live Battery & Power Status</button>
+            <details id="response-tesla-live-status">
+                <summary>Response</summary>
+                <pre><code id="output-tesla-live-status">Click the button to test this endpoint</code></pre>
+            </details>
+        </article>
 
-<!-- Advanced Price Schema -->
-<article style="border: 2px solid var(--primary); background-color: var(--card-background-color);">
-    <h3>⭐ Advanced Price Schema (30-min forecast with ML predictions)</h3>
-    <p><strong>This endpoint shows the <code>advancedPrice.predicted</code> field used in TOU tariff conversion.</strong></p>
-    <p>The advanced price includes ML-based forecasts that SmartShift uses for optimal battery control.</p>
-    <button onclick="testAdvancedPriceSchema()" class="contrast">GET Price Forecast with Advanced Schema</button>
-    <details id="response-advanced-price">
-        <summary>Response (with Advanced Price breakdown)</summary>
-        <pre><code id="output-advanced-price">Click the button to see the advanced price structure</code></pre>
-    </details>
-</article>
+        <article>
+            <h4>TOU Schedule</h4>
+            <button onclick="testTeslaEndpoint('tou-schedule')" class="contrast">GET Current TOU Schedule</button>
+            <details id="response-tesla-tou">
+                <summary>Response</summary>
+                <pre><code id="output-tesla-tou">Click the button to test this endpoint</code></pre>
+            </details>
+        </article>
+    </div>
+</details>
 
-<!-- Price Forecast - Default (24 hours) -->
-<article>
-    <h3>Price Forecast (24 hours, default resolution)</h3>
-    <button onclick="testEndpoint('price-forecast', {next_hours: 24})" class="contrast">GET /v1/sites/{site_id}/prices</button>
-    <details id="response-price-forecast">
-        <summary>Response</summary>
-        <pre><code id="output-price-forecast">Click the button to test this endpoint</code></pre>
-    </details>
-</article>
+<!-- Amber API Testing -->
+<details open>
+    <summary><strong>⚡ Amber Electric API Endpoints</strong></summary>
+    <div style="margin-top: 1rem;">
+        <article>
+            <h4>Sites</h4>
+            <button onclick="testEndpoint('sites')" class="contrast">GET /v1/sites</button>
+            <details id="response-sites">
+                <summary>Response</summary>
+                <pre><code id="output-sites">Click the button to test this endpoint</code></pre>
+            </details>
+        </article>
 
-<!-- Price Forecast - 48 hours -->
-<article>
-    <h3>Price Forecast (48 hours, default resolution)</h3>
-    <button onclick="testEndpoint('price-forecast-48h', {next_hours: 48})" class="contrast">GET /v1/sites/{site_id}/prices?next_hours=48</button>
-    <details id="response-price-forecast-48h">
-        <summary>Response</summary>
-        <pre><code id="output-price-forecast-48h">Click the button to test this endpoint</code></pre>
-    </details>
-</article>
+        <article>
+            <h4>Current Prices</h4>
+            <button onclick="testEndpoint('current-prices')" class="contrast">GET /v1/sites/{site_id}/prices/current</button>
+            <details id="response-current-prices">
+                <summary>Response</summary>
+                <pre><code id="output-current-prices">Click the button to test this endpoint</code></pre>
+            </details>
+        </article>
 
-<!-- Price Forecast - 5 minute resolution -->
-<article>
-    <h3>Price Forecast (24 hours, 5-minute resolution)</h3>
-    <button onclick="testEndpoint('price-forecast-5min', {next_hours: 24, resolution: 5})" class="contrast">GET /v1/sites/{site_id}/prices?resolution=5</button>
-    <details id="response-price-forecast-5min">
-        <summary>Response</summary>
-        <pre><code id="output-price-forecast-5min">Click the button to test this endpoint</code></pre>
-    </details>
-</article>
+        <article style="border: 2px solid var(--primary); background-color: var(--card-background-color);">
+            <h4>⭐ Advanced Price Schema (30-min forecast with ML predictions)</h4>
+            <p style="font-size: 0.85em;"><strong>This endpoint shows the <code>advancedPrice.predicted</code> field used in TOU tariff conversion.</strong></p>
+            <button onclick="testAdvancedPriceSchema()" class="contrast">GET Price Forecast with Advanced Schema</button>
+            <details id="response-advanced-price">
+                <summary>Response (with Advanced Price breakdown)</summary>
+                <pre><code id="output-advanced-price">Click the button to see the advanced price structure</code></pre>
+            </details>
+        </article>
 
-<!-- Price Forecast - 30 minute resolution -->
-<article>
-    <h3>Price Forecast (48 hours, 30-minute resolution)</h3>
-    <button onclick="testEndpoint('price-forecast-30min', {next_hours: 48, resolution: 30})" class="contrast">GET /v1/sites/{site_id}/prices?resolution=30</button>
-    <details id="response-price-forecast-30min">
-        <summary>Response</summary>
-        <pre><code id="output-price-forecast-30min">Click the button to test this endpoint</code></pre>
-    </details>
-</article>
+        <article>
+            <h4>Price Forecast (24 hours)</h4>
+            <button onclick="testEndpoint('price-forecast', {next_hours: 24})" class="contrast">GET /v1/sites/{site_id}/prices</button>
+            <details id="response-price-forecast">
+                <summary>Response</summary>
+                <pre><code id="output-price-forecast">Click the button to test this endpoint</code></pre>
+            </details>
+        </article>
 
-<!-- Usage -->
-<article>
-    <h3>Usage History (Last 7 days)</h3>
-    <button onclick="testEndpoint('usage')" class="contrast">GET /v1/sites/{site_id}/usage</button>
-    <details id="response-usage">
-        <summary>Response</summary>
-        <pre><code id="output-usage">Click the button to test this endpoint</code></pre>
-    </details>
-</article>
+        <article>
+            <h4>Price Forecast (48 hours)</h4>
+            <button onclick="testEndpoint('price-forecast-48h', {next_hours: 48})" class="contrast">GET /v1/sites/{site_id}/prices?next_hours=48</button>
+            <details id="response-price-forecast-48h">
+                <summary>Response</summary>
+                <pre><code id="output-price-forecast-48h">Click the button to test this endpoint</code></pre>
+            </details>
+        </article>
+
+        <article>
+            <h4>Price Forecast (5-minute resolution)</h4>
+            <button onclick="testEndpoint('price-forecast-5min', {next_hours: 24, resolution: 5})" class="contrast">GET /v1/sites/{site_id}/prices?resolution=5</button>
+            <details id="response-price-forecast-5min">
+                <summary>Response</summary>
+                <pre><code id="output-price-forecast-5min">Click the button to test this endpoint</code></pre>
+            </details>
+        </article>
+
+        <article>
+            <h4>Price Forecast (30-minute resolution)</h4>
+            <button onclick="testEndpoint('price-forecast-30min', {next_hours: 48, resolution: 30})" class="contrast">GET /v1/sites/{site_id}/prices?resolution=30</button>
+            <details id="response-price-forecast-30min">
+                <summary>Response</summary>
+                <pre><code id="output-price-forecast-30min">Click the button to test this endpoint</code></pre>
+            </details>
+        </article>
+
+        <article>
+            <h4>Usage History (Last 7 days)</h4>
+            <button onclick="testEndpoint('usage')" class="contrast">GET /v1/sites/{site_id}/usage</button>
+            <details id="response-usage">
+                <summary>Response</summary>
+                <pre><code id="output-usage">Click the button to test this endpoint</code></pre>
+            </details>
+        </article>
+    </div>
+</details>
 
 <!-- Tariff Implementation Comparison -->
 <article style="border: 2px solid var(--del-color); background-color: var(--card-background-color);">
@@ -137,30 +227,240 @@
 </article>
 
 <script>
-// Check connection status on load
+// Load initial data on page load
 window.addEventListener('DOMContentLoaded', async () => {
+    await refreshStatus();
+    await loadQuickStats();
+});
+
+// Refresh connection status
+async function refreshStatus() {
     try {
         const response = await fetch('/api/status');
         const data = await response.json();
-        const statusDiv = document.getElementById('status-display');
 
+        // Update Amber status
+        const amberDiv = document.getElementById('amber-status');
+        const amberContent = document.getElementById('amber-status-content');
         if (data.amber && data.amber.connected) {
-            statusDiv.innerHTML = `
-                <p style="color: var(--ins-color);">✓ Amber API: Connected</p>
+            amberDiv.style.background = 'rgba(0, 255, 0, 0.1)';
+            amberContent.innerHTML = `
+                <p style="margin: 0; color: var(--ins-color); font-weight: bold;">✓ Connected</p>
+                <p style="margin: 0.5em 0 0 0; font-size: 0.85em;">${data.amber.message}</p>
             `;
         } else {
-            statusDiv.innerHTML = `
-                <p style="color: var(--del-color);">✗ Amber API: Not connected</p>
-                <p>Please configure your Amber API token in Settings.</p>
+            amberDiv.style.background = 'rgba(255, 0, 0, 0.1)';
+            amberContent.innerHTML = `
+                <p style="margin: 0; color: var(--del-color); font-weight: bold;">✗ Not Connected</p>
+                <p style="margin: 0.5em 0 0 0; font-size: 0.85em;">${data.amber.message || 'Not configured'}</p>
+            `;
+        }
+
+        // Update Tesla status
+        const teslaDiv = document.getElementById('tesla-status');
+        const teslaContent = document.getElementById('tesla-status-content');
+        if (data.tesla && data.tesla.connected) {
+            teslaDiv.style.background = 'rgba(0, 255, 0, 0.1)';
+            teslaContent.innerHTML = `
+                <p style="margin: 0; color: var(--ins-color); font-weight: bold;">✓ Connected</p>
+                <p style="margin: 0.5em 0 0 0; font-size: 0.85em;">${data.tesla.message}</p>
+            `;
+        } else {
+            teslaDiv.style.background = 'rgba(255, 0, 0, 0.1)';
+            teslaContent.innerHTML = `
+                <p style="margin: 0; color: var(--del-color); font-weight: bold;">✗ Not Connected</p>
+                <p style="margin: 0.5em 0 0 0; font-size: 0.85em;">${data.tesla.message || 'Not configured'}</p>
             `;
         }
     } catch (error) {
-        document.getElementById('status-display').innerHTML = `
-            <p style="color: var(--del-color);">Error checking connection: ${error.message}</p>
-        `;
+        console.error('Error checking connection:', error);
     }
-});
+}
 
+// Load quick stats for dashboard
+async function loadQuickStats() {
+    try {
+        const response = await fetch('/api/amber/current-price');
+        const data = await response.json();
+
+        if (data && data.length > 0) {
+            const general = data.find(p => p.channelType === 'general');
+            if (general) {
+                // Current price
+                document.getElementById('stat-current-price').textContent = `${general.perKwh.toFixed(2)}¢`;
+                document.getElementById('stat-price-trend').textContent = general.spikeStatus || 'Normal';
+
+                // Renewables
+                if (general.renewables !== undefined) {
+                    document.getElementById('stat-renewables').textContent = `${general.renewables}%`;
+                }
+            }
+        }
+
+        // Get forecast for next hour and 24h range
+        const forecastResponse = await fetch('/api/test/amber/price-forecast?next_hours=24&resolution=30');
+        const forecastData = await forecastResponse.json();
+
+        if (forecastData && forecastData.data) {
+            const prices = forecastData.data
+                .filter(p => p.channelType === 'general')
+                .map(p => p.perKwh);
+
+            if (prices.length > 2) {
+                // Next hour average (next 2x 30-min periods)
+                const nextHourAvg = (prices[0] + prices[1]) / 2;
+                document.getElementById('stat-next-hour').textContent = nextHourAvg.toFixed(2);
+
+                // 24h range
+                const min = Math.min(...prices);
+                const max = Math.max(...prices);
+                document.getElementById('stat-price-range').textContent = `${min.toFixed(1)} - ${max.toFixed(1)}`;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading quick stats:', error);
+    }
+}
+
+// Quick Actions
+async function quickAction(action) {
+    const resultDiv = document.getElementById('quick-action-result');
+    const titleElem = document.getElementById('quick-action-title');
+    const outputElem = document.getElementById('quick-action-output');
+
+    resultDiv.style.display = 'block';
+    outputElem.textContent = 'Loading...';
+
+    try {
+        switch (action) {
+            case 'current-situation':
+                titleElem.textContent = '📊 Current Situation';
+                const currentResp = await fetch('/api/amber/current-price');
+                const currentData = await currentResp.json();
+                const general = currentData.find(p => p.channelType === 'general');
+                const feedIn = currentData.find(p => p.channelType === 'feedIn');
+
+                let output = '=== CURRENT ELECTRICITY SITUATION ===\n\n';
+                if (general) {
+                    output += `Import Price: ${general.perKwh.toFixed(2)}¢/kWh\n`;
+                    output += `Spike Status: ${general.spikeStatus || 'Normal'}\n`;
+                    output += `Renewables: ${general.renewables}%\n`;
+                }
+                if (feedIn) {
+                    output += `\nExport Price: ${feedIn.perKwh.toFixed(2)}¢/kWh\n`;
+                }
+                outputElem.textContent = output;
+                break;
+
+            case 'next-24h-forecast':
+                titleElem.textContent = '📈 Next 24h Forecast';
+                const forecastResp = await fetch('/api/test/amber/price-forecast?next_hours=24&resolution=30');
+                const forecastData = await forecastResp.json();
+
+                const prices = forecastData.data.filter(p => p.channelType === 'general');
+                let forecastOutput = '=== NEXT 24 HOURS PRICE FORECAST ===\n\n';
+                prices.slice(0, 10).forEach(p => {
+                    forecastOutput += `${p.period}: ${p.perKwh.toFixed(2)}¢/kWh\n`;
+                });
+                forecastOutput += `\n... and ${prices.length - 10} more periods\n`;
+                outputElem.textContent = forecastOutput;
+                break;
+
+            case 'optimal-times':
+                titleElem.textContent = '⚡ Best Charge/Export Times';
+                const optResp = await fetch('/api/test/amber/price-forecast?next_hours=24&resolution=30');
+                const optData = await optResp.json();
+
+                const importPrices = optData.data.filter(p => p.channelType === 'general');
+                const exportPrices = optData.data.filter(p => p.channelType === 'feedIn');
+
+                const sortedImport = [...importPrices].sort((a, b) => a.perKwh - b.perKwh);
+                const sortedExport = [...exportPrices].sort((a, b) => b.perKwh - a.perKwh);
+
+                let optOutput = '=== OPTIMAL TIMES (Next 24h) ===\n\n';
+                optOutput += 'Best Times to CHARGE (Cheapest Import):\n';
+                sortedImport.slice(0, 5).forEach((p, i) => {
+                    optOutput += `${i+1}. ${p.period}: ${p.perKwh.toFixed(2)}¢/kWh\n`;
+                });
+
+                optOutput += '\nBest Times to EXPORT (Highest Feed-In):\n';
+                sortedExport.slice(0, 5).forEach((p, i) => {
+                    optOutput += `${i+1}. ${p.period}: ${p.perKwh.toFixed(2)}¢/kWh\n`;
+                });
+                outputElem.textContent = optOutput;
+                break;
+
+            case 'tesla-battery':
+                titleElem.textContent = '🔋 Battery Status';
+                const batteryResp = await fetch('/api/tesla/status');
+                const batteryData = await batteryResp.json();
+
+                let batteryOutput = '=== TESLA BATTERY STATUS ===\n\n';
+                if (batteryData.error) {
+                    batteryOutput += `Error: ${batteryData.error}\n`;
+                } else {
+                    batteryOutput += JSON.stringify(batteryData, null, 2);
+                }
+                outputElem.textContent = batteryOutput;
+                break;
+
+            case 'tesla-tou':
+                titleElem.textContent = '⏰ Current TOU Schedule';
+                const touResp = await fetch('/api/tou-schedule');
+                const touData = await touResp.json();
+
+                let touOutput = '=== CURRENT TOU SCHEDULE ON TESLA ===\n\n';
+                touOutput += JSON.stringify(touData, null, 2);
+                outputElem.textContent = touOutput;
+                break;
+
+            case 'sync-test':
+                titleElem.textContent = '🔄 Full Sync Test';
+                outputElem.textContent = 'Full sync test not implemented yet.\nThis would test the complete Amber→Tesla sync flow.';
+                break;
+
+            default:
+                outputElem.textContent = 'Unknown action';
+        }
+    } catch (error) {
+        outputElem.textContent = `Error: ${error.message}`;
+    }
+}
+
+// Tesla API Endpoints
+async function testTeslaEndpoint(name) {
+    const outputElement = document.getElementById(`output-tesla-${name}`);
+    const detailsElement = document.getElementById(`response-tesla-${name}`);
+
+    outputElement.textContent = 'Loading...';
+    detailsElement.open = true;
+
+    try {
+        let url;
+        switch (name) {
+            case 'site-info':
+                url = '/api/tesla/status';
+                break;
+            case 'live-status':
+                url = '/api/tesla/status';
+                break;
+            case 'tou-schedule':
+                url = '/api/tou-schedule';
+                break;
+            default:
+                throw new Error('Unknown Tesla endpoint');
+        }
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        outputElement.textContent = JSON.stringify(data, null, 2);
+    } catch (error) {
+        outputElement.textContent = `Error: ${error.message}`;
+    }
+}
+
+// Amber API Endpoints
 async function testEndpoint(name, params = {}) {
     const outputElement = document.getElementById(`output-${name}`);
     const detailsElement = document.getElementById(`response-${name}`);
