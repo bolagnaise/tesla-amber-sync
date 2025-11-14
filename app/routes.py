@@ -340,6 +340,14 @@ def amber_settings():
     return render_template('amber_settings.html', title='Amber Settings', form=form)
 
 
+@bp.route('/logs')
+@login_required
+def logs():
+    """Display application logs viewer"""
+    logger.info(f"Logs page accessed by user: {current_user.email}")
+    return render_template('logs.html', title='Application Logs')
+
+
 # API Status and Data Routes
 @bp.route('/api/status')
 @login_required

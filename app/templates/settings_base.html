@@ -10,7 +10,7 @@
                     <a href="{{ url_for('main.settings') }}"
                        style="display: block; padding: 0.75rem 1rem; border-radius: 0.5rem; text-decoration: none;
                               {% if request.endpoint == 'main.settings' %}background-color: var(--primary); color: white;{% else %}background-color: var(--card-background-color);{% endif %}">
-                        Settings
+                        Configuration
                     </a>
                 </li>
                 <li style="margin-bottom: 0.5rem;">
@@ -46,6 +46,13 @@
                        style="display: block; padding: 0.75rem 1rem; border-radius: 0.5rem; text-decoration: none;
                               {% if request.endpoint == 'main.api_status' %}background-color: var(--primary); color: white;{% else %}background-color: var(--card-background-color);{% endif %}">
                         API Testing
+                    </a>
+                </li>
+                <li style="margin-bottom: 0.5rem;">
+                    <a href="{{ url_for('main.logs') }}"
+                       style="display: block; padding: 0.75rem 1rem; border-radius: 0.5rem; text-decoration: none;
+                              {% if request.endpoint == 'main.logs' %}background-color: var(--primary); color: white;{% else %}background-color: var(--card-background-color);{% endif %}">
+                        Logs
                     </a>
                 </li>
             </ul>
