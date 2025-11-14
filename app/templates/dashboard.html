@@ -13,17 +13,23 @@
     </hgroup>
 
     <!-- API Connection Status -->
-    <div class="grid">
-        <article id="amber-status" style="margin: 0; padding: 1em;">
-            <header><strong>Amber Electric</strong></header>
-            <p style="margin: 0;"><span class="status-indicator" id="amber-indicator">⏳</span> <span id="amber-message">Checking...</span></p>
-        </article>
-
-        <article id="tesla-status" style="margin: 0; padding: 1em;">
-            <header><strong>Tesla</strong></header>
-            <p style="margin: 0;"><span class="status-indicator" id="tesla-indicator">⏳</span> <span id="tesla-message">Checking...</span></p>
-        </article>
-    </div>
+    <article id="connection-status">
+        <header><strong>Connection Status</strong></header>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div id="amber-status" style="padding: 1rem; border-radius: 0.5rem; background: rgba(150, 150, 150, 0.1);">
+                <h4 style="margin: 0 0 0.5em 0;">⚡ Amber Electric</h4>
+                <div id="amber-status-content">
+                    <p style="margin: 0;">Checking connection...</p>
+                </div>
+            </div>
+            <div id="tesla-status" style="padding: 1rem; border-radius: 0.5rem; background: rgba(150, 150, 150, 0.1);">
+                <h4 style="margin: 0 0 0.5em 0;">🔋 Tesla Energy</h4>
+                <div id="tesla-status-content">
+                    <p style="margin: 0;">Checking connection...</p>
+                </div>
+            </div>
+        </div>
+    </article>
 
     <!-- AEMO Wholesale Price Monitor -->
     <article id="aemo-price-monitor" style="display: none; background: linear-gradient(135deg, #065f46 0%, #047857 100%); color: white; padding: 1.5em; margin-top: 1em;">
@@ -292,29 +298,37 @@
                 const status = await response.json();
 
                 // Update Amber status
-                const amberIndicator = document.getElementById('amber-indicator');
-                const amberMessage = document.getElementById('amber-message');
-                if (status.amber.connected) {
-                    amberIndicator.textContent = '✅';
-                    amberMessage.textContent = 'Connected';
-                    amberMessage.style.color = 'green';
+                const amberDiv = document.getElementById('amber-status');
+                const amberContent = document.getElementById('amber-status-content');
+                if (status.amber && status.amber.connected) {
+                    amberDiv.style.background = 'rgba(0, 255, 0, 0.1)';
+                    amberContent.innerHTML = `
+                        <p style="margin: 0; color: var(--ins-color); font-weight: bold;">✓ Connected</p>
+                        <p style="margin: 0.5em 0 0 0; font-size: 0.85em;">${status.amber.message}</p>
+                    `;
                 } else {
-                    amberIndicator.textContent = '❌';
-                    amberMessage.textContent = status.amber.message;
-                    amberMessage.style.color = 'red';
+                    amberDiv.style.background = 'rgba(255, 0, 0, 0.1)';
+                    amberContent.innerHTML = `
+                        <p style="margin: 0; color: var(--del-color); font-weight: bold;">✗ Not Connected</p>
+                        <p style="margin: 0.5em 0 0 0; font-size: 0.85em;">${status.amber.message || 'Not configured'}</p>
+                    `;
                 }
 
                 // Update Tesla status
-                const teslaIndicator = document.getElementById('tesla-indicator');
-                const teslaMessage = document.getElementById('tesla-message');
-                if (status.tesla.connected) {
-                    teslaIndicator.textContent = '✅';
-                    teslaMessage.textContent = 'Connected';
-                    teslaMessage.style.color = 'green';
+                const teslaDiv = document.getElementById('tesla-status');
+                const teslaContent = document.getElementById('tesla-status-content');
+                if (status.tesla && status.tesla.connected) {
+                    teslaDiv.style.background = 'rgba(0, 255, 0, 0.1)';
+                    teslaContent.innerHTML = `
+                        <p style="margin: 0; color: var(--ins-color); font-weight: bold;">✓ Connected</p>
+                        <p style="margin: 0.5em 0 0 0; font-size: 0.85em;">${status.tesla.message}</p>
+                    `;
                 } else {
-                    teslaIndicator.textContent = '❌';
-                    teslaMessage.textContent = status.tesla.message;
-                    teslaMessage.style.color = 'red';
+                    teslaDiv.style.background = 'rgba(255, 0, 0, 0.1)';
+                    teslaContent.innerHTML = `
+                        <p style="margin: 0; color: var(--del-color); font-weight: bold;">✗ Not Connected</p>
+                        <p style="margin: 0.5em 0 0 0; font-size: 0.85em;">${status.tesla.message || 'Not configured'}</p>
+                    `;
                 }
 
                 // If Amber is connected, fetch current prices
