@@ -114,7 +114,7 @@ def create_app(config_class=Config):
 
         scheduler.add_job(
             func=run_sync_all_users,
-            trigger=CronTrigger(minute='*/5', second='15'),
+            trigger=CronTrigger(minute='*/5', second='35'),
             id='sync_tou_schedules',
             name='Sync TOU schedules from Amber to Tesla',
             replace_existing=True
@@ -123,7 +123,7 @@ def create_app(config_class=Config):
         # Add job to save price history every 5 minutes for continuous tracking
         scheduler.add_job(
             func=run_save_price_history,
-            trigger=CronTrigger(minute='*/5', second='15'),
+            trigger=CronTrigger(minute='*/5', second='35'),
             id='save_price_history',
             name='Save Amber price history to database',
             replace_existing=True
@@ -141,7 +141,7 @@ def create_app(config_class=Config):
         # Add job to monitor AEMO prices every 5 minutes for spike detection
         scheduler.add_job(
             func=run_monitor_aemo_prices,
-            trigger=CronTrigger(minute='*/5', second='15'),
+            trigger=CronTrigger(minute='*/5', second='35'),
             id='monitor_aemo_prices',
             name='Monitor AEMO NEM prices for spike detection',
             replace_existing=True
@@ -150,10 +150,10 @@ def create_app(config_class=Config):
         # Start the scheduler
         scheduler.start()
         logger.info("✅ Background scheduler started:")
-        logger.info("  - TOU sync will run every 5 minutes at :15 seconds (ensures AEMO ActualInterval data is available)")
-        logger.info("  - Price history collection will run every 5 minutes at :15 seconds")
+        logger.info("  - TOU sync will run every 5 minutes at :35 seconds (ensures AEMO ActualInterval data is available)")
+        logger.info("  - Price history collection will run every 5 minutes at :35 seconds")
         logger.info("  - Energy usage logging will run every minute (Teslemetry allows 1/min)")
-        logger.info("  - AEMO price monitoring will run every 5 minutes at :15 seconds for spike detection")
+        logger.info("  - AEMO price monitoring will run every 5 minutes at :35 seconds for spike detection")
 
         # Shut down the scheduler and release lock when exiting the app
         def cleanup():

@@ -341,14 +341,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info("Performing initial TOU sync")
         await handle_sync_tou(None)
 
-    # Start the automatic sync timer (every 5 minutes, aligned to clock at :15 seconds)
-    # Triggers at :00:15, :05:15, :10:15, :15:15, :20:15, :25:15, :30:15, :35:15, :40:15, :45:15, :50:15, :55:15
-    # The 15-second offset ensures AEMO ActualInterval data is published before we fetch it
+    # Start the automatic sync timer (every 5 minutes, aligned to clock at :35 seconds)
+    # Triggers at :00:35, :05:35, :10:35, :15:35, :20:35, :25:35, :30:35, :35:35, :40:35, :45:35, :50:35, :55:35
+    # The 35-second offset ensures AEMO ActualInterval data is published before we fetch it
     cancel_timer = async_track_utc_time_change(
         hass,
         auto_sync_tou,
         minute=[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55],
-        second=15,
+        second=35,
     )
 
     # Store the cancel function so we can clean it up later
