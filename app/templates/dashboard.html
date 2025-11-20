@@ -479,12 +479,14 @@
             }
 
             // Fetch and display 5-minute forecast (separate API call)
-            generate5MinForecast(generalPrice);
+            // Pass live WebSocket prices for the current tile
+            generate5MinForecast(generalPrice, feedinPrice);
         }
 
         // Fetch and display real 5-minute interval forecast from Amber API
         // Shows current 30-min period (from now) + next 30-min period
-        async function generate5MinForecast(generalPrice) {
+        // Uses live WebSocket price for current tile, forecast prices for future tiles
+        async function generate5MinForecast(liveGeneralPrice, liveFeedinPrice) {
             const forecastDiv = document.getElementById('five-min-forecast');
 
             try {
@@ -551,35 +553,8 @@
                     return false;
                 });
 
-                // Update the big circles with the current 5-minute interval price (first filtered interval)
-                if (filteredIntervals.length > 0) {
-                    const currentInterval = filteredIntervals[0];
-                    const absPrice = Math.abs(currentInterval.perKwh);
-
-                    if (selectedChannel === 'general') {
-                        // Update import circle
-                        document.getElementById('current-general-price').textContent = `${absPrice.toFixed(0)}¢`;
-                        document.getElementById('current-renewables').textContent = `${Math.round(currentInterval.renewables || 0)}% renewable`;
-
-                        // Update import circle color
-                        let circleColor;
-                        if (absPrice < 20) {
-                            circleColor = '#22c55e'; // green (<20¢)
-                        } else if (absPrice < 30) {
-                            circleColor = '#fbbf24'; // yellow (20-30¢)
-                        } else if (absPrice < 40) {
-                            circleColor = '#f59e0b'; // medium orange (30-40¢)
-                        } else if (absPrice < 50) {
-                            circleColor = '#f97316'; // dark orange (40-50¢)
-                        } else {
-                            circleColor = '#ef4444'; // red (≥50¢)
-                        }
-                        document.getElementById('import-circle').style.background = circleColor;
-                    } else {
-                        // Update export circle
-                        document.getElementById('current-feedin-price').textContent = `${absPrice.toFixed(0)}¢`;
-                    }
-                }
+                // Don't update the big circles here - they're updated by update5MinWindow() with live WebSocket prices
+                // The big circles should always show the most accurate real-time price, not forecast data
 
                 // Generate HTML for individual 5-minute slots (matching Amber app)
                 let html = '';
@@ -593,9 +568,19 @@
                     // Check if this is the current 5-minute interval
                     const isCurrent = (hour === currentHour && minute === currentMinute);
 
+                    // Use live WebSocket price for current tile, forecast price for future tiles
+                    let displayInterval = interval;
+                    if (isCurrent) {
+                        // Override with live WebSocket price for the current interval
+                        const livePrice = selectedChannel === 'general' ? liveGeneralPrice : liveFeedinPrice;
+                        if (livePrice) {
+                            displayInterval = livePrice;
+                        }
+                    }
+
                     // Determine circle color based on price and channel type
                     let circleColor;
-                    const absPrice = Math.abs(interval.perKwh);
+                    const absPrice = Math.abs(displayInterval.perKwh);
 
                     if (selectedChannel === 'general') {
                         // Import prices - 4-color scale (green/yellow/orange/red)
@@ -630,7 +615,7 @@
                             <div style="font-size: 0.75em; font-weight: ${isCurrent ? 'bold' : 'normal'}; margin-bottom: 0.4em; opacity: 0.9;">${timeLabel}</div>
                             <div style="color: ${circleColor}; font-size: 2.5em; line-height: 1;">●</div>
                             <div style="font-size: 1em; font-weight: bold; margin-top: 0.3em;">${absPrice.toFixed(0)}¢</div>
-                            <div style="font-size: 0.75em; opacity: 0.7; margin-top: 0.2em;">${Math.round(interval.renewables || 0)}%</div>
+                            <div style="font-size: 0.75em; opacity: 0.7; margin-top: 0.2em;">${Math.round(displayInterval.renewables || 0)}%</div>
                         </div>
                     `;
                 });
