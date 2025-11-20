@@ -64,6 +64,9 @@
     <article id="five-min-pricing" style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); color: white; padding: 1.5em;">
         <header style="text-align: center; margin-bottom: 1em;">
             <strong style="font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px;">☀️ Amber Live 5 Min Price</strong>
+            <div style="font-size: 0.75em; opacity: 0.8; margin-top: 0.2em;">
+                <span id="price-type-indicator">ActualInterval</span> - Last Completed 5-Min Period
+            </div>
             <div id="current-interval-time" style="font-size: 1.1em; font-weight: bold; margin-top: 0.3em;">--:-- - --:--</div>
         </header>
         <div style="display: flex; justify-content: center; gap: 2em; margin-bottom: 1.5em;">
@@ -426,6 +429,16 @@
             const feedinPrice = prices.find(p => p.channelType === 'feedIn');
 
             if (generalPrice) {
+                // Update price type indicator based on interval type
+                const priceTypeIndicator = document.getElementById('price-type-indicator');
+                if (generalPrice.type === 'ActualInterval') {
+                    priceTypeIndicator.textContent = 'ActualInterval';
+                    priceTypeIndicator.style.color = '#22c55e'; // Green for actual
+                } else {
+                    priceTypeIndicator.textContent = 'CurrentInterval';
+                    priceTypeIndicator.style.color = '#fbbf24'; // Yellow for current (weighted avg)
+                }
+
                 // Use backend-provided display times (already formatted in user's timezone)
                 if (generalPrice.displayIntervalStart && generalPrice.displayIntervalEnd) {
                     document.getElementById('current-interval-time').textContent =
@@ -827,14 +840,18 @@
 
                         // Use is_current flag from backend (calculated in user's timezone)
                         const isCurrentPeriod = period.is_current || false;
+                        const usesActualInterval = period.uses_actual_interval || false;
 
                         // Add visual indicators for current period
                         const rowStyle = isCurrentPeriod
                             ? 'border-bottom: 1px solid #333; background: rgba(81, 207, 102, 0.15); border-left: 3px solid #51cf66;'
                             : 'border-bottom: 1px solid #333;';
 
+                        // Show ActualInterval indicator if current period uses it
                         const timeDisplay = isCurrentPeriod
-                            ? `<strong>▶ ${period.time}</strong>`
+                            ? (usesActualInterval
+                                ? `<strong>▶ ${period.time}</strong> <span style="color: #22c55e; font-size: 0.8em;">⚡ Live</span>`
+                                : `<strong>▶ ${period.time}</strong>`)
                             : period.time;
 
                         html += `<tr style="${rowStyle}">
@@ -852,6 +869,7 @@
 
                     html += `<p style="font-size: 0.8em; color: #666; margin-top: 1em;">
                         <span style="color: #51cf66;">▶</span> Current period &nbsp;
+                        <span style="color: #22c55e;">⚡ Live</span> = Using ActualInterval (5-min actual price) &nbsp;
                         <span style="color: #51cf66;">●</span> Green = Good price &nbsp;
                         <span style="color: #ff6b6b;">●</span> Red = High price &nbsp;
                         <span style="color: #fff;">●</span> White = Average

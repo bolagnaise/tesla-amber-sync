@@ -383,7 +383,7 @@ def api_status():
 @bp.route('/api/amber/current-price')
 @login_required
 def amber_current_price():
-    """Get current Amber electricity price"""
+    """Get current Amber electricity price using ActualInterval (most recent 5-min actual price)"""
     logger.info(f"Current price requested by user: {current_user.email}")
 
     amber_client = get_amber_client(current_user)
@@ -391,10 +391,38 @@ def amber_current_price():
         logger.warning("Amber client not available")
         return jsonify({'error': 'Amber API not configured'}), 400
 
-    prices = amber_client.get_current_prices()
-    if not prices:
-        logger.error("Failed to fetch current prices")
+    # Fetch 5-minute resolution forecast to get ActualInterval data
+    forecast = amber_client.get_price_forecast(next_hours=1, resolution=5)
+    if not forecast:
+        logger.error("Failed to fetch price forecast")
         return jsonify({'error': 'Failed to fetch prices'}), 500
+
+    # Extract most recent ActualInterval (last completed 5-min period with actual price)
+    from app.tasks import extract_most_recent_actual_interval
+    actual_interval = extract_most_recent_actual_interval(forecast)
+
+    # Build prices array from ActualInterval if available, otherwise use CurrentInterval
+    prices = []
+    if actual_interval and actual_interval.get('general'):
+        # Use ActualInterval data (actual settled prices)
+        general_data = actual_interval['general']
+        feedin_data = actual_interval.get('feedIn')
+
+        prices.append(general_data)
+        if feedin_data:
+            prices.append(feedin_data)
+
+        logger.info("Using ActualInterval for live price display")
+    else:
+        # Fallback: find CurrentInterval in forecast data
+        logger.warning("No ActualInterval available, falling back to CurrentInterval")
+        for interval in forecast:
+            if interval.get('type') == 'CurrentInterval':
+                prices.append(interval)
+
+        if not prices:
+            logger.error("No current price data available")
+            return jsonify({'error': 'No current price data available'}), 500
 
     # Store prices in database and add display times
     try:
@@ -418,25 +446,38 @@ def amber_current_price():
             )
             db.session.add(record)
 
-            # Add display time for current 5-minute interval using Powerwall's timezone
-            # (nemTime is the start of the 30-minute pricing period, not the current 5-min interval)
+            # Add display time for the interval using Powerwall's timezone
+            # For ActualInterval: use the actual interval's time range (nemTime - duration)
+            # For CurrentInterval: use current browser time bucket
             user_tz = ZoneInfo(get_powerwall_timezone(current_user))
-            current_time = datetime.now(user_tz)
 
-            minute = current_time.minute
-            hour = current_time.hour
-            interval_start = (minute // 5) * 5
-            interval_end = interval_start + 5
+            if price_data.get('type') == 'ActualInterval':
+                # Use actual interval's time range from the API
+                # nemTime is END of interval, duration tells us the length
+                duration = price_data.get('duration', 5)
+                from datetime import timedelta
+                interval_end_time = nem_time.astimezone(user_tz)
+                interval_start_time = interval_end_time - timedelta(minutes=duration)
 
-            # Handle interval crossing hour boundary (e.g., 17:55 - 18:00)
-            if interval_end >= 60:
-                end_hour = (hour + 1) % 24
-                end_minute = interval_end - 60
-                price_data['displayIntervalStart'] = f"{hour:02d}:{interval_start:02d}"
-                price_data['displayIntervalEnd'] = f"{end_hour:02d}:{end_minute:02d}"
+                price_data['displayIntervalStart'] = interval_start_time.strftime('%H:%M')
+                price_data['displayIntervalEnd'] = interval_end_time.strftime('%H:%M')
             else:
-                price_data['displayIntervalStart'] = f"{hour:02d}:{interval_start:02d}"
-                price_data['displayIntervalEnd'] = f"{hour:02d}:{interval_end:02d}"
+                # CurrentInterval: calculate from current browser time
+                current_time = datetime.now(user_tz)
+                minute = current_time.minute
+                hour = current_time.hour
+                interval_start = (minute // 5) * 5
+                interval_end = interval_start + 5
+
+                # Handle interval crossing hour boundary (e.g., 17:55 - 18:00)
+                if interval_end >= 60:
+                    end_hour = (hour + 1) % 24
+                    end_minute = interval_end - 60
+                    price_data['displayIntervalStart'] = f"{hour:02d}:{interval_start:02d}"
+                    price_data['displayIntervalEnd'] = f"{end_hour:02d}:{end_minute:02d}"
+                else:
+                    price_data['displayIntervalStart'] = f"{hour:02d}:{interval_start:02d}"
+                    price_data['displayIntervalEnd'] = f"{hour:02d}:{interval_end:02d}"
 
         db.session.commit()
         logger.info(f"Saved {len(prices)} price records to database")
@@ -823,11 +864,15 @@ def tou_schedule():
         return jsonify({'error': 'Amber API not configured'}), 400
 
     # Get price forecast for next 48 hours (to build rolling 24h window)
-    # Request 30-minute resolution - Amber pre-averages 5-min intervals for us
-    forecast = amber_client.get_price_forecast(next_hours=48, resolution=30)
+    # Request 5-minute resolution to get ActualInterval data for current period spike detection
+    forecast = amber_client.get_price_forecast(next_hours=48, resolution=5)
     if not forecast:
         logger.error("Failed to fetch price forecast")
         return jsonify({'error': 'Failed to fetch price forecast'}), 500
+
+    # Extract most recent ActualInterval (last completed 5-min period with actual price)
+    from app.tasks import extract_most_recent_actual_interval
+    actual_interval = extract_most_recent_actual_interval(forecast)
 
     # Fetch Powerwall timezone from Tesla API (most accurate)
     # This ensures correct timezone handling for TOU schedule alignment
@@ -852,7 +897,8 @@ def tou_schedule():
     tariff = converter.convert_amber_to_tesla_tariff(
         forecast,
         user=current_user,
-        powerwall_timezone=powerwall_timezone
+        powerwall_timezone=powerwall_timezone,
+        current_actual_interval=actual_interval
     )
 
     if not tariff:
@@ -880,13 +926,17 @@ def tou_schedule():
                 # Check if this is the current period
                 is_current = (hour == current_hour and minute == current_minute_bucket)
 
+                # Check if current period is using ActualInterval pricing
+                uses_actual_interval = is_current and actual_interval is not None
+
                 periods.append({
                     'time': f"{hour:02d}:{minute:02d}",
                     'hour': hour,
                     'minute': minute,
                     'buy_price': energy_rates[period_key] * 100,  # Convert back to cents
                     'sell_price': feedin_rates.get(period_key, 0) * 100,
-                    'is_current': is_current
+                    'is_current': is_current,
+                    'uses_actual_interval': uses_actual_interval
                 })
 
     # Calculate stats
