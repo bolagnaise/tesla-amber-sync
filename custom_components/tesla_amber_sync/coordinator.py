@@ -133,21 +133,35 @@ class AmberPriceCoordinator(DataUpdateCoordinator):
                 timeout_seconds=30,
             )
 
-            # Get price forecast (next 48 hours) with retry logic
-            # Request 5-minute resolution to get ActualInterval data for current period spike detection
-            # This allows us to capture short-term price spikes that would otherwise be averaged out
-            forecast_prices = await _fetch_with_retry(
+            # Dual-resolution forecast approach to ensure complete data coverage:
+            # 1. Fetch 1 hour at 5-min resolution for CurrentInterval/ActualInterval spike detection
+            # 2. Fetch 48 hours at 30-min resolution for complete TOU schedule building
+            # (The Amber API doesn't provide 48 hours of 5-min data, causing missing sell prices)
+
+            # Step 1: Get 5-min resolution data for current period spike detection
+            forecast_5min = await _fetch_with_retry(
                 self.session,
                 f"{AMBER_API_BASE_URL}/sites/{self.site_id}/prices",
                 headers,
-                params={"next": 48, "resolution": 5},
+                params={"next": 1, "resolution": 5},
+                max_retries=2,
+                timeout_seconds=30,
+            )
+
+            # Step 2: Get 30-min resolution data for full 48-hour TOU schedule
+            forecast_30min = await _fetch_with_retry(
+                self.session,
+                f"{AMBER_API_BASE_URL}/sites/{self.site_id}/prices",
+                headers,
+                params={"next": 48, "resolution": 30},
                 max_retries=2,
                 timeout_seconds=30,
             )
 
             return {
                 "current": current_prices,
-                "forecast": forecast_prices,
+                "forecast": forecast_30min,  # Use 30-min forecast for TOU schedule
+                "forecast_5min": forecast_5min,  # Keep 5-min for CurrentInterval extraction
                 "last_update": dt_util.utcnow(),
             }
 

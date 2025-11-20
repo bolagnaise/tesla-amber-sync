@@ -244,15 +244,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             extract_most_recent_actual_interval,
         )
 
-        # Extract most recent ActualInterval (last completed 5-min period with actual price)
+        # Extract most recent CurrentInterval/ActualInterval from 5-min forecast data
         # This captures short-term price spikes that would otherwise be averaged out
-        current_actual_interval = extract_most_recent_actual_interval(
-            amber_coordinator.data.get("forecast", [])
-        )
+        forecast_5min = amber_coordinator.data.get("forecast_5min", [])
+        current_actual_interval = extract_most_recent_actual_interval(forecast_5min)
         if current_actual_interval:
-            _LOGGER.info("ActualInterval extracted for current period pricing")
+            _LOGGER.info("CurrentInterval/ActualInterval extracted for current period pricing")
         else:
-            _LOGGER.info("No ActualInterval available, will use 30-min forecast averaging")
+            _LOGGER.info("No CurrentInterval/ActualInterval available, will use 30-min forecast averaging")
 
         # Get forecast type from options (if set) or data (from initial config)
         forecast_type = entry.options.get(
