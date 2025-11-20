@@ -79,7 +79,15 @@
                 <label for="amber_token">
                     {{ form.amber_token.label }}
                     <small>Get this from your Amber developer settings.</small>
-                    {{ form.amber_token(size=64) }}
+                    <div style="display: flex; align-items: center; gap: 0.5em;">
+                        {{ form.amber_token(size=64, type='password', class='secure-field', style='flex: 1;') }}
+                        <button type="button" onclick="toggleVisibility('amber_token', this)"
+                                style="background: none; border: none; cursor: pointer; padding: 0.5em;
+                                       font-size: 1.2em; color: var(--muted-color); flex-shrink: 0;"
+                                aria-label="Toggle visibility" title="Show/Hide API Token">
+                            👁️
+                        </button>
+                    </div>
                 </label>
             </fieldset>
 
@@ -88,7 +96,15 @@
                 <label for="teslemetry_api_key">
                     {{ form.teslemetry_api_key.label }}
                     <small>Sign up at <a href="https://teslemetry.com" target="_blank">teslemetry.com</a>, connect your Tesla account, and paste your API key here.</small>
-                    {{ form.teslemetry_api_key(size=64) }}
+                    <div style="display: flex; align-items: center; gap: 0.5em;">
+                        {{ form.teslemetry_api_key(size=64, type='password', class='secure-field', style='flex: 1;') }}
+                        <button type="button" onclick="toggleVisibility('teslemetry_api_key', this)"
+                                style="background: none; border: none; cursor: pointer; padding: 0.5em;
+                                       font-size: 1.2em; color: var(--muted-color); flex-shrink: 0;"
+                                aria-label="Toggle visibility" title="Show/Hide API Key">
+                            👁️
+                        </button>
+                    </div>
                 </label>
             </fieldset>
 
@@ -97,7 +113,15 @@
                 <label for="tesla_site_id">
                     {{ form.tesla_site_id.label }}
                     <small>Your Tesla energy site ID (Powerwall/Solar). Find this in Teslemetry dashboard or Tesla Fleet API products list.</small>
-                    {{ form.tesla_site_id(size=32) }}
+                    <div style="display: flex; align-items: center; gap: 0.5em;">
+                        {{ form.tesla_site_id(size=32, type='password', class='secure-field', style='flex: 1;') }}
+                        <button type="button" onclick="toggleVisibility('tesla_site_id', this)"
+                                style="background: none; border: none; cursor: pointer; padding: 0.5em;
+                                       font-size: 1.2em; color: var(--muted-color); flex-shrink: 0;"
+                                aria-label="Toggle visibility" title="Show/Hide Site ID">
+                            👁️
+                        </button>
+                    </div>
                 </label>
             </fieldset>
 
@@ -234,5 +258,26 @@
                 fields.style.display = 'none';
             }
         }
+
+        function toggleVisibility(fieldId, button) {
+            const field = document.getElementById(fieldId);
+            if (field.type === 'password') {
+                field.type = 'text';
+                button.textContent = '🙈';  // Eye with slash (hidden)
+                button.style.opacity = '1';
+            } else {
+                field.type = 'password';
+                button.textContent = '👁️';  // Eye (visible)
+                button.style.opacity = '0.6';
+            }
+        }
+
+        // Initialize all secure fields as password type on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const secureFields = document.querySelectorAll('.secure-field');
+            secureFields.forEach(field => {
+                field.type = 'password';
+            });
+        });
     </script>
 {% endblock settings_content %}

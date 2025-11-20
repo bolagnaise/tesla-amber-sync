@@ -168,6 +168,58 @@ def create_app(config_class=Config):
         # Lock already held by another worker - skip scheduler initialization
         logger.info("⏭️  Another worker is running the scheduler - skipping initialization in this worker")
 
+    # Initialize WebSocket client for real-time price updates (all workers)
+    # Each worker maintains its own WebSocket connection for optimal performance
+    try:
+        from app.websocket_client import AmberWebSocketClient
+        from app.models import User
+
+        # Query database within application context
+        with app.app_context():
+            # Get the first user's Amber credentials (assuming single-user setup)
+            # In multi-user setups, each user would need their own WebSocket client
+            user = User.query.first()
+            if user and user.amber_api_token_encrypted:
+                from app.utils import decrypt_token
+
+                # Decrypt the Amber API token
+                decrypted_token = decrypt_token(user.amber_api_token_encrypted)
+
+                # Fetch site ID from Amber API (not stored in User model)
+                site_id = None
+                from app.api_clients import get_amber_client
+                amber_client = get_amber_client(user)
+                if amber_client:
+                    sites = amber_client.get_sites()
+                    if sites:
+                        site_id = sites[0]['id']
+                        logger.info(f"Using first Amber site: {site_id}")
+
+                if site_id:
+                    # Initialize and start WebSocket client
+                    ws_client = AmberWebSocketClient(decrypted_token, site_id)
+                    ws_client.start()
+
+                    # Store in app config for access by routes and tasks
+                    app.config['AMBER_WEBSOCKET_CLIENT'] = ws_client
+
+                    # Register cleanup on app teardown
+                    def cleanup_websocket():
+                        logger.info("Cleaning up WebSocket client")
+                        ws_client.stop()
+
+                    atexit.register(cleanup_websocket)
+
+                    logger.info("🔌 Amber WebSocket client initialized and started")
+                else:
+                    logger.warning("No Amber site ID available - WebSocket client not started")
+            else:
+                logger.info("No user with Amber credentials found - WebSocket client not started")
+
+    except Exception as e:
+        logger.error(f"Failed to initialize WebSocket client: {e}", exc_info=True)
+        logger.warning("WebSocket client not available - will use REST API fallback")
+
     logger.info("Flask application created successfully")
     return app
 

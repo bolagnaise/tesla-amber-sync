@@ -383,7 +383,7 @@ def api_status():
 @bp.route('/api/amber/current-price')
 @login_required
 def amber_current_price():
-    """Get current Amber electricity price using ActualInterval (most recent 5-min actual price)"""
+    """Get current Amber electricity price using WebSocket (real-time) with REST API fallback"""
     logger.info(f"Current price requested by user: {current_user.email}")
 
     amber_client = get_amber_client(current_user)
@@ -391,38 +391,18 @@ def amber_current_price():
         logger.warning("Amber client not available")
         return jsonify({'error': 'Amber API not configured'}), 400
 
-    # Fetch 5-minute resolution forecast to get ActualInterval data
-    forecast = amber_client.get_price_forecast(next_hours=1, resolution=5)
-    if not forecast:
-        logger.error("Failed to fetch price forecast")
-        return jsonify({'error': 'Failed to fetch prices'}), 500
+    # Get WebSocket client from Flask app config
+    from flask import current_app
+    ws_client = current_app.config.get('AMBER_WEBSOCKET_CLIENT')
 
-    # Extract most recent ActualInterval (last completed 5-min period with actual price)
-    from app.tasks import extract_most_recent_actual_interval
-    actual_interval = extract_most_recent_actual_interval(forecast)
+    # Try WebSocket first, fall back to REST API
+    prices = amber_client.get_live_prices(ws_client=ws_client)
 
-    # Build prices array from ActualInterval if available, otherwise use CurrentInterval
-    prices = []
-    if actual_interval and actual_interval.get('general'):
-        # Use ActualInterval data (actual settled prices)
-        general_data = actual_interval['general']
-        feedin_data = actual_interval.get('feedIn')
+    if not prices:
+        logger.error("No current price data available from WebSocket or REST API")
+        return jsonify({'error': 'No current price data available'}), 500
 
-        prices.append(general_data)
-        if feedin_data:
-            prices.append(feedin_data)
-
-        logger.info("Using ActualInterval for live price display")
-    else:
-        # Fallback: find CurrentInterval in forecast data
-        logger.warning("No ActualInterval available, falling back to CurrentInterval")
-        for interval in forecast:
-            if interval.get('type') == 'CurrentInterval':
-                prices.append(interval)
-
-        if not prices:
-            logger.error("No current price data available")
-            return jsonify({'error': 'No current price data available'}), 500
+    logger.info(f"Retrieved {len(prices)} price channels (WebSocket-first approach)")
 
     # Store prices in database and add display times
     try:
@@ -863,16 +843,26 @@ def tou_schedule():
         logger.warning("Amber client not available for tariff schedule")
         return jsonify({'error': 'Amber API not configured'}), 400
 
-    # Step 1: Fetch recent data (1 hour) with 5-min resolution to get CurrentInterval/ActualInterval
-    # This ensures we have the most up-to-date 5-minute pricing for spike detection
-    recent_forecast_5min = amber_client.get_price_forecast(next_hours=1, resolution=5)
-    if not recent_forecast_5min:
-        logger.error("Failed to fetch recent 5-min forecast for current interval")
-        return jsonify({'error': 'Failed to fetch prices'}), 500
+    # Step 1: Get current interval prices from WebSocket (real-time) with REST API fallback
+    # This ensures we have the most up-to-date pricing for the current period
+    from flask import current_app
+    ws_client = current_app.config.get('AMBER_WEBSOCKET_CLIENT')
 
-    # Extract most recent CurrentInterval or ActualInterval from the 5-min data
-    from app.tasks import extract_most_recent_actual_interval
-    actual_interval = extract_most_recent_actual_interval(recent_forecast_5min)
+    # Get live prices (WebSocket first, REST API fallback)
+    current_prices = amber_client.get_live_prices(ws_client=ws_client)
+
+    # Convert to actual_interval format for tariff converter
+    actual_interval = None
+    if current_prices:
+        actual_interval = {'general': None, 'feedIn': None}
+        for price in current_prices:
+            channel = price.get('channelType')
+            if channel in ['general', 'feedIn']:
+                actual_interval[channel] = price
+
+        logger.info(f"TOU Schedule - Live prices from WebSocket: general={actual_interval.get('general', {}).get('perKwh')}¢/kWh, feedIn={actual_interval.get('feedIn', {}).get('perKwh')}¢/kWh")
+    else:
+        logger.warning("TOU Schedule - No live price data available from WebSocket or REST API")
 
     # Step 2: Fetch full 48-hour forecast with 30-min resolution for TOU schedule building
     # (The Amber API doesn't provide 48 hours of 5-min data, so we must use 30-min for full schedule)

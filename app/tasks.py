@@ -170,19 +170,30 @@ def sync_all_users():
                 error_count += 1
                 continue
 
-            # Step 1: Fetch 5-min resolution data to extract CurrentInterval/ActualInterval
-            # This captures short-term (5-min) price spikes for the current period
-            forecast_5min = amber_client.get_price_forecast(next_hours=1, resolution=5)
-            if not forecast_5min:
-                logger.warning(f"Failed to fetch 5-min forecast for {user.email}, proceeding without CurrentInterval")
-                current_actual_interval = None
+            # Step 1: Get current prices from WebSocket (real-time) with REST API fallback
+            # This captures short-term price spikes for the current period
+            from flask import current_app
+            try:
+                ws_client = current_app.config.get('AMBER_WEBSOCKET_CLIENT')
+            except RuntimeError:
+                # current_app not available outside request context (should not happen in scheduler)
+                ws_client = None
+
+            # Get live prices using WebSocket-first approach
+            current_prices = amber_client.get_live_prices(ws_client=ws_client)
+
+            # Convert to current_actual_interval format for tariff converter
+            current_actual_interval = None
+            if current_prices:
+                current_actual_interval = {'general': None, 'feedIn': None}
+                for price in current_prices:
+                    channel = price.get('channelType')
+                    if channel in ['general', 'feedIn']:
+                        current_actual_interval[channel] = price
+
+                logger.info(f"Live prices from WebSocket for TOU sync: general={current_actual_interval.get('general', {}).get('perKwh')}¢/kWh")
             else:
-                # Extract most recent CurrentInterval or ActualInterval from 5-min data
-                current_actual_interval = extract_most_recent_actual_interval(forecast_5min)
-                if current_actual_interval:
-                    logger.info(f"CurrentInterval/ActualInterval extracted for current period spike detection")
-                else:
-                    logger.info(f"No CurrentInterval/ActualInterval available")
+                logger.warning(f"No live price data available for {user.email}, proceeding with 30-min forecast only")
 
             # Step 2: Fetch 48-hour forecast with 30-min resolution for TOU schedule building
             # (The Amber API doesn't provide 48 hours of 5-min data, so we must use 30-min)
@@ -287,8 +298,15 @@ def save_price_history():
                 error_count += 1
                 continue
 
-            # Get current prices
-            prices = amber_client.get_current_prices()
+            # Get current prices from WebSocket (real-time) with REST API fallback
+            from flask import current_app
+            try:
+                ws_client = current_app.config.get('AMBER_WEBSOCKET_CLIENT')
+            except RuntimeError:
+                # current_app not available outside request context
+                ws_client = None
+
+            prices = amber_client.get_live_prices(ws_client=ws_client)
             if not prices:
                 logger.warning(f"No current prices available for user {user.email}")
                 error_count += 1

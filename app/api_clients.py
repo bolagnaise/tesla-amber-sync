@@ -41,7 +41,7 @@ class AmberAPIClient:
             return False, str(e)
 
     def get_current_prices(self, site_id=None):
-        """Get current electricity prices"""
+        """Get current electricity prices via REST API"""
         try:
             # If no site_id provided, get the first site
             if not site_id:
@@ -66,6 +66,37 @@ class AmberAPIClient:
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching current prices: {e}")
             return None
+
+    def get_live_prices(self, site_id=None, ws_client=None):
+        """
+        Get current electricity prices with WebSocket-first approach.
+
+        Checks WebSocket cache first for real-time prices, falls back to
+        REST API if WebSocket data is unavailable or stale.
+
+        Args:
+            site_id: Site ID (defaults to first site)
+            ws_client: AmberWebSocketClient instance (optional)
+
+        Returns:
+            List of price data (same format as get_current_prices)
+        """
+        # Try WebSocket first if client provided
+        if ws_client:
+            try:
+                # Amber sends updates every ~5 minutes, so allow 6-minute staleness
+                ws_prices = ws_client.get_latest_prices(max_age_seconds=360)
+                if ws_prices:
+                    logger.debug("Using WebSocket prices (fresh)")
+                    return ws_prices
+                else:
+                    logger.debug("WebSocket prices unavailable or stale, falling back to REST API")
+            except Exception as e:
+                logger.warning(f"Error getting WebSocket prices: {e}")
+
+        # Fall back to REST API
+        logger.debug("Using REST API for current prices")
+        return self.get_current_prices(site_id=site_id)
 
     def get_sites(self):
         """Get all sites associated with the account"""

@@ -197,11 +197,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Tesla Sync from a config entry."""
     _LOGGER.info("Setting up Tesla Sync integration")
 
+    # Initialize WebSocket client for real-time Amber prices
+    ws_client = None
+    try:
+        from .websocket_client import AmberWebSocketClient
+
+        ws_client = AmberWebSocketClient(
+            api_token=entry.data[CONF_AMBER_API_TOKEN],
+            site_id=entry.data.get("amber_site_id"),
+        )
+        await ws_client.start()
+        _LOGGER.info("🔌 Amber WebSocket client initialized and started")
+    except Exception as e:
+        _LOGGER.error(f"Failed to initialize WebSocket client: {e}", exc_info=True)
+        _LOGGER.warning("WebSocket client not available - will use REST API fallback")
+        ws_client = None
+
     # Initialize coordinators for data fetching
     amber_coordinator = AmberPriceCoordinator(
         hass,
         entry.data[CONF_AMBER_API_TOKEN],
         entry.data.get("amber_site_id"),
+        ws_client=ws_client,  # Pass WebSocket client to coordinator
     )
 
     tesla_coordinator = TeslaEnergyCoordinator(
@@ -214,11 +231,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await amber_coordinator.async_config_entry_first_refresh()
     await tesla_coordinator.async_config_entry_first_refresh()
 
-    # Store coordinators in hass.data
+    # Store coordinators and WebSocket client in hass.data
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
         "amber_coordinator": amber_coordinator,
         "tesla_coordinator": tesla_coordinator,
+        "ws_client": ws_client,  # Store for cleanup on unload
         "entry": entry,
         "auto_sync_cancel": None,  # Will store the timer cancel function
     }
@@ -366,6 +384,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if cancel_timer := entry_data.get("auto_sync_cancel"):
         cancel_timer()
         _LOGGER.debug("Cancelled auto-sync timer")
+
+    # Stop WebSocket client if it exists
+    if ws_client := entry_data.get("ws_client"):
+        try:
+            await ws_client.stop()
+            _LOGGER.info("🔌 WebSocket client stopped")
+        except Exception as e:
+            _LOGGER.error(f"Error stopping WebSocket client: {e}")
 
     # Unload platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

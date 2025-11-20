@@ -106,11 +106,13 @@ class AmberPriceCoordinator(DataUpdateCoordinator):
         hass: HomeAssistant,
         api_token: str,
         site_id: str | None = None,
+        ws_client=None,
     ) -> None:
         """Initialize the coordinator."""
         self.api_token = api_token
         self.site_id = site_id
         self.session = async_get_clientsession(hass)
+        self.ws_client = ws_client  # WebSocket client for real-time prices
 
         super().__init__(
             hass,
@@ -120,18 +122,28 @@ class AmberPriceCoordinator(DataUpdateCoordinator):
         )
 
     async def _async_update_data(self) -> dict[str, Any]:
-        """Fetch data from Amber API."""
+        """Fetch data from Amber API with WebSocket-first approach."""
         headers = {"Authorization": f"Bearer {self.api_token}"}
 
         try:
-            # Get current prices with retry logic
-            current_prices = await _fetch_with_retry(
-                self.session,
-                f"{AMBER_API_BASE_URL}/sites/{self.site_id}/prices/current",
-                headers,
-                max_retries=2,  # Less retries for Amber (usually more reliable)
-                timeout_seconds=30,
-            )
+            # Try WebSocket first for current prices (real-time, low latency)
+            current_prices = None
+            if self.ws_client:
+                current_prices = self.ws_client.get_latest_prices(max_age_seconds=360)
+                if current_prices:
+                    _LOGGER.debug("Using WebSocket prices (fresh)")
+                else:
+                    _LOGGER.debug("WebSocket prices unavailable or stale, falling back to REST API")
+
+            # Fall back to REST API if WebSocket unavailable
+            if not current_prices:
+                current_prices = await _fetch_with_retry(
+                    self.session,
+                    f"{AMBER_API_BASE_URL}/sites/{self.site_id}/prices/current",
+                    headers,
+                    max_retries=2,  # Less retries for Amber (usually more reliable)
+                    timeout_seconds=30,
+                )
 
             # Dual-resolution forecast approach to ensure complete data coverage:
             # 1. Fetch 1 hour at 5-min resolution for CurrentInterval/ActualInterval spike detection
