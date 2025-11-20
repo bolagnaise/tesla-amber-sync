@@ -79,16 +79,16 @@
                 <label for="amber_token">
                     {{ form.amber_token.label }}
                     <small>Get this from your Amber developer settings.</small>
-                    <div style="display: flex; align-items: center; gap: 0.5em;">
-                        {{ form.amber_token(size=64, type='password', class='secure-field', style='flex: 1;') }}
-                        <button type="button" onclick="toggleVisibility('amber_token', this)"
-                                style="background: none; border: none; cursor: pointer; padding: 0.5em;
-                                       font-size: 1.2em; color: var(--muted-color); flex-shrink: 0;"
-                                aria-label="Toggle visibility" title="Show/Hide API Token">
-                            👁️
-                        </button>
-                    </div>
                 </label>
+                <div style="display: flex; align-items: center; gap: 0.5em;">
+                    {{ form.amber_token(size=64, type='password', class='secure-field', style='flex: 1; min-width: 0;') }}
+                    <button type="button" onclick="toggleVisibility('amber_token', this)"
+                            style="background: none; border: none; cursor: pointer; padding: 0.5em;
+                                   font-size: 1.2em; color: var(--muted-color); flex-shrink: 0;"
+                            aria-label="Toggle visibility" title="Show/Hide API Token">
+                        👁️
+                    </button>
+                </div>
             </fieldset>
 
             <fieldset style="margin-top: 1em;">
@@ -96,16 +96,16 @@
                 <label for="teslemetry_api_key">
                     {{ form.teslemetry_api_key.label }}
                     <small>Sign up at <a href="https://teslemetry.com" target="_blank">teslemetry.com</a>, connect your Tesla account, and paste your API key here.</small>
-                    <div style="display: flex; align-items: center; gap: 0.5em;">
-                        {{ form.teslemetry_api_key(size=64, type='password', class='secure-field', style='flex: 1;') }}
-                        <button type="button" onclick="toggleVisibility('teslemetry_api_key', this)"
-                                style="background: none; border: none; cursor: pointer; padding: 0.5em;
-                                       font-size: 1.2em; color: var(--muted-color); flex-shrink: 0;"
-                                aria-label="Toggle visibility" title="Show/Hide API Key">
-                            👁️
-                        </button>
-                    </div>
                 </label>
+                <div style="display: flex; align-items: center; gap: 0.5em;">
+                    {{ form.teslemetry_api_key(size=64, type='password', class='secure-field', style='flex: 1; min-width: 0;') }}
+                    <button type="button" onclick="toggleVisibility('teslemetry_api_key', this)"
+                            style="background: none; border: none; cursor: pointer; padding: 0.5em;
+                                   font-size: 1.2em; color: var(--muted-color); flex-shrink: 0;"
+                            aria-label="Toggle visibility" title="Show/Hide API Key">
+                        👁️
+                    </button>
+                </div>
             </fieldset>
 
             <fieldset style="margin-top: 1em;">
@@ -113,16 +113,16 @@
                 <label for="tesla_site_id">
                     {{ form.tesla_site_id.label }}
                     <small>Your Tesla energy site ID (Powerwall/Solar). Find this in Teslemetry dashboard or Tesla Fleet API products list.</small>
-                    <div style="display: flex; align-items: center; gap: 0.5em;">
-                        {{ form.tesla_site_id(size=32, type='password', class='secure-field', style='flex: 1;') }}
-                        <button type="button" onclick="toggleVisibility('tesla_site_id', this)"
-                                style="background: none; border: none; cursor: pointer; padding: 0.5em;
-                                       font-size: 1.2em; color: var(--muted-color); flex-shrink: 0;"
-                                aria-label="Toggle visibility" title="Show/Hide Site ID">
-                            👁️
-                        </button>
-                    </div>
                 </label>
+                <div style="display: flex; align-items: center; gap: 0.5em;">
+                    {{ form.tesla_site_id(size=32, type='password', class='secure-field', style='flex: 1; min-width: 0;') }}
+                    <button type="button" onclick="toggleVisibility('tesla_site_id', this)"
+                            style="background: none; border: none; cursor: pointer; padding: 0.5em;
+                                   font-size: 1.2em; color: var(--muted-color); flex-shrink: 0;"
+                            aria-label="Toggle visibility" title="Show/Hide Site ID">
+                        👁️
+                    </button>
+                </div>
             </fieldset>
 
             <fieldset style="margin-top: 1em;">
