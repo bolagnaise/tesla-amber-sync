@@ -12,37 +12,72 @@ logger = logging.getLogger(__name__)
 
 def extract_most_recent_actual_interval(forecast_data, timezone_str=None):
     """
-    Extract the most recent ActualInterval from 5-minute forecast data.
+    Extract the most recent live pricing from 5-minute forecast data.
 
-    This finds the last completed 5-minute interval with actual settled prices
-    (not forecasts or weighted averages). Used to capture short-term price spikes.
+    Priority order (most recent first):
+    1. CurrentInterval - Real-time price for the current ongoing 5-minute period
+    2. ActualInterval - Settled price from the last completed 5-minute period
+
+    This ensures we always use the most up-to-date pricing to catch spikes.
 
     Args:
         forecast_data: List of price intervals from Amber API (with resolution=5)
         timezone_str: IANA timezone string (e.g., 'Australia/Sydney') for logging
 
     Returns:
-        Dict with 'general' and 'feedIn' keys containing the ActualInterval data,
-        or None if no ActualInterval found.
+        Dict with 'general' and 'feedIn' keys containing the interval data,
+        or None if no suitable interval found.
 
     Example return:
         {
-            'general': {'type': 'ActualInterval', 'perKwh': 23.45, 'duration': 5, ...},
-            'feedIn': {'type': 'ActualInterval', 'perKwh': -15.20, 'duration': 5, ...}
+            'general': {'type': 'CurrentInterval', 'perKwh': 36.19, 'duration': 5, ...},
+            'feedIn': {'type': 'CurrentInterval', 'perKwh': -10.44, 'duration': 5, ...}
         }
     """
     if not forecast_data:
-        logger.warning("No forecast data provided to extract ActualInterval")
+        logger.warning("No forecast data provided to extract pricing interval")
         return None
 
-    # Filter for ActualInterval with duration=5 (5-minute actual prices)
+    # PRIORITY 1: Check for CurrentInterval (ongoing period with real-time price)
+    current_intervals = [
+        interval for interval in forecast_data
+        if interval.get('type') == 'CurrentInterval' and interval.get('duration') == 5
+    ]
+
+    if current_intervals:
+        # Extract prices by channel (general = buy, feedIn = sell)
+        result = {'general': None, 'feedIn': None}
+
+        for interval in current_intervals:
+            channel = interval.get('channelType')
+            if channel in ['general', 'feedIn'] and result[channel] is None:
+                result[channel] = interval
+
+            # Stop when we have both channels
+            if result['general'] and result['feedIn']:
+                break
+
+        if result['general'] or result['feedIn']:
+            latest_time = current_intervals[0].get('nemTime', 'unknown')
+            general_price = result['general'].get('perKwh') if result['general'] else None
+            feedin_price = result['feedIn'].get('perKwh') if result['feedIn'] else None
+
+            logger.info(f"Using CurrentInterval (real-time price) at {latest_time}")
+            if general_price is not None:
+                logger.info(f"  - General (buy): {general_price:.2f}¢/kWh")
+            if feedin_price is not None:
+                logger.info(f"  - FeedIn (sell): {feedin_price:.2f}¢/kWh")
+
+            return result
+
+    # PRIORITY 2: Fall back to ActualInterval (last completed period)
     actual_intervals = [
         interval for interval in forecast_data
         if interval.get('type') == 'ActualInterval' and interval.get('duration') == 5
     ]
 
     if not actual_intervals:
-        logger.warning("No 5-minute ActualInterval found in forecast data - may be too early in period")
+        logger.warning("No 5-minute CurrentInterval or ActualInterval found - may be too early in period")
         return None
 
     # Sort by nemTime descending to get most recent
@@ -73,7 +108,7 @@ def extract_most_recent_actual_interval(forecast_data, timezone_str=None):
         general_price = result['general'].get('perKwh') if result['general'] else None
         feedin_price = result['feedIn'].get('perKwh') if result['feedIn'] else None
 
-        logger.info(f"Most recent ActualInterval found at {latest_time}")
+        logger.info(f"Using ActualInterval (last completed period) at {latest_time}")
         if general_price is not None:
             logger.info(f"  - General (buy): {general_price:.2f}¢/kWh")
         if feedin_price is not None:
