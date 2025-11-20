@@ -170,21 +170,27 @@ def sync_all_users():
                 error_count += 1
                 continue
 
-            # Get price forecast (48 hours for better coverage)
-            # Request 5-minute resolution to get ActualInterval data for current period spike detection
-            forecast = amber_client.get_price_forecast(next_hours=48, resolution=5)
-            if not forecast:
-                logger.error(f"Failed to fetch price forecast for user {user.email}")
+            # Step 1: Fetch 5-min resolution data to extract CurrentInterval/ActualInterval
+            # This captures short-term (5-min) price spikes for the current period
+            forecast_5min = amber_client.get_price_forecast(next_hours=1, resolution=5)
+            if not forecast_5min:
+                logger.warning(f"Failed to fetch 5-min forecast for {user.email}, proceeding without CurrentInterval")
+                current_actual_interval = None
+            else:
+                # Extract most recent CurrentInterval or ActualInterval from 5-min data
+                current_actual_interval = extract_most_recent_actual_interval(forecast_5min)
+                if current_actual_interval:
+                    logger.info(f"CurrentInterval/ActualInterval extracted for current period spike detection")
+                else:
+                    logger.info(f"No CurrentInterval/ActualInterval available")
+
+            # Step 2: Fetch 48-hour forecast with 30-min resolution for TOU schedule building
+            # (The Amber API doesn't provide 48 hours of 5-min data, so we must use 30-min)
+            forecast_30min = amber_client.get_price_forecast(next_hours=48, resolution=30)
+            if not forecast_30min:
+                logger.error(f"Failed to fetch 30-min forecast for user {user.email}")
                 error_count += 1
                 continue
-
-            # Extract most recent ActualInterval (last completed 5-min period with actual price)
-            # This captures short-term price spikes that would otherwise be averaged out
-            current_actual_interval = extract_most_recent_actual_interval(forecast)
-            if current_actual_interval:
-                logger.info(f"ActualInterval extracted for current period pricing")
-            else:
-                logger.info(f"No ActualInterval available, will use 30-min forecast averaging")
 
             # Fetch Powerwall timezone from site_info
             # This ensures time alignment with the Powerwall's actual location
@@ -199,10 +205,11 @@ def sync_all_users():
             else:
                 logger.warning(f"Failed to fetch site_info for {user.email}")
 
-            # Convert Amber prices to Tesla tariff format
+            # Convert Amber prices to Tesla tariff format using 30-min forecast
+            # The current_actual_interval (from 5-min data) will be injected for the current period only
             converter = AmberTariffConverter()
             tariff = converter.convert_amber_to_tesla_tariff(
-                forecast,
+                forecast_30min,
                 user=user,
                 powerwall_timezone=powerwall_tz,
                 current_actual_interval=current_actual_interval

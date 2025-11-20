@@ -863,34 +863,25 @@ def tou_schedule():
         logger.warning("Amber client not available for tariff schedule")
         return jsonify({'error': 'Amber API not configured'}), 400
 
-    # First, fetch recent data (next 1 hour) with 5-min resolution to get ActualInterval
-    # This ensures we have the most recent 5-minute actual prices for spike detection
-    recent_forecast = amber_client.get_price_forecast(next_hours=1, resolution=5)
-    if not recent_forecast:
-        logger.error("Failed to fetch recent price forecast for ActualInterval")
+    # Step 1: Fetch recent data (1 hour) with 5-min resolution to get CurrentInterval/ActualInterval
+    # This ensures we have the most up-to-date 5-minute pricing for spike detection
+    recent_forecast_5min = amber_client.get_price_forecast(next_hours=1, resolution=5)
+    if not recent_forecast_5min:
+        logger.error("Failed to fetch recent 5-min forecast for current interval")
         return jsonify({'error': 'Failed to fetch prices'}), 500
 
-    # Extract most recent ActualInterval from the recent forecast
+    # Extract most recent CurrentInterval or ActualInterval from the 5-min data
     from app.tasks import extract_most_recent_actual_interval
-    actual_interval = extract_most_recent_actual_interval(recent_forecast)
+    actual_interval = extract_most_recent_actual_interval(recent_forecast_5min)
 
-    # Now fetch the full 48-hour forecast with 5-min resolution for TOU schedule building
-    forecast = amber_client.get_price_forecast(next_hours=48, resolution=5)
-    if not forecast:
-        logger.error("Failed to fetch full price forecast")
+    # Step 2: Fetch full 48-hour forecast with 30-min resolution for TOU schedule building
+    # (The Amber API doesn't provide 48 hours of 5-min data, so we must use 30-min for full schedule)
+    forecast_30min = amber_client.get_price_forecast(next_hours=48, resolution=30)
+    if not forecast_30min:
+        logger.error("Failed to fetch 48-hour forecast for TOU schedule")
         return jsonify({'error': 'Failed to fetch price forecast'}), 500
 
-    # Merge recent data with full forecast to ensure ActualInterval is included
-    # (Deduplicate by nemTime to avoid duplicates)
-    seen_times = set()
-    merged_forecast = []
-    for interval in recent_forecast + forecast:
-        nem_time = interval.get('nemTime')
-        if nem_time not in seen_times:
-            seen_times.add(nem_time)
-            merged_forecast.append(interval)
-    forecast = merged_forecast
-    logger.info(f"Merged forecast contains {len(forecast)} unique intervals")
+    logger.info(f"Using 30-min forecast for TOU schedule: {len(forecast_30min)} intervals")
 
     # Debug logging to compare with live price display
     if actual_interval:
@@ -917,11 +908,12 @@ def tou_schedule():
     else:
         logger.warning("Tesla API not configured, will auto-detect timezone from Amber data")
 
-    # Convert to Tesla tariff format
+    # Convert to Tesla tariff format using 30-min forecast data
+    # The actual_interval (from 5-min data) will be injected for the current period only
     from app.tariff_converter import AmberTariffConverter
     converter = AmberTariffConverter()
     tariff = converter.convert_amber_to_tesla_tariff(
-        forecast,
+        forecast_30min,
         user=current_user,
         powerwall_timezone=powerwall_timezone,
         current_actual_interval=actual_interval
