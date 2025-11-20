@@ -863,16 +863,42 @@ def tou_schedule():
         logger.warning("Amber client not available for tariff schedule")
         return jsonify({'error': 'Amber API not configured'}), 400
 
-    # Get price forecast for next 48 hours (to build rolling 24h window)
-    # Request 5-minute resolution to get ActualInterval data for current period spike detection
+    # First, fetch recent data (next 1 hour) with 5-min resolution to get ActualInterval
+    # This ensures we have the most recent 5-minute actual prices for spike detection
+    recent_forecast = amber_client.get_price_forecast(next_hours=1, resolution=5)
+    if not recent_forecast:
+        logger.error("Failed to fetch recent price forecast for ActualInterval")
+        return jsonify({'error': 'Failed to fetch prices'}), 500
+
+    # Extract most recent ActualInterval from the recent forecast
+    from app.tasks import extract_most_recent_actual_interval
+    actual_interval = extract_most_recent_actual_interval(recent_forecast)
+
+    # Now fetch the full 48-hour forecast with 5-min resolution for TOU schedule building
     forecast = amber_client.get_price_forecast(next_hours=48, resolution=5)
     if not forecast:
-        logger.error("Failed to fetch price forecast")
+        logger.error("Failed to fetch full price forecast")
         return jsonify({'error': 'Failed to fetch price forecast'}), 500
 
-    # Extract most recent ActualInterval (last completed 5-min period with actual price)
-    from app.tasks import extract_most_recent_actual_interval
-    actual_interval = extract_most_recent_actual_interval(forecast)
+    # Merge recent data with full forecast to ensure ActualInterval is included
+    # (Deduplicate by nemTime to avoid duplicates)
+    seen_times = set()
+    merged_forecast = []
+    for interval in recent_forecast + forecast:
+        nem_time = interval.get('nemTime')
+        if nem_time not in seen_times:
+            seen_times.add(nem_time)
+            merged_forecast.append(interval)
+    forecast = merged_forecast
+    logger.info(f"Merged forecast contains {len(forecast)} unique intervals")
+
+    # Debug logging to compare with live price display
+    if actual_interval:
+        general_price = actual_interval.get('general', {}).get('perKwh')
+        feedin_price = actual_interval.get('feedIn', {}).get('perKwh')
+        logger.info(f"TOU Schedule - ActualInterval extracted: general={general_price}¢/kWh, feedIn={feedin_price}¢/kWh")
+    else:
+        logger.warning("TOU Schedule - No ActualInterval found in forecast data")
 
     # Fetch Powerwall timezone from Tesla API (most accurate)
     # This ensures correct timezone handling for TOU schedule alignment
