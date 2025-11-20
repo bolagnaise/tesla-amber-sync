@@ -239,7 +239,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return
 
         # Import tariff converter from existing code
-        from .tariff_converter import convert_amber_to_tesla_tariff
+        from .tariff_converter import (
+            convert_amber_to_tesla_tariff,
+            extract_most_recent_actual_interval,
+        )
+
+        # Extract most recent ActualInterval (last completed 5-min period with actual price)
+        # This captures short-term price spikes that would otherwise be averaged out
+        current_actual_interval = extract_most_recent_actual_interval(
+            amber_coordinator.data.get("forecast", [])
+        )
+        if current_actual_interval:
+            _LOGGER.info("ActualInterval extracted for current period pricing")
+        else:
+            _LOGGER.info("No ActualInterval available, will use 30-min forecast averaging")
 
         # Get forecast type from options (if set) or data (from initial config)
         forecast_type = entry.options.get(
@@ -267,6 +280,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             tesla_energy_site_id=entry.data[CONF_TESLA_ENERGY_SITE_ID],
             forecast_type=forecast_type,
             powerwall_timezone=powerwall_timezone,
+            current_actual_interval=current_actual_interval,
         )
 
         if not tariff:
@@ -327,13 +341,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.info("Performing initial TOU sync")
         await handle_sync_tou(None)
 
-    # Start the automatic sync timer (every 5 minutes, aligned to clock)
-    # Triggers at :00, :05, :10, :15, :20, :25, :30, :35, :40, :45, :50, :55
+    # Start the automatic sync timer (every 5 minutes, aligned to clock at :15 seconds)
+    # Triggers at :00:15, :05:15, :10:15, :15:15, :20:15, :25:15, :30:15, :35:15, :40:15, :45:15, :50:15, :55:15
+    # The 15-second offset ensures AEMO ActualInterval data is published before we fetch it
     cancel_timer = async_track_utc_time_change(
         hass,
         auto_sync_tou,
         minute=[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55],
-        second=0,
+        second=15,
     )
 
     # Store the cancel function so we can clean it up later

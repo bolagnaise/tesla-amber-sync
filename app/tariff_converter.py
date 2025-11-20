@@ -34,18 +34,23 @@ class AmberTariffConverter:
         # Python's float naturally drops trailing zeros in JSON serialization
         return rounded
 
-    def convert_amber_to_tesla_tariff(self, forecast_data: List[Dict], user=None, powerwall_timezone=None) -> Dict:
+    def convert_amber_to_tesla_tariff(self, forecast_data: List[Dict], user=None, powerwall_timezone=None, current_actual_interval: Dict = None) -> Dict:
         """
         Convert Amber price forecast to Tesla tariff format
 
         Implements rolling 24-hour window: periods that have passed today get tomorrow's prices,
         future periods get today's prices. This gives Tesla a full 24-hour lookahead.
 
+        NEW: Optionally uses ActualInterval (5-min actual price) for the current 30-min period
+        to capture short-term price spikes that would otherwise be averaged out.
+
         Args:
-            forecast_data: List of price forecast points from Amber API
+            forecast_data: List of price forecast points from Amber API (5-min or 30-min resolution)
             user: User object for demand charge settings (optional)
             powerwall_timezone: Powerwall timezone from site_info (optional)
                                If provided, uses this instead of auto-detecting from Amber data
+            current_actual_interval: Dict with 'general' and 'feedIn' ActualInterval data (optional)
+                                    If provided, uses this for the current 30-min period instead of averaging
 
         Returns:
             Tesla-compatible tariff structure
@@ -203,7 +208,7 @@ class AmberTariffConverter:
 
         # Now build the rolling 24-hour tariff
         general_prices, feedin_prices = self._build_rolling_24h_tariff(
-            general_lookup, feedin_lookup, user, detected_tz
+            general_lookup, feedin_lookup, user, detected_tz, current_actual_interval
         )
 
         logger.info(f"Built rolling 24h tariff with {len(general_prices)} general and {len(feedin_prices)} feed-in periods")
@@ -213,24 +218,24 @@ class AmberTariffConverter:
 
         return tariff
 
-    def _build_rolling_24h_tariff(self, general_lookup: Dict, feedin_lookup: Dict, user=None, detected_tz=None) -> tuple:
+    def _build_rolling_24h_tariff(self, general_lookup: Dict, feedin_lookup: Dict, user=None, detected_tz=None, current_actual_interval: Dict = None) -> tuple:
         """
         Build a rolling 24-hour tariff where past periods use tomorrow's prices
 
-        IMPORTANT: Prices are optionally shifted LEFT by one 30-min slot to give Tesla advance notice.
-        This allows the battery to prepare for upcoming price changes.
+        NEW: Optionally injects ActualInterval (5-min actual price) for the current 30-min period
+        to capture short-term price spikes.
 
-        Example (if current time is 4:15 PM and shift is enabled):
-        - PERIOD_04_00 (4:00-4:30) → uses 4:30 price (next slot)
-        - PERIOD_04_30 (4:30-5:00) → uses 5:00 price (next slot)
-        - PERIOD_05_00 (5:00-5:30) → uses 5:30 price (next slot)
-
-        This means if there's a price spike at 5:00 PM, the battery knows about it
-        at 4:30 PM and has 30 minutes to prepare (charge before spike, etc.)
+        Example (current time is 4:37 PM, ActualInterval shows $14 spike at 4:30-4:35):
+        - PERIOD_04_30 (4:30-5:00) → uses $14 ActualInterval (instead of averaging 4:30-5:00 forecast)
+        - All other periods → use normal 30-min averaged forecast
 
         Args:
-            user: User object with amber_30min_shift_enabled preference
+            general_lookup: Dict of (date, hour, minute) -> [prices] for buy prices
+            feedin_lookup: Dict of (date, hour, minute) -> [prices] for sell prices
+            user: User object with demand charge settings
             detected_tz: Timezone detected from Amber data timestamps
+            current_actual_interval: Dict with 'general' and 'feedIn' ActualInterval data (optional)
+                                    If provided, uses this for the current 30-min period
 
         Returns:
             (general_prices, feedin_prices) as dicts mapping PERIOD_XX_XX to price
@@ -255,6 +260,10 @@ class AmberTariffConverter:
         current_hour = now.hour
         current_minute = 0 if now.minute < 30 else 30
 
+        # Calculate current period key for ActualInterval injection
+        current_period_key = f"PERIOD_{current_hour:02d}_{current_minute:02d}"
+        logger.info(f"Current 30-min period: {current_period_key}")
+
         general_prices = {}
         feedin_prices = {}
 
@@ -263,6 +272,43 @@ class AmberTariffConverter:
             for minute in [0, 30]:
                 period_key = f"PERIOD_{hour:02d}_{minute:02d}"
 
+                # SPECIAL CASE: Use ActualInterval for current period if available
+                # This captures short-term (5-min) price spikes that would otherwise be averaged out
+                if period_key == current_period_key and current_actual_interval:
+                    # Use live 5-min ActualInterval price for current period
+                    if current_actual_interval.get('general'):
+                        actual_price_cents = current_actual_interval['general'].get('perKwh', 0)
+                        buy_price = self._round_price(actual_price_cents / 100)
+                        buy_price = max(0, buy_price)  # Tesla restriction: no negatives
+                        general_prices[period_key] = buy_price
+                        logger.info(f"{period_key} (CURRENT): Using ActualInterval buy price: ${buy_price:.4f}/kWh")
+                    else:
+                        logger.warning(f"{period_key}: No general ActualInterval, falling back to forecast")
+                        # Will fall through to normal lookup below
+                        current_actual_interval = None  # Disable for this iteration to fall through
+
+                    # Use live 5-min ActualInterval sell price for current period
+                    if current_actual_interval and current_actual_interval.get('feedIn'):
+                        actual_feedin_cents = current_actual_interval['feedIn'].get('perKwh', 0)
+                        # Amber convention: feedIn is negative, Tesla convention: positive
+                        sell_price = self._round_price(-actual_feedin_cents / 100)
+                        sell_price = max(0, sell_price)  # No negatives
+
+                        # Tesla restriction: sell cannot exceed buy
+                        if period_key in general_prices and sell_price > general_prices[period_key]:
+                            logger.debug(f"{period_key}: Sell price capped to buy price ({sell_price:.4f} -> {general_prices[period_key]:.4f})")
+                            sell_price = general_prices[period_key]
+
+                        feedin_prices[period_key] = sell_price
+                        logger.info(f"{period_key} (CURRENT): Using ActualInterval sell price: ${sell_price:.4f}/kWh")
+
+                        # Skip normal lookup logic for this period since we've set both prices
+                        continue
+                    else:
+                        if current_actual_interval:
+                            logger.warning(f"{period_key}: No feedIn ActualInterval, falling back to forecast")
+
+                # NORMAL CASE: Use forecast data for all other periods
                 # Determine if this period has already passed today
                 if (hour < current_hour) or (hour == current_hour and minute < current_minute):
                     # Past period - use tomorrow's price

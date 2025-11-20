@@ -10,6 +10,81 @@ import json
 logger = logging.getLogger(__name__)
 
 
+def extract_most_recent_actual_interval(forecast_data, timezone_str=None):
+    """
+    Extract the most recent ActualInterval from 5-minute forecast data.
+
+    This finds the last completed 5-minute interval with actual settled prices
+    (not forecasts or weighted averages). Used to capture short-term price spikes.
+
+    Args:
+        forecast_data: List of price intervals from Amber API (with resolution=5)
+        timezone_str: IANA timezone string (e.g., 'Australia/Sydney') for logging
+
+    Returns:
+        Dict with 'general' and 'feedIn' keys containing the ActualInterval data,
+        or None if no ActualInterval found.
+
+    Example return:
+        {
+            'general': {'type': 'ActualInterval', 'perKwh': 23.45, 'duration': 5, ...},
+            'feedIn': {'type': 'ActualInterval', 'perKwh': -15.20, 'duration': 5, ...}
+        }
+    """
+    if not forecast_data:
+        logger.warning("No forecast data provided to extract ActualInterval")
+        return None
+
+    # Filter for ActualInterval with duration=5 (5-minute actual prices)
+    actual_intervals = [
+        interval for interval in forecast_data
+        if interval.get('type') == 'ActualInterval' and interval.get('duration') == 5
+    ]
+
+    if not actual_intervals:
+        logger.warning("No 5-minute ActualInterval found in forecast data - may be too early in period")
+        return None
+
+    # Sort by nemTime descending to get most recent
+    try:
+        actual_intervals.sort(
+            key=lambda x: datetime.fromisoformat(x.get('nemTime', '').replace('Z', '+00:00')),
+            reverse=True
+        )
+    except Exception as e:
+        logger.error(f"Error sorting ActualIntervals by time: {e}")
+        return None
+
+    # Extract prices by channel (general = buy, feedIn = sell)
+    result = {'general': None, 'feedIn': None}
+
+    for interval in actual_intervals:
+        channel = interval.get('channelType')
+        if channel in ['general', 'feedIn'] and result[channel] is None:
+            result[channel] = interval
+
+        # Stop when we have both channels from the same timestamp
+        if result['general'] and result['feedIn']:
+            break
+
+    # Log what we found
+    if result['general'] or result['feedIn']:
+        latest_time = actual_intervals[0].get('nemTime', 'unknown')
+        general_price = result['general'].get('perKwh') if result['general'] else None
+        feedin_price = result['feedIn'].get('perKwh') if result['feedIn'] else None
+
+        logger.info(f"Most recent ActualInterval found at {latest_time}")
+        if general_price is not None:
+            logger.info(f"  - General (buy): {general_price:.2f}¢/kWh")
+        if feedin_price is not None:
+            logger.info(f"  - FeedIn (sell): {feedin_price:.2f}¢/kWh")
+
+        return result
+    else:
+        logger.warning("ActualIntervals found but no valid channel data")
+        return None
+
+
 def sync_all_users():
     """
     Automatically sync TOU schedules for all configured users
@@ -61,12 +136,20 @@ def sync_all_users():
                 continue
 
             # Get price forecast (48 hours for better coverage)
-            # Request 30-minute resolution - Amber pre-averages 5-min intervals for us
-            forecast = amber_client.get_price_forecast(next_hours=48, resolution=30)
+            # Request 5-minute resolution to get ActualInterval data for current period spike detection
+            forecast = amber_client.get_price_forecast(next_hours=48, resolution=5)
             if not forecast:
                 logger.error(f"Failed to fetch price forecast for user {user.email}")
                 error_count += 1
                 continue
+
+            # Extract most recent ActualInterval (last completed 5-min period with actual price)
+            # This captures short-term price spikes that would otherwise be averaged out
+            current_actual_interval = extract_most_recent_actual_interval(forecast)
+            if current_actual_interval:
+                logger.info(f"ActualInterval extracted for current period pricing")
+            else:
+                logger.info(f"No ActualInterval available, will use 30-min forecast averaging")
 
             # Fetch Powerwall timezone from site_info
             # This ensures time alignment with the Powerwall's actual location
@@ -86,7 +169,8 @@ def sync_all_users():
             tariff = converter.convert_amber_to_tesla_tariff(
                 forecast,
                 user=user,
-                powerwall_timezone=powerwall_tz
+                powerwall_timezone=powerwall_tz,
+                current_actual_interval=current_actual_interval
             )
 
             if not tariff:

@@ -134,13 +134,13 @@ class AmberPriceCoordinator(DataUpdateCoordinator):
             )
 
             # Get price forecast (next 48 hours) with retry logic
-            # Request 30-minute resolution - Amber pre-averages 5-min intervals server-side
-            # This reduces data transfer and processing (48 intervals vs 576 for 48 hours)
+            # Request 5-minute resolution to get ActualInterval data for current period spike detection
+            # This allows us to capture short-term price spikes that would otherwise be averaged out
             forecast_prices = await _fetch_with_retry(
                 self.session,
                 f"{AMBER_API_BASE_URL}/sites/{self.site_id}/prices",
                 headers,
-                params={"next": 48, "resolution": 30},
+                params={"next": 48, "resolution": 5},
                 max_retries=2,
                 timeout_seconds=30,
             )
