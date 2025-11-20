@@ -511,9 +511,9 @@
 
                 // Get current 5-minute interval and 30-minute period from backend-provided time (user's timezone)
                 let currentHour, currentMinute;
-                if (generalPrice && generalPrice.displayIntervalStart) {
+                if (liveGeneralPrice && liveGeneralPrice.displayIntervalStart) {
                     // Parse "HH:MM" format from backend
-                    const [hour, minute] = generalPrice.displayIntervalStart.split(':').map(Number);
+                    const [hour, minute] = liveGeneralPrice.displayIntervalStart.split(':').map(Number);
                     currentHour = hour;
                     currentMinute = minute;
                 } else {
