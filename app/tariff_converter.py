@@ -107,8 +107,8 @@ class AmberTariffConverter:
                 duration = point.get('duration', 30)  # Get actual interval duration (usually 5 or 30 minutes)
 
                 # Price extraction logic:
-                # - ActualInterval (past): Use perKwh (actual settled price)
-                # - CurrentInterval (now): Use perKwh (current actual price)
+                # - ActualInterval (past): SKIP - never use historical actual prices (contain spikes)
+                # - CurrentInterval (now): Use advancedPrice (predicted forecast for current period)
                 # - ForecastInterval (future): Use advancedPrice (forecast with user-selected type)
                 #
                 # advancedPrice includes complete forecast:
@@ -124,38 +124,38 @@ class AmberTariffConverter:
 
                 advanced_price = point.get('advancedPrice')
 
-                # For ForecastInterval: REQUIRE advancedPrice (no fallback)
-                if interval_type == 'ForecastInterval':
-                    if not advanced_price:
-                        error_msg = f"Missing advancedPrice for ForecastInterval at {nem_time}. Amber API may be incomplete."
-                        logger.error(error_msg)
+                # SKIP ActualInterval entirely - never use historical actual prices
+                # (They contain spikes and should not appear in forward-looking tariff)
+                if interval_type == 'ActualInterval':
+                    logger.debug(f"{nem_time} [ActualInterval]: Skipping (historical data, not used in forward forecast)")
+                    continue
+
+                # For ForecastInterval and CurrentInterval: REQUIRE advancedPrice
+                if not advanced_price:
+                    error_msg = f"Missing advancedPrice for {interval_type} at {nem_time}. Amber API may be incomplete."
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+
+                # Handle dict format (standard: {predicted, low, high})
+                if isinstance(advanced_price, dict):
+                    if forecast_type not in advanced_price:
+                        available = list(advanced_price.keys())
+                        error_msg = f"Forecast type '{forecast_type}' not found in advancedPrice. Available: {available}"
+                        logger.error(f"{nem_time}: {error_msg}")
                         raise ValueError(error_msg)
 
-                    # Handle dict format (standard: {predicted, low, high})
-                    if isinstance(advanced_price, dict):
-                        if forecast_type not in advanced_price:
-                            available = list(advanced_price.keys())
-                            error_msg = f"Forecast type '{forecast_type}' not found in advancedPrice. Available: {available}"
-                            logger.error(f"{nem_time}: {error_msg}")
-                            raise ValueError(error_msg)
+                    per_kwh_cents = advanced_price[forecast_type]
+                    logger.debug(f"{nem_time} [{interval_type}]: advancedPrice.{forecast_type}={per_kwh_cents:.2f}c/kWh")
 
-                        per_kwh_cents = advanced_price[forecast_type]
-                        logger.debug(f"{nem_time} [ForecastInterval]: advancedPrice.{forecast_type}={per_kwh_cents:.2f}c/kWh")
+                # Handle simple number format (legacy)
+                elif isinstance(advanced_price, (int, float)):
+                    per_kwh_cents = advanced_price
+                    logger.debug(f"{nem_time} [{interval_type}]: advancedPrice={per_kwh_cents:.2f}c/kWh (numeric)")
 
-                    # Handle simple number format (legacy)
-                    elif isinstance(advanced_price, (int, float)):
-                        per_kwh_cents = advanced_price
-                        logger.debug(f"{nem_time} [ForecastInterval]: advancedPrice={per_kwh_cents:.2f}c/kWh (numeric)")
-
-                    else:
-                        error_msg = f"Invalid advancedPrice format at {nem_time}: {type(advanced_price).__name__}"
-                        logger.error(error_msg)
-                        raise ValueError(error_msg)
-
-                # For ActualInterval/CurrentInterval: Use perKwh (actual settled prices)
                 else:
-                    per_kwh_cents = point.get('perKwh', 0)
-                    logger.debug(f"{nem_time} [{interval_type}]: perKwh={per_kwh_cents:.2f}c/kWh (actual)")
+                    error_msg = f"Invalid advancedPrice format at {nem_time}: {type(advanced_price).__name__}"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
 
                 # Amber API convention: feedIn (sell) prices are negative when you get paid
                 # Tesla convention: sell prices are positive when you get paid
@@ -336,10 +336,11 @@ class AmberTariffConverter:
                         logger.debug(f"{period_key} (using {hour:02d}:{minute:02d} price): ${buy_price:.4f}")
                 else:
                     # Fallback: Use tonight's ForecastInterval as proxy for tomorrow's missing forecast
-                    # This avoids using historical ActualInterval (which may contain spikes)
+                    # Only use data if it's a future period (ForecastInterval), never past periods (ActualInterval)
                     fallback_key = (today.isoformat(), hour, minute)
                     if fallback_key in general_lookup:
-                        # Check if this is a future period (ForecastInterval) or past period (ActualInterval)
+                        # Only use if this is a future period (tonight's ForecastInterval)
+                        # Past periods would be ActualInterval (contains spikes) - skip them
                         is_future_period = (hour > current_hour) or (hour == current_hour and minute >= current_minute)
 
                         if is_future_period:
@@ -349,11 +350,9 @@ class AmberTariffConverter:
                             general_prices[period_key] = buy_price
                             logger.debug(f"{period_key}: Using tonight's forecast as proxy: ${buy_price:.4f}")
                         else:
-                            # Past period - today's ActualInterval, use with caution
-                            prices = general_lookup[fallback_key]
-                            buy_price = max(0, self._round_price(sum(prices) / len(prices)))
-                            general_prices[period_key] = buy_price
-                            logger.info(f"{period_key}: Using today's actual price as fallback: ${buy_price:.4f}")
+                            # Past period - would be ActualInterval, which we skip
+                            general_prices[period_key] = 0
+                            logger.warning(f"{period_key}: No tomorrow forecast available, past period fallback skipped (ActualInterval excluded)")
                     else:
                         # Last resort: use 0
                         logger.warning(f"{period_key}: No price data available for ({hour:02d}:{minute:02d}), using 0.00")
@@ -388,9 +387,11 @@ class AmberTariffConverter:
                         logger.debug(f"{period_key} (using {hour:02d}:{minute:02d} sell price): ${sell_price:.4f}")
                 else:
                     # Fallback: Use tonight's ForecastInterval as proxy for tomorrow's missing forecast
+                    # Only use data if it's a future period (ForecastInterval), never past periods (ActualInterval)
                     fallback_key = (today.isoformat(), hour, minute)
                     if fallback_key in feedin_lookup:
-                        # Check if this is a future period (ForecastInterval) or past period (ActualInterval)
+                        # Only use if this is a future period (tonight's ForecastInterval)
+                        # Past periods would be ActualInterval (contains spikes) - skip them
                         is_future_period = (hour > current_hour) or (hour == current_hour and minute >= current_minute)
 
                         if is_future_period:
@@ -402,13 +403,9 @@ class AmberTariffConverter:
                             feedin_prices[period_key] = sell_price
                             logger.debug(f"{period_key}: Using tonight's sell forecast as proxy: ${sell_price:.4f}")
                         else:
-                            # Past period - today's ActualInterval
-                            prices = feedin_lookup[fallback_key]
-                            sell_price = max(0, self._round_price(sum(prices) / len(prices)))
-                            if period_key in general_prices and sell_price > general_prices[period_key]:
-                                sell_price = general_prices[period_key]
-                            feedin_prices[period_key] = sell_price
-                            logger.info(f"{period_key}: Using today's actual sell price as fallback: ${sell_price:.4f}")
+                            # Past period - would be ActualInterval, which we skip
+                            feedin_prices[period_key] = 0
+                            logger.warning(f"{period_key}: No tomorrow sell forecast available, past period fallback skipped (ActualInterval excluded)")
                     else:
                         # Last resort: use 0
                         logger.warning(f"{period_key}: No feedIn price data available (current or next slot), using 0.00")
