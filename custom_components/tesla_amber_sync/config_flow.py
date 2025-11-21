@@ -288,13 +288,15 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_DEMAND_CHARGE_RATE: user_input[CONF_DEMAND_CHARGE_RATE],
                     CONF_DEMAND_CHARGE_START_TIME: user_input[CONF_DEMAND_CHARGE_START_TIME],
                     CONF_DEMAND_CHARGE_END_TIME: user_input[CONF_DEMAND_CHARGE_END_TIME],
+                    CONF_DEMAND_CHARGE_DAYS: user_input[CONF_DEMAND_CHARGE_DAYS],
+                    CONF_DEMAND_CHARGE_BILLING_DAY: user_input[CONF_DEMAND_CHARGE_BILLING_DAY],
                 })
             else:
                 data[CONF_DEMAND_CHARGE_ENABLED] = False
 
             return self.async_create_entry(title="Tesla Sync", data=data)
 
-        # Build the form schema (minimal implementation - single peak period only)
+        # Build the form schema
         data_schema = vol.Schema(
             {
                 vol.Optional(CONF_DEMAND_CHARGE_ENABLED, default=False): bool,
@@ -303,6 +305,12 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(CONF_DEMAND_CHARGE_START_TIME, default="14:00"): str,
                 vol.Optional(CONF_DEMAND_CHARGE_END_TIME, default="20:00"): str,
+                vol.Optional(CONF_DEMAND_CHARGE_DAYS, default="All Days"): vol.In(
+                    ["All Days", "Weekdays Only", "Weekends Only"]
+                ),
+                vol.Optional(CONF_DEMAND_CHARGE_BILLING_DAY, default=1): vol.All(
+                    vol.Coerce(int), vol.Range(min=1, max=28)
+                ),
             }
         )
 
@@ -359,6 +367,14 @@ class TeslaAmberSyncOptionsFlow(config_entries.OptionsFlow):
             CONF_DEMAND_CHARGE_END_TIME,
             self.config_entry.data.get(CONF_DEMAND_CHARGE_END_TIME, "20:00")
         )
+        current_days = self.config_entry.options.get(
+            CONF_DEMAND_CHARGE_DAYS,
+            self.config_entry.data.get(CONF_DEMAND_CHARGE_DAYS, "All Days")
+        )
+        current_billing_day = self.config_entry.options.get(
+            CONF_DEMAND_CHARGE_BILLING_DAY,
+            self.config_entry.data.get(CONF_DEMAND_CHARGE_BILLING_DAY, 1)
+        )
 
         return self.async_show_form(
             step_id="init",
@@ -392,6 +408,14 @@ class TeslaAmberSyncOptionsFlow(config_entries.OptionsFlow):
                         CONF_DEMAND_CHARGE_END_TIME,
                         default=current_end_time,
                     ): str,
+                    vol.Optional(
+                        CONF_DEMAND_CHARGE_DAYS,
+                        default=current_days,
+                    ): vol.In(["All Days", "Weekdays Only", "Weekends Only"]),
+                    vol.Optional(
+                        CONF_DEMAND_CHARGE_BILLING_DAY,
+                        default=current_billing_day,
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=28)),
                 }
             ),
         )

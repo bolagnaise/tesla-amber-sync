@@ -255,6 +255,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             CONF_DEMAND_CHARGE_END_TIME,
             entry.data.get(CONF_DEMAND_CHARGE_END_TIME, "20:00")
         )
+        demand_charge_days = entry.options.get(
+            CONF_DEMAND_CHARGE_DAYS,
+            entry.data.get(CONF_DEMAND_CHARGE_DAYS, "All Days")
+        )
+        demand_charge_billing_day = entry.options.get(
+            CONF_DEMAND_CHARGE_BILLING_DAY,
+            entry.data.get(CONF_DEMAND_CHARGE_BILLING_DAY, 1)
+        )
 
         demand_charge_coordinator = DemandChargeCoordinator(
             hass,
@@ -263,6 +271,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             rate=demand_charge_rate,
             start_time=demand_charge_start_time,
             end_time=demand_charge_end_time,
+            days=demand_charge_days,
+            billing_day=demand_charge_billing_day,
         )
         await demand_charge_coordinator.async_config_entry_first_refresh()
         _LOGGER.info("Demand charge coordinator initialized")

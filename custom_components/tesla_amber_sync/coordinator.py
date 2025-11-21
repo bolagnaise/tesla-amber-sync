@@ -307,6 +307,8 @@ class DemandChargeCoordinator(DataUpdateCoordinator):
         rate: float = 0.0,
         start_time: str = "14:00",
         end_time: str = "20:00",
+        days: str = "All Days",
+        billing_day: int = 1,
     ) -> None:
         """Initialize the coordinator."""
         self.tesla_coordinator = tesla_coordinator
@@ -314,9 +316,12 @@ class DemandChargeCoordinator(DataUpdateCoordinator):
         self.rate = rate
         self.start_time = start_time
         self.end_time = end_time
+        self.days = days
+        self.billing_day = billing_day
 
         # Track peak demand (persists across coordinator updates)
         self._peak_demand_kw = 0.0
+        self._last_billing_day_check = None
 
         super().__init__(
             hass,
@@ -326,8 +331,16 @@ class DemandChargeCoordinator(DataUpdateCoordinator):
         )
 
     def _is_in_peak_period(self, now: datetime) -> bool:
-        """Check if current time is within peak period."""
+        """Check if current time is within peak period and correct day."""
         try:
+            # Check if today matches the configured days filter
+            weekday = now.weekday()  # 0=Monday, 6=Sunday
+            if self.days == "Weekdays Only" and weekday >= 5:
+                return False  # Saturday or Sunday
+            elif self.days == "Weekends Only" and weekday < 5:
+                return False  # Monday through Friday
+
+            # Check if current time is within peak period
             start_hour, start_minute = map(int, self.start_time.split(":"))
             end_hour, end_minute = map(int, self.end_time.split(":"))
 
@@ -356,6 +369,20 @@ class DemandChargeCoordinator(DataUpdateCoordinator):
                 "peak_demand_kw": 0.0,
                 "estimated_cost": 0.0,
             }
+
+        # Check for billing cycle reset
+        now = dt_util.now()
+        current_day = now.day
+
+        # If we've crossed the billing day, reset peak demand
+        if self._last_billing_day_check is not None:
+            # Check if we've passed the billing day since last check
+            last_check_day = self._last_billing_day_check.day
+            if current_day == self.billing_day and last_check_day != self.billing_day:
+                _LOGGER.info("Billing cycle reset triggered on day %d", self.billing_day)
+                self.reset_peak_demand()
+
+        self._last_billing_day_check = now
 
         # Get current grid power from Tesla coordinator
         tesla_data = self.tesla_coordinator.data or {}
