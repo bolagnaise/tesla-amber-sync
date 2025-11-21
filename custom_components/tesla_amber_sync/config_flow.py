@@ -272,7 +272,7 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_demand_charges(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle optional demand charge configuration."""
+        """Handle optional demand charge configuration (minimal implementation)."""
         if user_input is not None:
             # Combine all data
             data = {
@@ -288,29 +288,21 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_DEMAND_CHARGE_RATE: user_input[CONF_DEMAND_CHARGE_RATE],
                     CONF_DEMAND_CHARGE_START_TIME: user_input[CONF_DEMAND_CHARGE_START_TIME],
                     CONF_DEMAND_CHARGE_END_TIME: user_input[CONF_DEMAND_CHARGE_END_TIME],
-                    CONF_DEMAND_CHARGE_DAYS: user_input[CONF_DEMAND_CHARGE_DAYS],
-                    CONF_DEMAND_CHARGE_BILLING_DAY: user_input[CONF_DEMAND_CHARGE_BILLING_DAY],
                 })
             else:
                 data[CONF_DEMAND_CHARGE_ENABLED] = False
 
             return self.async_create_entry(title="Tesla Sync", data=data)
 
-        # Build the form schema
+        # Build the form schema (minimal implementation - single peak period only)
         data_schema = vol.Schema(
             {
                 vol.Optional(CONF_DEMAND_CHARGE_ENABLED, default=False): bool,
-                vol.Optional(CONF_DEMAND_CHARGE_RATE, default=0.2162): vol.All(
-                    vol.Coerce(float), vol.Range(min=0.0, max=50.0)
+                vol.Optional(CONF_DEMAND_CHARGE_RATE, default=10.0): vol.All(
+                    vol.Coerce(float), vol.Range(min=0.0, max=100.0)
                 ),
-                vol.Optional(CONF_DEMAND_CHARGE_START_TIME, default="16:00:00"): str,
-                vol.Optional(CONF_DEMAND_CHARGE_END_TIME, default="23:00:00"): str,
-                vol.Optional(CONF_DEMAND_CHARGE_DAYS, default="All Days"): vol.In(
-                    ["All Days", "Weekdays Only", "Weekends Only"]
-                ),
-                vol.Optional(CONF_DEMAND_CHARGE_BILLING_DAY, default=1): vol.All(
-                    vol.Coerce(int), vol.Range(min=1, max=28)
-                ),
+                vol.Optional(CONF_DEMAND_CHARGE_START_TIME, default="14:00"): str,
+                vol.Optional(CONF_DEMAND_CHARGE_END_TIME, default="20:00"): str,
             }
         )
 
@@ -318,8 +310,8 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="demand_charges",
             data_schema=data_schema,
             description_placeholders={
-                "example_rate": "0.2162",
-                "example_time": "16:00:00",
+                "example_rate": "10.0",
+                "example_time": "14:00",
             },
         )
 
@@ -342,26 +334,64 @@ class TeslaAmberSyncOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
+        # Get current values from options (fallback to data for backwards compatibility)
+        current_auto_sync = self.config_entry.options.get(
+            CONF_AUTO_SYNC_ENABLED,
+            self.config_entry.data.get(CONF_AUTO_SYNC_ENABLED, True)
+        )
+        current_forecast_type = self.config_entry.options.get(
+            CONF_AMBER_FORECAST_TYPE,
+            self.config_entry.data.get(CONF_AMBER_FORECAST_TYPE, "predicted")
+        )
+        current_demand_enabled = self.config_entry.options.get(
+            CONF_DEMAND_CHARGE_ENABLED,
+            self.config_entry.data.get(CONF_DEMAND_CHARGE_ENABLED, False)
+        )
+        current_demand_rate = self.config_entry.options.get(
+            CONF_DEMAND_CHARGE_RATE,
+            self.config_entry.data.get(CONF_DEMAND_CHARGE_RATE, 10.0)
+        )
+        current_start_time = self.config_entry.options.get(
+            CONF_DEMAND_CHARGE_START_TIME,
+            self.config_entry.data.get(CONF_DEMAND_CHARGE_START_TIME, "14:00")
+        )
+        current_end_time = self.config_entry.options.get(
+            CONF_DEMAND_CHARGE_END_TIME,
+            self.config_entry.data.get(CONF_DEMAND_CHARGE_END_TIME, "20:00")
+        )
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Optional(
                         CONF_AUTO_SYNC_ENABLED,
-                        default=self.config_entry.options.get(
-                            CONF_AUTO_SYNC_ENABLED, True
-                        ),
+                        default=current_auto_sync,
                     ): bool,
                     vol.Optional(
                         CONF_AMBER_FORECAST_TYPE,
-                        default=self.config_entry.options.get(
-                            CONF_AMBER_FORECAST_TYPE, "predicted"
-                        ),
+                        default=current_forecast_type,
                     ): vol.In({
                         "predicted": "Predicted (Default)",
                         "low": "Low (Conservative)",
                         "high": "High (Optimistic)"
                     }),
+                    vol.Optional(
+                        CONF_DEMAND_CHARGE_ENABLED,
+                        default=current_demand_enabled,
+                    ): bool,
+                    vol.Optional(
+                        CONF_DEMAND_CHARGE_RATE,
+                        default=current_demand_rate,
+                    ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=100.0)),
+                    vol.Optional(
+                        CONF_DEMAND_CHARGE_START_TIME,
+                        default=current_start_time,
+                    ): str,
+                    vol.Optional(
+                        CONF_DEMAND_CHARGE_END_TIME,
+                        default=current_end_time,
+                    ): str,
                 }
             ),
         )

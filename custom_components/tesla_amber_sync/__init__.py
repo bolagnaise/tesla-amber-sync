@@ -21,6 +21,10 @@ from .const import (
     CONF_AUTO_SYNC_ENABLED,
     CONF_TESLEMETRY_API_TOKEN,
     CONF_TESLA_ENERGY_SITE_ID,
+    CONF_DEMAND_CHARGE_ENABLED,
+    CONF_DEMAND_CHARGE_RATE,
+    CONF_DEMAND_CHARGE_START_TIME,
+    CONF_DEMAND_CHARGE_END_TIME,
     SERVICE_SYNC_TOU,
     SERVICE_SYNC_NOW,
     TESLEMETRY_API_BASE_URL,
@@ -28,6 +32,7 @@ from .const import (
 from .coordinator import (
     AmberPriceCoordinator,
     TeslaEnergyCoordinator,
+    DemandChargeCoordinator,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -231,11 +236,43 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await amber_coordinator.async_config_entry_first_refresh()
     await tesla_coordinator.async_config_entry_first_refresh()
 
+    # Initialize demand charge coordinator if enabled
+    demand_charge_coordinator = None
+    demand_charge_enabled = entry.options.get(
+        CONF_DEMAND_CHARGE_ENABLED,
+        entry.data.get(CONF_DEMAND_CHARGE_ENABLED, False)
+    )
+    if demand_charge_enabled:
+        demand_charge_rate = entry.options.get(
+            CONF_DEMAND_CHARGE_RATE,
+            entry.data.get(CONF_DEMAND_CHARGE_RATE, 10.0)
+        )
+        demand_charge_start_time = entry.options.get(
+            CONF_DEMAND_CHARGE_START_TIME,
+            entry.data.get(CONF_DEMAND_CHARGE_START_TIME, "14:00")
+        )
+        demand_charge_end_time = entry.options.get(
+            CONF_DEMAND_CHARGE_END_TIME,
+            entry.data.get(CONF_DEMAND_CHARGE_END_TIME, "20:00")
+        )
+
+        demand_charge_coordinator = DemandChargeCoordinator(
+            hass,
+            tesla_coordinator,
+            enabled=True,
+            rate=demand_charge_rate,
+            start_time=demand_charge_start_time,
+            end_time=demand_charge_end_time,
+        )
+        await demand_charge_coordinator.async_config_entry_first_refresh()
+        _LOGGER.info("Demand charge coordinator initialized")
+
     # Store coordinators and WebSocket client in hass.data
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
         "amber_coordinator": amber_coordinator,
         "tesla_coordinator": tesla_coordinator,
+        "demand_charge_coordinator": demand_charge_coordinator,
         "ws_client": ws_client,  # Store for cleanup on unload
         "entry": entry,
         "auto_sync_cancel": None,  # Will store the timer cancel function
@@ -291,6 +328,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         else:
             _LOGGER.warning("Failed to fetch site_info, will auto-detect timezone from Amber data")
 
+        # Get demand charge configuration from options (if set) or data (from initial config)
+        demand_charge_enabled = entry.options.get(
+            CONF_DEMAND_CHARGE_ENABLED,
+            entry.data.get(CONF_DEMAND_CHARGE_ENABLED, False)
+        )
+        demand_charge_rate = entry.options.get(
+            CONF_DEMAND_CHARGE_RATE,
+            entry.data.get(CONF_DEMAND_CHARGE_RATE, 0.0)
+        )
+        demand_charge_start_time = entry.options.get(
+            CONF_DEMAND_CHARGE_START_TIME,
+            entry.data.get(CONF_DEMAND_CHARGE_START_TIME, "14:00")
+        )
+        demand_charge_end_time = entry.options.get(
+            CONF_DEMAND_CHARGE_END_TIME,
+            entry.data.get(CONF_DEMAND_CHARGE_END_TIME, "20:00")
+        )
+
+        if demand_charge_enabled:
+            _LOGGER.info(
+                "Demand charges enabled: $%.2f/kW from %s to %s",
+                demand_charge_rate,
+                demand_charge_start_time,
+                demand_charge_end_time,
+            )
+
         # Convert prices to Tesla tariff format
         tariff = convert_amber_to_tesla_tariff(
             amber_coordinator.data.get("forecast", []),
@@ -298,6 +361,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             forecast_type=forecast_type,
             powerwall_timezone=powerwall_timezone,
             current_actual_interval=current_actual_interval,
+            demand_charge_enabled=demand_charge_enabled,
+            demand_charge_rate=demand_charge_rate,
+            demand_charge_start_time=demand_charge_start_time,
+            demand_charge_end_time=demand_charge_end_time,
         )
 
         if not tariff:

@@ -50,7 +50,7 @@ from .const import (
     ATTR_WHOLESALE_PRICE,
     ATTR_NETWORK_PRICE,
 )
-from .coordinator import AmberPriceCoordinator, TeslaEnergyCoordinator
+from .coordinator import AmberPriceCoordinator, TeslaEnergyCoordinator, DemandChargeCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -139,18 +139,9 @@ ENERGY_SENSORS: tuple[TeslaAmberSensorEntityDescription, ...] = (
 
 DEMAND_CHARGE_SENSORS: tuple[TeslaAmberSensorEntityDescription, ...] = (
     TeslaAmberSensorEntityDescription(
-        key=SENSOR_TYPE_GRID_IMPORT_POWER,
-        name="Grid Import Power",
-        native_unit_of_measurement=UnitOfPower.KILO_WATT,
-        device_class=SensorDeviceClass.POWER,
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=3,
-        value_fn=lambda data: max(0, data.get("grid_power", 0)) if data else 0,
-    ),
-    TeslaAmberSensorEntityDescription(
         key=SENSOR_TYPE_IN_DEMAND_CHARGE_PERIOD,
         name="In Demand Charge Period",
-        value_fn=None,  # Calculated in sensor class
+        value_fn=lambda data: data.get("in_peak_period", False) if data else False,
     ),
     TeslaAmberSensorEntityDescription(
         key=SENSOR_TYPE_PEAK_DEMAND_THIS_CYCLE,
@@ -159,22 +150,15 @@ DEMAND_CHARGE_SENSORS: tuple[TeslaAmberSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=3,
-        value_fn=None,  # Stateful - managed in sensor class
+        value_fn=lambda data: data.get("peak_demand_kw", 0.0) if data else 0.0,
     ),
     TeslaAmberSensorEntityDescription(
         key=SENSOR_TYPE_DEMAND_CHARGE_COST,
-        name="Demand Charge Cost This Month",
+        name="Estimated Demand Charge Cost",
         native_unit_of_measurement=CURRENCY_DOLLAR,
         device_class=SensorDeviceClass.MONETARY,
         suggested_display_precision=2,
-        value_fn=None,  # Calculated in sensor class
-    ),
-    TeslaAmberSensorEntityDescription(
-        key=SENSOR_TYPE_DAYS_UNTIL_DEMAND_RESET,
-        name="Days Until Demand Reset",
-        native_unit_of_measurement="days",
-        suggested_display_precision=0,
-        value_fn=None,  # Calculated in sensor class
+        value_fn=lambda data: data.get("estimated_cost", 0.0) if data else 0.0,
     ),
 )
 
@@ -188,6 +172,7 @@ async def async_setup_entry(
     domain_data = hass.data[DOMAIN][entry.entry_id]
     amber_coordinator: AmberPriceCoordinator = domain_data["amber_coordinator"]
     tesla_coordinator: TeslaEnergyCoordinator = domain_data["tesla_coordinator"]
+    demand_charge_coordinator: DemandChargeCoordinator | None = domain_data.get("demand_charge_coordinator")
 
     entities: list[SensorEntity] = []
 
@@ -211,16 +196,15 @@ async def async_setup_entry(
             )
         )
 
-    # Add demand charge sensors if enabled
-    if entry.data.get(CONF_DEMAND_CHARGE_ENABLED, False):
+    # Add demand charge sensors if enabled and coordinator exists
+    if demand_charge_coordinator and demand_charge_coordinator.enabled:
         _LOGGER.info("Demand charge tracking enabled - adding sensors")
         for description in DEMAND_CHARGE_SENSORS:
             entities.append(
                 DemandChargeSensor(
-                    coordinator=tesla_coordinator,
+                    coordinator=demand_charge_coordinator,
                     description=description,
                     entry=entry,
-                    hass=hass,
                 )
             )
 
@@ -285,16 +269,15 @@ class TeslaEnergySensor(CoordinatorEntity, SensorEntity):
 
 
 class DemandChargeSensor(CoordinatorEntity, SensorEntity):
-    """Sensor for demand charge tracking."""
+    """Sensor for demand charge tracking (simplified - uses coordinator data)."""
 
     entity_description: TeslaAmberSensorEntityDescription
 
     def __init__(
         self,
-        coordinator: TeslaEnergyCoordinator,
+        coordinator: DemandChargeCoordinator,
         description: TeslaAmberSensorEntityDescription,
         entry: ConfigEntry,
-        hass: HomeAssistant,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
@@ -302,122 +285,36 @@ class DemandChargeSensor(CoordinatorEntity, SensorEntity):
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
         self._attr_has_entity_name = True
         self._entry = entry
-        self._hass = hass
-
-        # State for peak tracking
-        self._peak_demand = 0.0
-        self._peak_timestamp = None
-        self._last_reset_month = datetime.now().month
-
-    def _is_in_demand_period(self) -> bool:
-        """Check if currently in demand charge period."""
-        now = datetime.now()
-        now_time = now.time()
-
-        # Get config
-        start_time_str = self._entry.data.get(CONF_DEMAND_CHARGE_START_TIME, "16:00:00")
-        end_time_str = self._entry.data.get(CONF_DEMAND_CHARGE_END_TIME, "23:00:00")
-        days_setting = self._entry.data.get(CONF_DEMAND_CHARGE_DAYS, "All Days")
-
-        # Parse times
-        start_time = datetime.strptime(start_time_str, "%H:%M:%S").time()
-        end_time = datetime.strptime(end_time_str, "%H:%M:%S").time()
-
-        # Check day criteria
-        is_weekday = now.weekday() < 5
-        if days_setting == "Weekdays Only" and not is_weekday:
-            return False
-        if days_setting == "Weekends Only" and is_weekday:
-            return False
-
-        # Check time criteria
-        if start_time < end_time:
-            time_match = start_time <= now_time < end_time
-        else:
-            # Handles periods crossing midnight
-            time_match = now_time >= start_time or now_time < end_time
-
-        return time_match
-
-    def _get_days_until_reset(self) -> int:
-        """Calculate days until billing cycle reset."""
-        billing_day = self._entry.data.get(CONF_DEMAND_CHARGE_BILLING_DAY, 1)
-        now = datetime.now()
-        today = now.day
-
-        if today < billing_day:
-            return billing_day - today
-        else:
-            # Calculate next month's billing day
-            if now.month == 12:
-                next_month = now.replace(year=now.year + 1, month=1, day=billing_day)
-            else:
-                next_month = now.replace(month=now.month + 1, day=billing_day)
-            return (next_month.date() - now.date()).days
-
-    def _check_and_reset_peak(self) -> None:
-        """Reset peak demand if billing cycle has rolled over."""
-        billing_day = self._entry.data.get(CONF_DEMAND_CHARGE_BILLING_DAY, 1)
-        now = datetime.now()
-
-        # Reset on billing day or if month changed
-        if now.day == billing_day or now.month != self._last_reset_month:
-            _LOGGER.info(f"Resetting peak demand (was {self._peak_demand:.2f} kW)")
-            self._peak_demand = 0.0
-            self._peak_timestamp = None
-            self._last_reset_month = now.month
 
     @property
     def native_value(self) -> Any:
-        """Return the state of the sensor."""
-        # Handle simple value functions
+        """Return the state of the sensor (uses coordinator data)."""
         if self.entity_description.value_fn:
             return self.entity_description.value_fn(self.coordinator.data)
-
-        # Check for billing cycle reset
-        self._check_and_reset_peak()
-
-        # Handle different sensor types
-        key = self.entity_description.key
-
-        if key == SENSOR_TYPE_IN_DEMAND_CHARGE_PERIOD:
-            return self._is_in_demand_period()
-
-        elif key == SENSOR_TYPE_PEAK_DEMAND_THIS_CYCLE:
-            # Update peak if in demand period
-            if self._is_in_demand_period():
-                grid_power = self.coordinator.data.get("grid_power", 0) if self.coordinator.data else 0
-                grid_import = max(0, grid_power)  # Only positive (import) values
-
-                if grid_import > self._peak_demand:
-                    self._peak_demand = grid_import
-                    self._peak_timestamp = datetime.now()
-                    _LOGGER.info(f"New peak demand: {self._peak_demand:.2f} kW")
-
-            return round(self._peak_demand, 3)
-
-        elif key == SENSOR_TYPE_DEMAND_CHARGE_COST:
-            rate = self._entry.data.get(CONF_DEMAND_CHARGE_RATE, 0.2162)
-            return round(self._peak_demand * rate, 2)
-
-        elif key == SENSOR_TYPE_DAYS_UNTIL_DEMAND_RESET:
-            return self._get_days_until_reset()
-
         return None
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return additional attributes."""
+        if not self.coordinator.data:
+            return {}
+
         attributes = {}
+        coordinator_data = self.coordinator.data
 
         if self.entity_description.key == SENSOR_TYPE_PEAK_DEMAND_THIS_CYCLE:
-            if self._peak_timestamp:
-                attributes["timestamp"] = self._peak_timestamp.isoformat()
-            attributes["peak_kw"] = self._peak_demand
+            # Add peak demand value as attribute
+            peak_kw = coordinator_data.get("peak_demand_kw", 0.0)
+            attributes["peak_kw"] = peak_kw
+            # Add timestamp if available
+            if "last_update" in coordinator_data:
+                attributes["last_update"] = coordinator_data["last_update"].isoformat()
 
         elif self.entity_description.key == SENSOR_TYPE_DEMAND_CHARGE_COST:
-            rate = self._entry.data.get(CONF_DEMAND_CHARGE_RATE, 0.2162)
-            attributes["peak_kw"] = self._peak_demand
+            # Get rate from config (check options first, then data)
+            rate = self.coordinator.rate
+            peak_kw = coordinator_data.get("peak_demand_kw", 0.0)
+            attributes["peak_kw"] = peak_kw
             attributes["rate"] = rate
 
         return attributes

@@ -146,12 +146,81 @@ def extract_most_recent_actual_interval(
     return None
 
 
+def _build_demand_charge_rates(
+    start_time: str,
+    end_time: str,
+    rate: float,
+) -> dict[str, float]:
+    """
+    Build demand charge rates for Tesla tariff format.
+
+    Creates a dict mapping PERIOD_XX_XX keys to demand charge rates.
+    Only periods within the peak time range get the demand charge rate,
+    all other periods get 0.
+
+    Args:
+        start_time: Peak period start time in HH:MM format (e.g., "14:00")
+        end_time: Peak period end time in HH:MM format (e.g., "20:00")
+        rate: Demand charge rate in $/kW
+
+    Returns:
+        Dict mapping PERIOD_XX_XX to demand charge rate
+
+    Example:
+        _build_demand_charge_rates("14:00", "20:00", 10.5)
+        Returns: {"PERIOD_14_00": 10.5, "PERIOD_14_30": 10.5, ..., "PERIOD_19_30": 10.5}
+    """
+    try:
+        # Parse start and end times
+        start_hour, start_minute = map(int, start_time.split(":"))
+        end_hour, end_minute = map(int, end_time.split(":"))
+    except (ValueError, AttributeError) as err:
+        _LOGGER.error("Invalid time format for demand charges: %s", err)
+        return {}
+
+    demand_rates: dict[str, float] = {}
+
+    # Build all 48 half-hour periods
+    for hour in range(24):
+        for minute in [0, 30]:
+            period_key = f"PERIOD_{hour:02d}_{minute:02d}"
+
+            # Check if this period falls within peak time range
+            period_minutes = hour * 60 + minute
+            start_minutes = start_hour * 60 + start_minute
+            end_minutes = end_hour * 60 + end_minute
+
+            # Handle overnight periods (e.g., 22:00 to 06:00)
+            if end_minutes <= start_minutes:
+                # Peak period wraps around midnight
+                is_peak = period_minutes >= start_minutes or period_minutes < end_minutes
+            else:
+                # Normal daytime peak period
+                is_peak = start_minutes <= period_minutes < end_minutes
+
+            # Apply rate for peak periods, 0 for off-peak
+            demand_rates[period_key] = rate if is_peak else 0
+
+    _LOGGER.info(
+        "Built demand charge rates: %s to %s at $%.2f/kW",
+        start_time,
+        end_time,
+        rate,
+    )
+
+    return demand_rates
+
+
 def convert_amber_to_tesla_tariff(
     forecast_data: list[dict[str, Any]],
     tesla_energy_site_id: str,
     forecast_type: str = "predicted",
     powerwall_timezone: str | None = None,
     current_actual_interval: dict[str, Any] | None = None,
+    demand_charge_enabled: bool = False,
+    demand_charge_rate: float = 0.0,
+    demand_charge_start_time: str = "14:00",
+    demand_charge_end_time: str = "20:00",
 ) -> dict[str, Any] | None:
     """
     Convert Amber price forecast to Tesla tariff format.
@@ -162,6 +231,8 @@ def convert_amber_to_tesla_tariff(
     NEW: Optionally uses ActualInterval (5-min actual price) for the current 30-min period
     to capture short-term price spikes that would otherwise be averaged out.
 
+    NEW: Supports demand charges with configurable peak period and rate.
+
     Args:
         forecast_data: List of price forecast points from Amber API (5-min or 30-min resolution)
         tesla_energy_site_id: Tesla energy site ID
@@ -170,6 +241,10 @@ def convert_amber_to_tesla_tariff(
                            If provided, uses this instead of auto-detecting from Amber data
         current_actual_interval: Dict with 'general' and 'feedIn' ActualInterval data (optional)
                                 If provided, uses this for the current 30-min period instead of averaging
+        demand_charge_enabled: Enable demand charge tracking (default: False)
+        demand_charge_rate: Demand charge rate in $/kW (default: 0.0)
+        demand_charge_start_time: Peak period start time in HH:MM format (default: "14:00")
+        demand_charge_end_time: Peak period end time in HH:MM format (default: "20:00")
 
     Returns:
         Tesla-compatible tariff structure or None if conversion fails
@@ -326,8 +401,19 @@ def convert_amber_to_tesla_tariff(
         len(feedin_prices),
     )
 
+    # Build demand charge rates if enabled
+    demand_charge_rates: dict[str, float] = {}
+    if demand_charge_enabled and demand_charge_rate > 0:
+        demand_charge_rates = _build_demand_charge_rates(
+            demand_charge_start_time,
+            demand_charge_end_time,
+            demand_charge_rate,
+        )
+        _LOGGER.info("Demand charges enabled: %d peak periods configured",
+                     sum(1 for rate in demand_charge_rates.values() if rate > 0))
+
     # Create the Tesla tariff structure
-    tariff = _build_tariff_structure(general_prices, feedin_prices)
+    tariff = _build_tariff_structure(general_prices, feedin_prices, demand_charge_rates)
 
     return tariff
 
@@ -502,10 +588,35 @@ def _build_rolling_24h_tariff(
 def _build_tariff_structure(
     general_prices: dict[str, float],
     feedin_prices: dict[str, float],
+    demand_charge_rates: dict[str, float] | None = None,
 ) -> dict[str, Any]:
-    """Build the complete Tesla tariff structure."""
+    """
+    Build the complete Tesla tariff structure.
+
+    Args:
+        general_prices: Buy prices for all 48 periods
+        feedin_prices: Sell prices for all 48 periods
+        demand_charge_rates: Demand charge rates for all 48 periods (optional)
+
+    Returns:
+        Complete Tesla tariff structure
+    """
     # Build TOU periods
     tou_periods = _build_tou_periods(general_prices.keys())
+
+    # Use provided demand charges or default to empty
+    buy_demand_charges = (
+        {"rates": demand_charge_rates}
+        if demand_charge_rates
+        else {}
+    )
+
+    # Sell tariff also gets demand charges (Tesla applies them to both)
+    sell_demand_charges = (
+        {"rates": demand_charge_rates}
+        if demand_charge_rates
+        else {}
+    )
 
     tariff = {
         "version": 1,
@@ -516,7 +627,7 @@ def _build_tariff_structure(
         "daily_charges": [{"name": "Charge"}],
         "demand_charges": {
             "ALL": {"rates": {"ALL": 0}},
-            "Summer": {},
+            "Summer": buy_demand_charges,
             "Winter": {},
         },
         "energy_charges": {
@@ -546,7 +657,7 @@ def _build_tariff_structure(
             "daily_charges": [{"name": "Charge"}],
             "demand_charges": {
                 "ALL": {"rates": {"ALL": 0}},
-                "Summer": {},
+                "Summer": sell_demand_charges,
                 "Winter": {},
             },
             "energy_charges": {

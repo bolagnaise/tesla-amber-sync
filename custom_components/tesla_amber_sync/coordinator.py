@@ -294,3 +294,98 @@ class TeslaEnergyCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error(f"Unexpected error fetching site_info: {err}")
             return None
+
+
+class DemandChargeCoordinator(DataUpdateCoordinator):
+    """Coordinator to track demand charges."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        tesla_coordinator: TeslaEnergyCoordinator,
+        enabled: bool = False,
+        rate: float = 0.0,
+        start_time: str = "14:00",
+        end_time: str = "20:00",
+    ) -> None:
+        """Initialize the coordinator."""
+        self.tesla_coordinator = tesla_coordinator
+        self.enabled = enabled
+        self.rate = rate
+        self.start_time = start_time
+        self.end_time = end_time
+
+        # Track peak demand (persists across coordinator updates)
+        self._peak_demand_kw = 0.0
+
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=f"{DOMAIN}_demand_charge",
+            update_interval=timedelta(minutes=1),  # Check every minute
+        )
+
+    def _is_in_peak_period(self, now: datetime) -> bool:
+        """Check if current time is within peak period."""
+        try:
+            start_hour, start_minute = map(int, self.start_time.split(":"))
+            end_hour, end_minute = map(int, self.end_time.split(":"))
+
+            current_minutes = now.hour * 60 + now.minute
+            start_minutes = start_hour * 60 + start_minute
+            end_minutes = end_hour * 60 + end_minute
+
+            # Handle overnight periods (e.g., 22:00 to 06:00)
+            if end_minutes <= start_minutes:
+                # Peak period wraps around midnight
+                return current_minutes >= start_minutes or current_minutes < end_minutes
+            else:
+                # Normal daytime peak period
+                return start_minutes <= current_minutes < end_minutes
+
+        except (ValueError, AttributeError) as err:
+            _LOGGER.error("Invalid time format for demand charge period: %s", err)
+            return False
+
+    async def _async_update_data(self) -> dict[str, Any]:
+        """Update demand charge tracking data."""
+        if not self.enabled:
+            return {
+                "in_peak_period": False,
+                "grid_import_power_kw": 0.0,
+                "peak_demand_kw": 0.0,
+                "estimated_cost": 0.0,
+            }
+
+        # Get current grid power from Tesla coordinator
+        tesla_data = self.tesla_coordinator.data or {}
+        grid_power_kw = tesla_data.get("grid_power", 0.0)
+
+        # Grid import is positive, export is negative
+        # We only care about import for demand charges
+        grid_import_kw = max(0, grid_power_kw)
+
+        # Update peak demand if current import exceeds it
+        if grid_import_kw > self._peak_demand_kw:
+            self._peak_demand_kw = grid_import_kw
+            _LOGGER.info("New peak demand: %.2f kW", self._peak_demand_kw)
+
+        # Check if in peak period
+        now = dt_util.now()
+        in_peak_period = self._is_in_peak_period(now)
+
+        # Calculate estimated cost (peak demand * rate)
+        estimated_cost = self._peak_demand_kw * self.rate
+
+        return {
+            "in_peak_period": in_peak_period,
+            "grid_import_power_kw": grid_import_kw,
+            "peak_demand_kw": self._peak_demand_kw,
+            "estimated_cost": estimated_cost,
+            "last_update": dt_util.utcnow(),
+        }
+
+    def reset_peak_demand(self) -> None:
+        """Reset peak demand tracking (e.g., at start of new billing cycle)."""
+        _LOGGER.info("Resetting peak demand from %.2f kW to 0", self._peak_demand_kw)
+        self._peak_demand_kw = 0.0
