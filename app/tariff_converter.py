@@ -335,15 +335,27 @@ class AmberTariffConverter:
                         general_prices[period_key] = buy_price
                         logger.debug(f"{period_key} (using {hour:02d}:{minute:02d} price): ${buy_price:.4f}")
                 else:
-                    # Fallback to today's price if no future price available (direct lookup)
+                    # Fallback: Use tonight's ForecastInterval as proxy for tomorrow's missing forecast
+                    # This avoids using historical ActualInterval (which may contain spikes)
                     fallback_key = (today.isoformat(), hour, minute)
                     if fallback_key in general_lookup:
-                        prices = general_lookup[fallback_key]
-                        buy_price = max(0, self._round_price(sum(prices) / len(prices)))
-                        logger.info(f"{period_key}: No forecast for slot ({hour:02d}:{minute:02d}), using fallback: ${buy_price:.4f}")
-                        general_prices[period_key] = buy_price
+                        # Check if this is a future period (ForecastInterval) or past period (ActualInterval)
+                        is_future_period = (hour > current_hour) or (hour == current_hour and minute >= current_minute)
+
+                        if is_future_period:
+                            # Safe to use - this is tonight's ForecastInterval
+                            prices = general_lookup[fallback_key]
+                            buy_price = max(0, self._round_price(sum(prices) / len(prices)))
+                            general_prices[period_key] = buy_price
+                            logger.debug(f"{period_key}: Using tonight's forecast as proxy: ${buy_price:.4f}")
+                        else:
+                            # Past period - today's ActualInterval, use with caution
+                            prices = general_lookup[fallback_key]
+                            buy_price = max(0, self._round_price(sum(prices) / len(prices)))
+                            general_prices[period_key] = buy_price
+                            logger.info(f"{period_key}: Using today's actual price as fallback: ${buy_price:.4f}")
                     else:
-                        # Last resort: use 0 (shouldn't happen for current day)
+                        # Last resort: use 0
                         logger.warning(f"{period_key}: No price data available for ({hour:02d}:{minute:02d}), using 0.00")
                         general_prices[period_key] = 0
 
@@ -375,18 +387,30 @@ class AmberTariffConverter:
                     if not adjustments:
                         logger.debug(f"{period_key} (using {hour:02d}:{minute:02d} sell price): ${sell_price:.4f}")
                 else:
-                    # Fallback to today's price if no future price available (direct lookup)
+                    # Fallback: Use tonight's ForecastInterval as proxy for tomorrow's missing forecast
                     fallback_key = (today.isoformat(), hour, minute)
                     if fallback_key in feedin_lookup:
-                        prices = feedin_lookup[fallback_key]
-                        sell_price = max(0, self._round_price(sum(prices) / len(prices)))
-                        # Tesla restriction: sell price cannot exceed buy price
-                        if period_key in general_prices and sell_price > general_prices[period_key]:
-                            sell_price = general_prices[period_key]
-                        logger.info(f"{period_key}: No forecast for slot ({hour:02d}:{minute:02d}) feedIn, using current slot price: ${sell_price:.4f}")
-                        feedin_prices[period_key] = sell_price
+                        # Check if this is a future period (ForecastInterval) or past period (ActualInterval)
+                        is_future_period = (hour > current_hour) or (hour == current_hour and minute >= current_minute)
+
+                        if is_future_period:
+                            # Safe to use - this is tonight's ForecastInterval
+                            prices = feedin_lookup[fallback_key]
+                            sell_price = max(0, self._round_price(sum(prices) / len(prices)))
+                            if period_key in general_prices and sell_price > general_prices[period_key]:
+                                sell_price = general_prices[period_key]
+                            feedin_prices[period_key] = sell_price
+                            logger.debug(f"{period_key}: Using tonight's sell forecast as proxy: ${sell_price:.4f}")
+                        else:
+                            # Past period - today's ActualInterval
+                            prices = feedin_lookup[fallback_key]
+                            sell_price = max(0, self._round_price(sum(prices) / len(prices)))
+                            if period_key in general_prices and sell_price > general_prices[period_key]:
+                                sell_price = general_prices[period_key]
+                            feedin_prices[period_key] = sell_price
+                            logger.info(f"{period_key}: Using today's actual sell price as fallback: ${sell_price:.4f}")
                     else:
-                        # Last resort: use 0 (shouldn't happen for current day)
+                        # Last resort: use 0
                         logger.warning(f"{period_key}: No feedIn price data available (current or next slot), using 0.00")
                         feedin_prices[period_key] = 0
 
