@@ -341,8 +341,11 @@ class DemandChargeCoordinator(DataUpdateCoordinator):
                 return False  # Monday through Friday
 
             # Check if current time is within peak period
-            start_hour, start_minute = map(int, self.start_time.split(":"))
-            end_hour, end_minute = map(int, self.end_time.split(":"))
+            # Handle both "HH:MM" and "HH:MM:SS" formats
+            start_parts = self.start_time.split(":")
+            start_hour, start_minute = int(start_parts[0]), int(start_parts[1])
+            end_parts = self.end_time.split(":")
+            end_hour, end_minute = int(end_parts[0]), int(end_parts[1])
 
             current_minutes = now.hour * 60 + now.minute
             start_minutes = start_hour * 60 + start_minute
