@@ -81,6 +81,12 @@
                         Apply to Days
                         {{ form.peak_days }}
                     </label>
+
+                    <label for="demand_charge_apply_to" style="margin-top: 0.5em;">
+                        {{ form.demand_charge_apply_to.label }}
+                        <small>Choose whether demand charges apply to grid import (buy), solar export (sell), or both</small>
+                        {{ form.demand_charge_apply_to }}
+                    </label>
                 </fieldset>
 
                 <!-- Shoulder Period (Optional) -->
@@ -144,6 +150,19 @@
     {% if current_user.enable_demand_charges %}
     <article>
         <header><strong>Current Configuration</strong></header>
+
+        <p style="font-size: 0.9em;">
+            <strong>Applies to:</strong>
+            {% if current_user.demand_charge_apply_to == 'buy' %}
+                Grid Import (Buy) only
+            {% elif current_user.demand_charge_apply_to == 'sell' %}
+                Solar Export (Sell) only
+            {% elif current_user.demand_charge_apply_to == 'both' %}
+                Both Grid Import and Solar Export
+            {% else %}
+                Grid Import (Buy) only (default)
+            {% endif %}
+        </p>
 
         <table role="grid">
             <thead>
