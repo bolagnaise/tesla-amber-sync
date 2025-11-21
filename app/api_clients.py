@@ -477,6 +477,35 @@ class TeslemetryAPIClient:
             logger.error(f"Error fetching calendar history via Teslemetry: {e}")
             return None
 
+    def get_operation_mode(self, site_id):
+        """
+        Get the current Powerwall operation mode
+
+        Args:
+            site_id: Energy site ID
+
+        Returns:
+            str: Current operation mode ('self_consumption', 'backup', 'autonomous') or None if error
+        """
+        try:
+            logger.info(f"Getting operation mode for site {site_id}")
+            site_info = self.get_site_info(site_id)
+
+            if site_info:
+                mode = site_info.get('default_real_mode')
+                if mode:
+                    logger.info(f"Current operation mode: {mode}")
+                    return mode
+                else:
+                    logger.warning(f"default_real_mode not found in site_info")
+                    return None
+            else:
+                logger.error(f"Failed to get site_info for {site_id}")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting operation mode: {e}")
+            return None
+
     def set_operation_mode(self, site_id, mode):
         """
         Set the Powerwall operation mode

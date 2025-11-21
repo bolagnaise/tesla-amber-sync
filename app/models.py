@@ -55,6 +55,7 @@ class User(UserMixin, db.Model):
     aemo_last_price = db.Column(db.Float)  # Last observed price in $/MWh
     aemo_spike_start_time = db.Column(db.DateTime)  # When current spike started
     aemo_saved_tariff_id = db.Column(db.Integer, db.ForeignKey('saved_tou_profile.id'))  # Tariff to restore after spike
+    aemo_pre_spike_operation_mode = db.Column(db.String(20))  # Operation mode before spike (self_consumption, autonomous, backup)
 
     # Relationships
     price_records = db.relationship('PriceRecord', backref='user', lazy='dynamic')
