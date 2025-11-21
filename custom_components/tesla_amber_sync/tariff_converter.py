@@ -414,7 +414,12 @@ def convert_amber_to_tesla_tariff(
                      sum(1 for rate in demand_charge_rates.values() if rate > 0))
 
     # Create the Tesla tariff structure
-    tariff = _build_tariff_structure(general_prices, feedin_prices, demand_charge_rates)
+    tariff = _build_tariff_structure(
+        general_prices,
+        feedin_prices,
+        demand_charge_rates,
+        demand_charge_apply_to
+    )
 
     return tariff
 
@@ -591,6 +596,7 @@ def _build_tariff_structure(
     general_prices: dict[str, float],
     feedin_prices: dict[str, float],
     demand_charge_rates: dict[str, float] | None = None,
+    demand_charge_apply_to: str = "Buy Only",
 ) -> dict[str, Any]:
     """
     Build the complete Tesla tariff structure.
@@ -599,6 +605,7 @@ def _build_tariff_structure(
         general_prices: Buy prices for all 48 periods
         feedin_prices: Sell prices for all 48 periods
         demand_charge_rates: Demand charge rates for all 48 periods (optional)
+        demand_charge_apply_to: Where to apply demand charges ("Buy Only", "Sell Only", "Both")
 
     Returns:
         Complete Tesla tariff structure
