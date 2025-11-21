@@ -297,8 +297,8 @@ def convert_amber_to_tesla_tariff(
             duration = point.get("duration", 30)  # Get actual interval duration (usually 5 or 30 minutes)
 
             # Price extraction logic:
-            # - ActualInterval (past): SKIP - never use historical actual prices (contain spikes)
-            # - CurrentInterval (now): Use advancedPrice (predicted forecast for current period)
+            # - ActualInterval (past): Use perKwh (actual settled price)
+            # - CurrentInterval (now): Use perKwh (current actual price)
             # - ForecastInterval (future): Use advancedPrice (forecast with user-selected type)
             #
             # advancedPrice includes complete forecast:
@@ -311,38 +311,38 @@ def convert_amber_to_tesla_tariff(
             advanced_price = point.get("advancedPrice")
             interval_type = point.get("type", "unknown")
 
-            # SKIP ActualInterval entirely - never use historical actual prices
-            # (They contain spikes and should not appear in forward-looking tariff)
-            if interval_type == "ActualInterval":
-                _LOGGER.debug("%s [ActualInterval]: Skipping (historical data, not used in forward forecast)", nem_time)
-                continue
-
-            # For ForecastInterval and CurrentInterval: REQUIRE advancedPrice
-            if not advanced_price:
-                error_msg = f"Missing advancedPrice for {interval_type} at {nem_time}. Amber API may be incomplete."
-                _LOGGER.error(error_msg)
-                raise ValueError(error_msg)
-
-            # Handle dict format (standard: {predicted, low, high})
-            if isinstance(advanced_price, dict):
-                if forecast_type not in advanced_price:
-                    available = list(advanced_price.keys())
-                    error_msg = f"Forecast type '{forecast_type}' not found in advancedPrice. Available: {available}"
-                    _LOGGER.error("%s: %s", nem_time, error_msg)
+            # For ForecastInterval: REQUIRE advancedPrice (no fallback)
+            if interval_type == "ForecastInterval":
+                if not advanced_price:
+                    error_msg = f"Missing advancedPrice for ForecastInterval at {nem_time}. Amber API may be incomplete."
+                    _LOGGER.error(error_msg)
                     raise ValueError(error_msg)
 
-                per_kwh_cents = advanced_price[forecast_type]
-                _LOGGER.debug("%s [%s]: advancedPrice.%s=%.2fc/kWh", nem_time, interval_type, forecast_type, per_kwh_cents)
+                # Handle dict format (standard: {predicted, low, high})
+                if isinstance(advanced_price, dict):
+                    if forecast_type not in advanced_price:
+                        available = list(advanced_price.keys())
+                        error_msg = f"Forecast type '{forecast_type}' not found in advancedPrice. Available: {available}"
+                        _LOGGER.error("%s: %s", nem_time, error_msg)
+                        raise ValueError(error_msg)
 
-            # Handle simple number format (legacy)
-            elif isinstance(advanced_price, (int, float)):
-                per_kwh_cents = advanced_price
-                _LOGGER.debug("%s [%s]: advancedPrice=%.2fc/kWh (numeric)", nem_time, interval_type, per_kwh_cents)
+                    per_kwh_cents = advanced_price[forecast_type]
+                    _LOGGER.debug("%s [ForecastInterval]: advancedPrice.%s=%.2fc/kWh", nem_time, forecast_type, per_kwh_cents)
 
+                # Handle simple number format (legacy)
+                elif isinstance(advanced_price, (int, float)):
+                    per_kwh_cents = advanced_price
+                    _LOGGER.debug("%s [ForecastInterval]: advancedPrice=%.2fc/kWh (numeric)", nem_time, per_kwh_cents)
+
+                else:
+                    error_msg = f"Invalid advancedPrice format at {nem_time}: {type(advanced_price).__name__}"
+                    _LOGGER.error(error_msg)
+                    raise ValueError(error_msg)
+
+            # For ActualInterval/CurrentInterval: Use perKwh (actual settled prices)
             else:
-                error_msg = f"Invalid advancedPrice format at {nem_time}: {type(advanced_price).__name__}"
-                _LOGGER.error(error_msg)
-                raise ValueError(error_msg)
+                per_kwh_cents = point.get("perKwh", 0)
+                _LOGGER.debug("%s [%s]: perKwh=%.2fc/kWh (actual)", nem_time, interval_type, per_kwh_cents)
 
             # Amber convention: feedIn prices are negative when you get paid
             # Tesla convention: sell prices are positive when you get paid
@@ -548,23 +548,11 @@ def _build_rolling_24h_tariff(
                 # Tesla restriction: No negative prices
                 general_prices[period_key] = max(0, buy_price)
             else:
-                # Fallback: Use tonight's ForecastInterval as proxy for tomorrow's missing forecast
-                # Only use data if it's a future period (ForecastInterval), never past periods (ActualInterval)
+                # Fallback: Use today's data when tomorrow's not available
                 fallback_key = (today.isoformat(), hour, minute)
                 if fallback_key in general_lookup:
-                    # Only use if this is a future period (tonight's ForecastInterval)
-                    # Past periods would be ActualInterval (contains spikes) - skip them
-                    is_future_period = (hour > current_hour) or (hour == current_hour and minute >= current_minute)
-
-                    if is_future_period:
-                        # Safe to use - this is tonight's ForecastInterval
-                        prices = general_lookup[fallback_key]
-                        general_prices[period_key] = max(0, _round_price(sum(prices) / len(prices)))
-                        _LOGGER.debug("%s: Using tonight's forecast as proxy", period_key)
-                    else:
-                        # Past period - would be ActualInterval, which we skip
-                        general_prices[period_key] = 0
-                        _LOGGER.warning("%s: No tomorrow forecast available, past period fallback skipped (ActualInterval excluded)", period_key)
+                    prices = general_lookup[fallback_key]
+                    general_prices[period_key] = max(0, _round_price(sum(prices) / len(prices)))
                 else:
                     general_prices[period_key] = 0
                     _LOGGER.warning("%s: No price data available", period_key)
@@ -583,26 +571,14 @@ def _build_rolling_24h_tariff(
 
                 feedin_prices[period_key] = sell_price
             else:
-                # Fallback: Use tonight's ForecastInterval as proxy for tomorrow's missing forecast
-                # Only use data if it's a future period (ForecastInterval), never past periods (ActualInterval)
+                # Fallback: Use today's data when tomorrow's not available
                 fallback_key = (today.isoformat(), hour, minute)
                 if fallback_key in feedin_lookup:
-                    # Only use if this is a future period (tonight's ForecastInterval)
-                    # Past periods would be ActualInterval (contains spikes) - skip them
-                    is_future_period = (hour > current_hour) or (hour == current_hour and minute >= current_minute)
-
-                    if is_future_period:
-                        # Safe to use - this is tonight's ForecastInterval
-                        prices = feedin_lookup[fallback_key]
-                        sell_price = max(0, _round_price(sum(prices) / len(prices)))
-                        if period_key in general_prices:
-                            sell_price = min(sell_price, general_prices[period_key])
-                        feedin_prices[period_key] = sell_price
-                        _LOGGER.debug("%s: Using tonight's sell forecast as proxy", period_key)
-                    else:
-                        # Past period - would be ActualInterval, which we skip
-                        feedin_prices[period_key] = 0
-                        _LOGGER.warning("%s: No tomorrow sell forecast available, past period fallback skipped (ActualInterval excluded)", period_key)
+                    prices = feedin_lookup[fallback_key]
+                    sell_price = max(0, _round_price(sum(prices) / len(prices)))
+                    if period_key in general_prices:
+                        sell_price = min(sell_price, general_prices[period_key])
+                    feedin_prices[period_key] = sell_price
                 else:
                     feedin_prices[period_key] = 0
                     _LOGGER.warning("%s: No sell price data available", period_key)
