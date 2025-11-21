@@ -612,12 +612,7 @@ def _build_tariff_structure(
         else {}
     )
 
-    # Sell tariff also gets demand charges (Tesla applies them to both)
-    sell_demand_charges = (
-        {"rates": demand_charge_rates}
-        if demand_charge_rates
-        else {}
-    )
+    # Demand charges only apply to buy rates (grid import), not sell rates (solar export)
 
     tariff = {
         "version": 1,
@@ -658,7 +653,7 @@ def _build_tariff_structure(
             "daily_charges": [{"name": "Charge"}],
             "demand_charges": {
                 "ALL": {"rates": {"ALL": 0}},
-                "Summer": sell_demand_charges,
+                "Summer": {},
                 "Winter": {},
             },
             "energy_charges": {

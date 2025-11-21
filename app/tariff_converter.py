@@ -524,9 +524,7 @@ class AmberTariffConverter:
                             "ALL": 0
                         }
                     },
-                    "Summer": {
-                        "rates": demand_charges_summer
-                    } if demand_charges_summer else {},
+                    "Summer": {},
                     "Winter": {}
                 },
                 "energy_charges": {
