@@ -548,13 +548,28 @@ def _build_rolling_24h_tariff(
                 # Tesla restriction: No negative prices
                 general_prices[period_key] = max(0, buy_price)
             else:
-                # Fallback to current slot (no shifting with START time bucketing)
+                # Fallback: Use tonight's ForecastInterval as proxy for tomorrow's missing forecast
+                # This avoids using historical ActualInterval (which may contain spikes)
                 fallback_key = (today.isoformat(), hour, minute)
                 if fallback_key in general_lookup:
-                    prices = general_lookup[fallback_key]
-                    general_prices[period_key] = max(0, _round_price(sum(prices) / len(prices)))
+                    # Check if this is a future period (ForecastInterval) or past period (ActualInterval)
+                    is_future_period = (hour > current_hour) or (hour == current_hour and minute >= current_minute)
+
+                    if is_future_period:
+                        # Safe to use - this is tonight's ForecastInterval
+                        prices = general_lookup[fallback_key]
+                        general_prices[period_key] = max(0, _round_price(sum(prices) / len(prices)))
+                        _LOGGER.debug("%s: Using tonight's forecast as proxy", period_key)
+                    else:
+                        # Past period - today's ActualInterval, use with caution
+                        # Accept it but log for visibility (user can monitor for spike issues)
+                        prices = general_lookup[fallback_key]
+                        price = _round_price(sum(prices) / len(prices))
+                        general_prices[period_key] = max(0, price)
+                        _LOGGER.info("%s: Using today's actual price as fallback: $%.4f/kWh", period_key, price)
                 else:
                     general_prices[period_key] = 0
+                    _LOGGER.warning("%s: No price data available", period_key)
 
             # Get feedin price (sell price)
             if lookup_key in feedin_lookup:
@@ -570,17 +585,31 @@ def _build_rolling_24h_tariff(
 
                 feedin_prices[period_key] = sell_price
             else:
-                # Fallback to current slot (no shifting with START time bucketing)
+                # Fallback: Use tonight's ForecastInterval as proxy for tomorrow's missing forecast
                 fallback_key = (today.isoformat(), hour, minute)
                 if fallback_key in feedin_lookup:
-                    prices = feedin_lookup[fallback_key]
-                    sell_price = max(0, _round_price(sum(prices) / len(prices)))
-                    # Tesla restriction: sell price cannot exceed buy price
-                    if period_key in general_prices:
-                        sell_price = min(sell_price, general_prices[period_key])
-                    feedin_prices[period_key] = sell_price
+                    # Check if this is a future period (ForecastInterval) or past period (ActualInterval)
+                    is_future_period = (hour > current_hour) or (hour == current_hour and minute >= current_minute)
+
+                    if is_future_period:
+                        # Safe to use - this is tonight's ForecastInterval
+                        prices = feedin_lookup[fallback_key]
+                        sell_price = max(0, _round_price(sum(prices) / len(prices)))
+                        if period_key in general_prices:
+                            sell_price = min(sell_price, general_prices[period_key])
+                        feedin_prices[period_key] = sell_price
+                        _LOGGER.debug("%s: Using tonight's sell forecast as proxy", period_key)
+                    else:
+                        # Past period - today's ActualInterval
+                        prices = feedin_lookup[fallback_key]
+                        sell_price = max(0, _round_price(sum(prices) / len(prices)))
+                        if period_key in general_prices:
+                            sell_price = min(sell_price, general_prices[period_key])
+                        feedin_prices[period_key] = sell_price
+                        _LOGGER.info("%s: Using today's actual sell price as fallback: $%.4f/kWh", period_key, sell_price)
                 else:
                     feedin_prices[period_key] = 0
+                    _LOGGER.warning("%s: No sell price data available", period_key)
 
     return general_prices, feedin_prices
 
