@@ -221,6 +221,7 @@ def convert_amber_to_tesla_tariff(
     demand_charge_rate: float = 0.0,
     demand_charge_start_time: str = "14:00",
     demand_charge_end_time: str = "20:00",
+    demand_charge_apply_to: str = "Buy Only",
 ) -> dict[str, Any] | None:
     """
     Convert Amber price forecast to Tesla tariff format.
@@ -605,14 +606,21 @@ def _build_tariff_structure(
     # Build TOU periods
     tou_periods = _build_tou_periods(general_prices.keys())
 
-    # Use provided demand charges or default to empty
+    # Conditionally apply demand charges based on demand_charge_apply_to setting
+    apply_to_buy = demand_charge_apply_to in ["Buy Only", "Both"]
+    apply_to_sell = demand_charge_apply_to in ["Sell Only", "Both"]
+
     buy_demand_charges = (
         {"rates": demand_charge_rates}
-        if demand_charge_rates
+        if demand_charge_rates and apply_to_buy
         else {}
     )
 
-    # Demand charges only apply to buy rates (grid import), not sell rates (solar export)
+    sell_demand_charges = (
+        {"rates": demand_charge_rates}
+        if demand_charge_rates and apply_to_sell
+        else {}
+    )
 
     tariff = {
         "version": 1,
@@ -653,7 +661,7 @@ def _build_tariff_structure(
             "daily_charges": [{"name": "Charge"}],
             "demand_charges": {
                 "ALL": {"rates": {"ALL": 0}},
-                "Summer": {},
+                "Summer": sell_demand_charges,
                 "Winter": {},
             },
             "energy_charges": {

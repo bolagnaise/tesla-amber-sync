@@ -26,6 +26,7 @@ from .const import (
     CONF_DEMAND_CHARGE_END_TIME,
     CONF_DEMAND_CHARGE_DAYS,
     CONF_DEMAND_CHARGE_BILLING_DAY,
+    CONF_DEMAND_CHARGE_APPLY_TO,
     AMBER_API_BASE_URL,
     TESLEMETRY_API_BASE_URL,
 )
@@ -290,6 +291,7 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_DEMAND_CHARGE_END_TIME: user_input[CONF_DEMAND_CHARGE_END_TIME],
                     CONF_DEMAND_CHARGE_DAYS: user_input[CONF_DEMAND_CHARGE_DAYS],
                     CONF_DEMAND_CHARGE_BILLING_DAY: user_input[CONF_DEMAND_CHARGE_BILLING_DAY],
+                    CONF_DEMAND_CHARGE_APPLY_TO: user_input[CONF_DEMAND_CHARGE_APPLY_TO],
                 })
             else:
                 data[CONF_DEMAND_CHARGE_ENABLED] = False
@@ -310,6 +312,9 @@ class TeslaAmberSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 ),
                 vol.Optional(CONF_DEMAND_CHARGE_BILLING_DAY, default=1): vol.All(
                     vol.Coerce(int), vol.Range(min=1, max=28)
+                ),
+                vol.Optional(CONF_DEMAND_CHARGE_APPLY_TO, default="Buy Only"): vol.In(
+                    ["Buy Only", "Sell Only", "Both"]
                 ),
             }
         )
@@ -375,6 +380,10 @@ class TeslaAmberSyncOptionsFlow(config_entries.OptionsFlow):
             CONF_DEMAND_CHARGE_BILLING_DAY,
             self.config_entry.data.get(CONF_DEMAND_CHARGE_BILLING_DAY, 1)
         )
+        current_apply_to = self.config_entry.options.get(
+            CONF_DEMAND_CHARGE_APPLY_TO,
+            self.config_entry.data.get(CONF_DEMAND_CHARGE_APPLY_TO, "Buy Only")
+        )
 
         return self.async_show_form(
             step_id="init",
@@ -416,6 +425,10 @@ class TeslaAmberSyncOptionsFlow(config_entries.OptionsFlow):
                         CONF_DEMAND_CHARGE_BILLING_DAY,
                         default=current_billing_day,
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=28)),
+                    vol.Optional(
+                        CONF_DEMAND_CHARGE_APPLY_TO,
+                        default=current_apply_to,
+                    ): vol.In(["Buy Only", "Sell Only", "Both"]),
                 }
             ),
         )

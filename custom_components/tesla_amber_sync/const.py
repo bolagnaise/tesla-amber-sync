@@ -20,6 +20,7 @@ CONF_DEMAND_CHARGE_START_TIME = "demand_charge_start_time"
 CONF_DEMAND_CHARGE_END_TIME = "demand_charge_end_time"
 CONF_DEMAND_CHARGE_DAYS = "demand_charge_days"
 CONF_DEMAND_CHARGE_BILLING_DAY = "demand_charge_billing_day"
+CONF_DEMAND_CHARGE_APPLY_TO = "demand_charge_apply_to"
 
 # Data coordinator update intervals
 UPDATE_INTERVAL_PRICES = timedelta(minutes=5)  # Amber updates every 5 minutes

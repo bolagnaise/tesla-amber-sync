@@ -452,9 +452,20 @@ class AmberTariffConverter:
 
         # Build demand charges if enabled
         demand_charges_summer = {}
+        demand_charges_sell = {}
         if user and user.enable_demand_charges:
             # Ensure demand charges match the exact periods that exist in general_prices
-            demand_charges_summer = self._build_demand_charge_rates(user, general_prices.keys())
+            base_demand_charges = self._build_demand_charge_rates(user, general_prices.keys())
+
+            # Determine where to apply demand charges based on user setting
+            apply_to = getattr(user, 'demand_charge_apply_to', 'buy') or 'buy'
+            apply_to_buy = apply_to in ['buy', 'both']
+            apply_to_sell = apply_to in ['sell', 'both']
+
+            if apply_to_buy:
+                demand_charges_summer = base_demand_charges
+            if apply_to_sell:
+                demand_charges_sell = base_demand_charges
 
         # Set tariff metadata
         code = "TESLA_SYNC:AMBER:AMBER"
@@ -524,7 +535,9 @@ class AmberTariffConverter:
                             "ALL": 0
                         }
                     },
-                    "Summer": {},
+                    "Summer": {
+                        "rates": demand_charges_sell
+                    } if demand_charges_sell else {},
                     "Winter": {}
                 },
                 "energy_charges": {

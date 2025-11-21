@@ -270,6 +270,7 @@ def demand_charges():
         current_user.peak_end_hour = form.peak_end_hour.data if form.peak_end_hour.data is not None else 20
         current_user.peak_end_minute = form.peak_end_minute.data if form.peak_end_minute.data is not None else 0
         current_user.peak_days = form.peak_days.data
+        current_user.demand_charge_apply_to = form.demand_charge_apply_to.data
         current_user.offpeak_demand_rate = form.offpeak_rate.data if form.offpeak_rate.data else 0.0
         current_user.shoulder_demand_rate = form.shoulder_rate.data if form.shoulder_rate.data else 0.0
         current_user.shoulder_start_hour = form.shoulder_start_hour.data if form.shoulder_start_hour.data is not None else 7
@@ -297,6 +298,7 @@ def demand_charges():
     form.peak_end_hour.data = current_user.peak_end_hour
     form.peak_end_minute.data = current_user.peak_end_minute
     form.peak_days.data = current_user.peak_days
+    form.demand_charge_apply_to.data = current_user.demand_charge_apply_to or 'buy'
     form.offpeak_rate.data = current_user.offpeak_demand_rate
     form.shoulder_rate.data = current_user.shoulder_demand_rate
     form.shoulder_start_hour.data = current_user.shoulder_start_hour

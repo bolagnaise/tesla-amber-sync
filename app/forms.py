@@ -64,6 +64,11 @@ class DemandChargeForm(FlaskForm):
         ('all', 'All Days'),
         ('weekends', 'Weekends Only')
     ], default='weekdays')
+    demand_charge_apply_to = SelectField('Apply Demand Charges To', choices=[
+        ('buy', 'Buy Only (Grid Import)'),
+        ('sell', 'Sell Only (Solar Export)'),
+        ('both', 'Both Buy and Sell')
+    ], default='buy')
 
     # Off-peak demand period
     offpeak_rate = DecimalField('Off-Peak Rate ($/kW)', validators=[Optional(), NumberRange(min=0)], places=4, default=0)

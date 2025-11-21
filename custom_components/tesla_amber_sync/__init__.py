@@ -27,6 +27,7 @@ from .const import (
     CONF_DEMAND_CHARGE_END_TIME,
     CONF_DEMAND_CHARGE_DAYS,
     CONF_DEMAND_CHARGE_BILLING_DAY,
+    CONF_DEMAND_CHARGE_APPLY_TO,
     SERVICE_SYNC_TOU,
     SERVICE_SYNC_NOW,
     TESLEMETRY_API_BASE_URL,
@@ -357,13 +358,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             CONF_DEMAND_CHARGE_END_TIME,
             entry.data.get(CONF_DEMAND_CHARGE_END_TIME, "20:00")
         )
+        demand_charge_apply_to = entry.options.get(
+            CONF_DEMAND_CHARGE_APPLY_TO,
+            entry.data.get(CONF_DEMAND_CHARGE_APPLY_TO, "Buy Only")
+        )
 
         if demand_charge_enabled:
             _LOGGER.info(
-                "Demand charges enabled: $%.2f/kW from %s to %s",
+                "Demand charges enabled: $%.2f/kW from %s to %s (applied to: %s)",
                 demand_charge_rate,
                 demand_charge_start_time,
                 demand_charge_end_time,
+                demand_charge_apply_to,
             )
 
         # Convert prices to Tesla tariff format
@@ -377,6 +383,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             demand_charge_rate=demand_charge_rate,
             demand_charge_start_time=demand_charge_start_time,
             demand_charge_end_time=demand_charge_end_time,
+            demand_charge_apply_to=demand_charge_apply_to,
         )
 
         if not tariff:

@@ -37,6 +37,7 @@ class User(UserMixin, db.Model):
     peak_end_hour = db.Column(db.Integer, default=20)
     peak_end_minute = db.Column(db.Integer, default=0)
     peak_days = db.Column(db.String(20), default='weekdays')  # 'weekdays', 'all', 'weekends'
+    demand_charge_apply_to = db.Column(db.String(20), default='buy')  # 'buy', 'sell', 'both'
     offpeak_demand_rate = db.Column(db.Float, default=0.0)
     shoulder_demand_rate = db.Column(db.Float, default=0.0)
     shoulder_start_hour = db.Column(db.Integer, default=7)
