@@ -138,10 +138,10 @@ def create_app(config_class=Config):
             replace_existing=True
         )
 
-        # Add job to monitor AEMO prices every 5 minutes for spike detection
+        # Add job to monitor AEMO prices every 1 minute for spike detection (more responsive to price spikes)
         scheduler.add_job(
             func=run_monitor_aemo_prices,
-            trigger=CronTrigger(minute='*/5', second='35'),
+            trigger=CronTrigger(minute='*', second='35'),
             id='monitor_aemo_prices',
             name='Monitor AEMO NEM prices for spike detection',
             replace_existing=True
@@ -153,7 +153,7 @@ def create_app(config_class=Config):
         logger.info("  - TOU sync will run every 5 minutes at :35 seconds (ensures AEMO ActualInterval data is available)")
         logger.info("  - Price history collection will run every 5 minutes at :35 seconds")
         logger.info("  - Energy usage logging will run every minute (Teslemetry allows 1/min)")
-        logger.info("  - AEMO price monitoring will run every 5 minutes at :35 seconds for spike detection")
+        logger.info("  - AEMO price monitoring will run every 1 minute at :35 seconds for spike detection")
 
         # Shut down the scheduler and release lock when exiting the app
         def cleanup():
